@@ -542,6 +542,7 @@ document.addEventListener("DOMContentLoaded",function(){
 const SB_URL='https://mopoupijvoownusuaurt.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vcG91cGlqdm9vd251c3VhdXJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5ODcwNjIsImV4cCI6MjA5NTU2MzA2Mn0.bxFx1QA1Bea6SG5vSRNnhL1BjM6gFRHeONDgEhM1nJw';
 let sb;
+try{sb=supabase.createClient(SB_URL,SB_KEY);}catch(e){console.error('Supabase init failed:',e);}
 
 const RARITIES=['Common','Uncommon','Rare','Epic','Legendary','Mythic','Ancient','Celestial'];
 const RARITY_COLORS=['#9ca3af','#34d399','#60a5fa','#a78bfa','#f59e0b','#ec4899','#f97316','#c7d2fe'];
@@ -607,15 +608,14 @@ function hpColor(pct){return pct>50?'#22c55e':pct>25?'#f59e0b':'#ef4444';}
 // ── AUTH ──────────────────────────────────────────────
 window.addEventListener('load',()=>{
   try{
-    sb=supabase.createClient(SB_URL,SB_KEY);
+    if(!sb)sb=supabase.createClient(SB_URL,SB_KEY);
     const b=document.getElementById('theme-btn');
     if(b)b.textContent=document.body.classList.contains('light')?'🌙':'☀️';
-  }catch(e){
-    console.error('Supabase init error:',e);
-  }
+  }catch(e){console.error('Load error:',e);}
 });
 
 async function login(){
+  if(!sb){setErr('Still connecting — please wait a moment and try again');return;}
   const user=document.getElementById('li-user').value.trim();
   const pin=document.getElementById('li-pin').value.trim();
   if(!user||!pin){setErr('Enter username and PIN');return;}
