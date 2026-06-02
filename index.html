@@ -141,13 +141,22 @@ body.light .ability-btn{color:#1a1a1a;}
 <body>
 <div class="app">
 
-<div id="loading-screen" class="loading-screen">
+<div id="loading-screen" class="loading-screen" style="display:none;">
   <div class="spinner" style="width:24px;height:24px;border-width:3px;"></div>
   <span style="color:var(--text3);">Loading...</span>
 </div>
+<script>
+// Hide loading immediately once DOM is ready - runs before anything else
+document.addEventListener("DOMContentLoaded",function(){
+  var ls=document.getElementById("loading-screen");
+  var li=document.getElementById("login-screen");
+  if(ls)ls.style.display="none";
+  if(li)li.style.display="block";
+});
+</script>
 
 <!-- LOGIN -->
-<div id="login-screen" style="display:none;">
+<div id="login-screen">
   <div class="login-wrap">
     <h2 style="margin-bottom:0.25rem;">⚔️ Battle Card Game</h2>
     <p style="font-size:13px;color:var(--text3);margin-bottom:1.5rem;">Sign in or create your account</p>
@@ -599,12 +608,10 @@ function hpColor(pct){return pct>50?'#22c55e':pct>25?'#f59e0b':'#ef4444';}
 window.addEventListener('load',()=>{
   try{
     sb=supabase.createClient(SB_URL,SB_KEY);
-    document.getElementById('loading-screen').style.display='none';
-    document.getElementById('login-screen').style.display='block';
     const b=document.getElementById('theme-btn');
     if(b)b.textContent=document.body.classList.contains('light')?'🌙':'☀️';
   }catch(e){
-    document.getElementById('loading-screen').innerHTML='<div style="color:red;padding:2rem;text-align:center;"><h3>Error loading game</h3><p style="margin-top:1rem;">'+e.message+'</p><button onclick="location.reload()" style="margin-top:1rem;padding:8px 18px;cursor:pointer;">Refresh</button></div>';
+    console.error('Supabase init error:',e);
   }
 });
 
@@ -1176,14 +1183,14 @@ async function loadIncoming(){
   updateBattleBadge(data.length);
   el.innerHTML=data.map((b)=>{
     const st=typeof b.state==='string'?JSON.parse(b.state):b.state;
-    const size=QUEUE_SIZES[st.queue||1];
+    const size=QUEUE_SIZES[st.queue!==undefined?st.queue:1];
     const safeId=btoa(encodeURIComponent(b.id)).replace(/=/g,'');
     return `<div class="row-item" style="gap:8px;">
       <div>
         <div style="font-size:14px;font-weight:600;">⚔️ ${b.player1}</div>
         <div style="font-size:12px;color:var(--text3);">${size}v${size} battle challenge</div>
       </div>
-      <button class="btn btn-green btn-sm" data-battleid="${safeId}" data-queue="${st.queue||1}" onclick="acceptFromBtn(this)">Accept</button>
+      <button class="btn btn-green btn-sm" data-battleid="${safeId}" data-queue="${st.queue!==undefined?st.queue:1}" onclick="acceptFromBtn(this)">Accept</button>
     </div>`;
   }).join('');
 }
@@ -1212,7 +1219,7 @@ function updateBattleBadge(count){
 let _pendingAcceptBattleId=null;
 
 async function acceptChallenge(battleId,q){
-  selectedQueue=q||1;const size=QUEUE_SIZES[selectedQueue];
+  selectedQueue=q!==undefined?q:1;const size=QUEUE_SIZES[selectedQueue];
   _pendingAcceptBattleId=battleId;
   selectedTeam=[];
   const{data:myCards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
@@ -1242,7 +1249,7 @@ async function confirmAccept(){
   if(poolIds.length){const{data:pcs}=await sb.from('pool_cards').select('id,moves').in('id',poolIds);(pcs||[]).forEach(pc=>{poolMovesMap[pc.id]=pc.moves||[];});}
   const buildF=c=>({uid:c.uid,name:c.name,class_name:c.class_name,rarity:c.rarity,element:c.element||'neutral',atk:c.atk,def:c.def,hp:c.max_hp||c.hp,maxHp:c.max_hp||c.hp,stamina:c.stamina||50,maxStamina:c.max_stamina||100,staminaRegen:c.stamina_regen||25,crit:c.crit_chance||0.1,dodge:c.dodge_chance||0.05,unlockedMoves:c.unlocked_moves||[],level:c.level,pool_card_id:c.pool_card_id||null,image_url:c.image_url||null,dot:0,dotTurns:0,shielded:false,shieldPct:0,speedBuff:false,defeated:false});
   const st=typeof b.state==='string'?JSON.parse(b.state):b.state;
-  const state={fighters1:(t1||[]).map(buildF),fighters2:(t2||[]).map(buildF),active1:null,active2:null,turn:b.player1,phase:'pick1',log:[`🏟️ Battle! ${b.player1} vs ${currentUser.id}`],winner:null,usedUids:[],poolMoves:poolMovesMap,queue:st.queue||1};
+  const state={fighters1:(t1||[]).map(buildF),fighters2:(t2||[]).map(buildF),active1:null,active2:null,turn:b.player1,phase:'pick1',log:[`🏟️ Battle! ${b.player1} vs ${currentUser.id}`],winner:null,usedUids:[],poolMoves:poolMovesMap,queue:st.queue!==undefined?st.queue:1};
   await sb.from('live_battles').update({team2:selectedTeam,state:JSON.stringify(state),status:'active'}).eq('id',battleId);
   selectedTeam=[];_pendingAcceptBattleId=null;
   const{data:updated}=await sb.from('live_battles').select('*').eq('id',battleId).single();
