@@ -1157,41 +1157,6 @@ async function debugAllBattles(){
     `${b.player1} → ${b.player2} [${b.status}] ${b.player2===currentUser.id?'✅ FOR YOU':''}`
   ).join('<br>');
 }
-  const el=document.getElementById('incoming-list');if(!el)return;
-  const{data,error}=await sb.from('live_battles').select('*').eq('player2',currentUser.id).eq('status','waiting');
-  // Show debug info visibly on screen
-  const debugEl=document.getElementById('incoming-debug');
-  if(debugEl){
-    if(error)debugEl.textContent=`Error: ${error.message}`;
-    else debugEl.textContent=`Checking as "${currentUser.id}" — found ${data?data.length:0} challenge(s). Last check: ${new Date().toLocaleTimeString()}`;
-  }
-  if(error)return;
-  if(!data||!data.length){
-    el.innerHTML='<div class="empty">No challenges</div>';
-    updateBattleBadge(0);_lastIncomingCount=0;return;
-  }
-  if(!data||!data.length){
-    el.innerHTML='<div class="empty">No challenges</div>';
-    updateBattleBadge(0);_lastIncomingCount=0;return;
-  }
-  // Toast if new challenge arrived
-  if(data.length>_lastIncomingCount&&_lastIncomingCount>=0){
-    showToast('⚔️ New battle challenge!');
-  }
-  _lastIncomingCount=data.length;
-  updateBattleBadge(data.length);
-  el.innerHTML=data.map((b)=>{
-    const st=typeof b.state==='string'?JSON.parse(b.state):b.state;
-    const size=QUEUE_SIZES[st.queue||1];
-    const safeId=btoa(encodeURIComponent(b.id)).replace(/=/g,'');
-    return `<div class="row-item" style="gap:8px;">
-      <div>
-        <div style="font-size:14px;font-weight:600;">⚔️ ${b.player1}</div>
-        <div style="font-size:12px;color:var(--text3);">${size}v${size} battle challenge</div>
-      </div>
-      <button class="btn btn-green btn-sm" data-battleid="${safeId}" data-queue="${st.queue||1}" onclick="acceptFromBtn(this)">Accept</button>
-    </div>`;
-  }).join('');
 
 async function loadIncoming(){
   const el=document.getElementById('incoming-list');if(!el)return;
@@ -1199,7 +1164,7 @@ async function loadIncoming(){
   const debugEl=document.getElementById('incoming-debug');
   if(debugEl){
     if(error)debugEl.textContent=`Error: ${error.message}`;
-    else debugEl.textContent=`Checking as "${currentUser.id}" — found ${data?data.length:0} challenge(s). ${new Date().toLocaleTimeString()}`;
+    else debugEl.textContent=`Checking as "${currentUser.id}" — ${data?data.length:0} challenge(s). ${new Date().toLocaleTimeString()}`;
   }
   if(error)return;
   if(!data||!data.length){
