@@ -532,7 +532,7 @@ body.light .ability-btn{color:#1a1a1a;}
 <script>
 const SB_URL='https://mopoupijvoownusuaurt.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vcG91cGlqdm9vd251c3VhdXJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5ODcwNjIsImV4cCI6MjA5NTU2MzA2Mn0.bxFx1QA1Bea6SG5vSRNnhL1BjM6gFRHeONDgEhM1nJw';
-const sb=supabase.createClient(SB_URL,SB_KEY);
+let sb;
 
 const RARITIES=['Common','Uncommon','Rare','Epic','Legendary','Mythic','Ancient','Celestial'];
 const RARITY_COLORS=['#9ca3af','#34d399','#60a5fa','#a78bfa','#f59e0b','#ec4899','#f97316','#c7d2fe'];
@@ -597,10 +597,15 @@ function hpColor(pct){return pct>50?'#22c55e':pct>25?'#f59e0b':'#ef4444';}
 
 // ── AUTH ──────────────────────────────────────────────
 window.addEventListener('load',()=>{
-  document.getElementById('loading-screen').style.display='none';
-  document.getElementById('login-screen').style.display='block';
-  const b=document.getElementById('theme-btn');
-  if(b)b.textContent=document.body.classList.contains('light')?'🌙':'☀️';
+  try{
+    sb=supabase.createClient(SB_URL,SB_KEY);
+    document.getElementById('loading-screen').style.display='none';
+    document.getElementById('login-screen').style.display='block';
+    const b=document.getElementById('theme-btn');
+    if(b)b.textContent=document.body.classList.contains('light')?'🌙':'☀️';
+  }catch(e){
+    document.getElementById('loading-screen').innerHTML='<div style="color:red;padding:2rem;text-align:center;"><h3>Error loading game</h3><p style="margin-top:1rem;">'+e.message+'</p><button onclick="location.reload()" style="margin-top:1rem;padding:8px 18px;cursor:pointer;">Refresh</button></div>';
+  }
 });
 
 async function login(){
