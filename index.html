@@ -88,7 +88,7 @@ body.light .ability-btn{color:#1a1a1a;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;align-items:center;justify-content:center;}
 .modal-overlay.open{display:flex;}
-.modal{background:var(--modal-bg);border-radius:12px;border:1px solid var(--border2);padding:1.25rem;width:460px;max-width:95vw;max-height:90vh;overflow-y:auto;}
+.modal{background:var(--modal-bg);border-radius:12px;border:1px solid var(--border2);padding:1.25rem;width:480px;max-width:95vw;max-height:90vh;overflow-y:auto;}
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:1rem;}
 .stat-box{background:var(--stat-box);border-radius:8px;padding:8px 10px;}
 .stat-box .lbl{font-size:11px;color:var(--text3);}
@@ -1720,15 +1720,47 @@ async function openModal(uid){
   document.getElementById('m-xpbar').style.width=pct+'%';
   document.getElementById('m-xptext').textContent=`${c.xp} / ${needed} XP`;
 
-  // Moves
+  // Moves — Pokémon card style
   let movesHTML='';
   if(c.pool_card_id){
     const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',c.pool_card_id).single();
     if(pc&&pc.moves){
       const ul=c.unlocked_moves||[];
+      const unlocked=pc.moves.filter(m=>ul.includes(m.name));
       const locked=pc.moves.filter(m=>!ul.includes(m.name)&&(m.unlock_level||1)>1);
-      movesHTML=ul.map(n=>{const m=pc.moves.find(x=>x.name===n)||{name:n,type:'attack'};return`<span class="ability-tag">${MOVE_ICONS[m.type]||'⚔️'} ${n} <span style="color:var(--text4);font-size:10px;">(${MOVE_LABELS[m.type]||m.type})</span></span>`;}).join('');
-      if(locked.length)movesHTML+=`<div style="font-size:11px;color:var(--text4);margin-top:6px;">🔒 ${locked.map(m=>`${m.name} unlocks at Lv${m.unlock_level}`).join(' · ')}</div>`;
+      movesHTML=unlocked.map(m=>{
+        const typeColor={attack:'#3b82f6',heavy:'#ef4444',heal:'#22c55e',shield:'#f59e0b',dot:'#f97316',multi:'#8b5cf6',power:'#ec4899',combo:'#06b6d4',speed:'#84cc16'}[m.type]||'#6b7280';
+        const dmgLabel=m.type==='heal'?`+${m.value} HP`:m.type==='shield'?`${m.value}% block`:m.type==='speed'?'Dodge ×2':m.type==='dot'?`${Math.round(m.value/3)}/turn`:m.value?`${m.value} dmg`:'—';
+        return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:16px;">${MOVE_ICONS[m.type]||'⚔️'}</span>
+              <span style="font-size:14px;font-weight:700;">${m.name}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600;background:${typeColor}22;color:${typeColor};border:1px solid ${typeColor}44;">${MOVE_LABELS[m.type]||m.type}</span>
+              <span style="font-size:14px;font-weight:700;color:${typeColor};">${dmgLabel}</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-size:12px;color:var(--text3);line-height:1.4;">${m.desc||''}</div>
+            <div style="font-size:11px;color:#f59e0b;white-space:nowrap;margin-left:8px;">⚡ ${m.stamina_cost||0} stamina</div>
+          </div>
+        </div>`;
+      }).join('');
+      if(locked.length){
+        movesHTML+=`<div style="margin-top:4px;">
+          ${locked.map(m=>`<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;opacity:0.5;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:16px;">🔒</span>
+                <span style="font-size:14px;font-weight:700;">${m.name}</span>
+              </div>
+              <span style="font-size:11px;color:var(--text3);">Unlocks at Lv ${m.unlock_level}</span>
+            </div>
+          </div>`).join('')}
+        </div>`;
+      }
     }
   }
   document.getElementById('m-moves').innerHTML=movesHTML||'<span style="color:var(--text4);">No moves</span>';
@@ -1752,6 +1784,7 @@ async function combineDuplicate(keepUid,sacrificeUid,cost){
   if((currentUser.money||0)<cost){showToast(`Need $${cost} to combine`);return;}
   const xpBonus=200+(50*currentModalCard.rarity);
   let{xp,level,atk,def,max_hp,unlocked_moves}={...currentModalCard,unlocked_moves:currentModalCard.unlocked_moves||[]};
+  const oldLevel=level;
   xp+=xpBonus;
   while(xp>=xpForCard(level)){xp-=xpForCard(level);level++;atk=Math.round(atk*RARITY_STAT_MULT[currentModalCard.rarity]);def=Math.round(def*RARITY_STAT_MULT[currentModalCard.rarity]);max_hp=Math.round((max_hp||100)*(1+(RARITY_STAT_MULT[currentModalCard.rarity]-1)*0.7));}
   await sb.from('player_cards').update({xp,level,atk,def,max_hp,unlocked_moves}).eq('uid',keepUid);
@@ -1759,8 +1792,11 @@ async function combineDuplicate(keepUid,sacrificeUid,cost){
   const nm=(currentUser.money||0)-cost;
   await sb.from('users').update({money:nm}).eq('id',currentUser.id);
   currentUser.money=nm;updateHUD();
-  showToast(`Combined! +${xpBonus} XP${level>currentModalCard.level?' — Level up!':''}`);
-  closeModal();renderMyCards();
+  showToast(`Combined! +${xpBonus} XP${level>oldLevel?` — Level ${level}!`:''}`);
+  closeModal();
+  await renderMyCards();
+  // Reopen modal with fresh data so XP bar reflects the change
+  openModal(keepUid);
 }
 
 function closeModal(){document.getElementById('card-modal').classList.remove('open');currentModalCard=null;}
