@@ -109,8 +109,8 @@ body.light .ability-btn{color:#1a1a1a;}
 .fighter-card.dot{border-color:#f97316;}
 .fighter-card.targetable{cursor:pointer;border-color:#f59e0b;}
 .fighter-card.targetable:hover{border-color:#fbbf24;background:#2d2000;}
-.fighter-img{width:100%;height:70px;object-fit:cover;border-radius:6px;margin-bottom:5px;}
-.fighter-img-ph{width:100%;height:50px;display:flex;align-items:center;justify-content:center;font-size:22px;background:var(--bg3);border-radius:6px;margin-bottom:5px;}
+.fighter-img{width:100%;height:90px;object-fit:contain;border-radius:6px;margin-bottom:5px;background:var(--bg3);}
+.fighter-img-ph{width:100%;height:90px;display:flex;align-items:center;justify-content:center;font-size:22px;background:var(--bg3);border-radius:6px;margin-bottom:5px;}
 .battle-log-box{background:var(--log-bg);border:1px solid var(--border);border-radius:10px;padding:10px;max-height:160px;overflow-y:auto;}
 .turn-bar{text-align:center;padding:8px;font-size:14px;font-weight:700;border-radius:8px;margin-bottom:8px;}
 .turn-yours{background:#0c2340;color:#93c5fd;border:1px solid #1e40af;}
@@ -928,7 +928,7 @@ async function openPack(pt){
   const html=drawn.map(c=>{
     const col=classColor(c.class_name);
     return `<div style="flex:1;min-width:130px;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center;">
-      ${c.image_url?`<img style="width:100%;height:80px;object-fit:cover;border-radius:8px;margin-bottom:6px;" src="${c.image_url}">`:`<div style="font-size:32px;margin-bottom:6px;">${classEmoji(c.class_name)}</div>`}
+      ${c.image_url?`<img style="width:100%;height:140px;object-fit:contain;border-radius:8px;margin-bottom:6px;background:var(--bg3);" src="${c.image_url}">``:`<div style="font-size:32px;margin-bottom:6px;">${classEmoji(c.class_name)}</div>`}
       <div style="font-size:13px;font-weight:700;">${c.name}</div>
       <div style="font-size:11px;font-weight:600;color:${RARITY_COLORS[c.rarity]};margin:3px 0;">${RARITIES[c.rarity]}</div>
       <span class="cat-badge" style="background:${col.bg};color:${col.fg};">${c.class_name}</span>
@@ -1710,7 +1710,7 @@ async function openModal(uid){
   if(!c)return;currentModalCard=c;
   const needed=xpForCard(c.level);const pct=Math.min(100,Math.round((c.xp/needed)*100));
   const col=classColor(c.class_name);
-  document.getElementById('m-img-wrap').innerHTML=c.image_url?`<img src="${c.image_url}" style="width:100%;height:130px;object-fit:cover;border-radius:8px;">`:`<div style="width:100%;height:80px;display:flex;align-items:center;justify-content:center;font-size:40px;background:var(--bg3);border-radius:8px;">${classEmoji(c.class_name)}</div>`;
+  document.getElementById('m-img-wrap').innerHTML=c.image_url?`<img src="${c.image_url}" style="width:100%;height:180px;object-fit:contain;border-radius:8px;background:var(--bg3);">`:`<div style="width:100%;height:180px;display:flex;align-items:center;justify-content:center;font-size:48px;background:var(--bg3);border-radius:8px;">${classEmoji(c.class_name)}</div>`;
   document.getElementById('m-name').textContent=c.name;
   document.getElementById('m-meta').innerHTML=`<span class="cat-badge" style="background:${col.bg};color:${col.fg};">${c.class_name}</span> <span style="color:${RARITY_COLORS[c.rarity]};font-weight:600;margin-left:6px;">${RARITIES[c.rarity]}</span>`;
   document.getElementById('m-atk').textContent=c.atk||'—';
