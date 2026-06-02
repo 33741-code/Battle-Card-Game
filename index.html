@@ -1197,7 +1197,7 @@ async function loadIncoming(){
 
 function acceptFromBtn(btn){
   const safeId=btn.dataset.battleid;
-  const q=parseInt(btn.dataset.queue)||1;
+  const q=btn.dataset.queue!==undefined?parseInt(btn.dataset.queue):1;
   let battleId;
   try{battleId=decodeURIComponent(atob(safeId));}catch(e){showToast('Error reading challenge');return;}
   acceptChallenge(battleId,q);
