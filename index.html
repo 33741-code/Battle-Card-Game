@@ -556,8 +556,28 @@ const PACK_COSTS=[100,500,1750];
 const RARITY_XP_MULT=[1.0,1.15,1.35,1.6,1.9,2.2,2.6,3.0];
 const RARITY_STAT_MULT=[1.04,1.07,1.10,1.13,1.16,1.20,1.24,1.28];
 const TYPE_CHART={fire:{ice:1.5,earth:1.3,wind:1.2,water:0.5,fire:0.7},ice:{earth:1.4,fire:0.5,lightning:0.8,ice:0.7,wind:1.2},lightning:{water:1.6,ice:1.2,earth:0.6,lightning:0.7},earth:{fire:1.3,lightning:1.4,ice:0.8,earth:0.7,wind:0.8},dark:{light:1.5,neutral:1.1,dark:0.5,void:0.8},light:{dark:1.5,void:1.3,light:0.6},water:{fire:1.5,earth:1.2,lightning:0.8,water:0.7},wind:{earth:1.3,lightning:1.2,wind:0.7},void:{light:1.4,neutral:1.2,void:0.5},neutral:{}};
-const MOVE_ICONS={attack:'⚔️',heavy:'💥',heal:'💚',shield:'🛡️',dot:'🔥',multi:'🌀',power:'⚡',combo:'🎯',speed:'💨'};
-const MOVE_LABELS={attack:'Attack',heavy:'Heavy Attack',heal:'Heal',shield:'Shield',dot:'Damage-over-Time',multi:'Multi-hit',power:'Power Move',combo:'Combo',speed:'Speed Boost'};
+const MOVE_ICONS={attack:'⚔️',heavy:'💥',heal:'💚',shield:'🛡️',dot:'🔥',multi:'🌀',power:'⚡',combo:'🎯',speed:'💨',aoe:'💣',lifesteal:'🩸',stamina_steal:'⚡🔻',taunt:'😤',curse:'🌀',counter:'🔄',execute:'💀'};
+const MOVE_LABELS={attack:'Attack',heavy:'Heavy Attack',heal:'Heal',shield:'Shield',dot:'Damage-over-Time',multi:'Multi-hit',power:'Power Move',combo:'Combo',speed:'Speed Boost',aoe:'AOE (hits all enemies)',lifesteal:'Life Steal',stamina_steal:'Stamina Steal',taunt:'Taunt',curse:'Curse',counter:'Counter',execute:'Execute'};
+
+// Move type field definitions — what extra fields each type needs
+const MOVE_FIELDS={
+  attack:    [{key:'value',label:'Damage',type:'number',ph:'50'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'25'}],
+  heavy:     [{key:'value',label:'Damage',type:'number',ph:'100'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'60'}],
+  heal:      [{key:'value',label:'HP Restored',type:'number',ph:'50'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'20'}],
+  shield:    [{key:'value',label:'Block % (0-100)',type:'number',ph:'75'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'0'},{key:'shield_turns',label:'Lasts (turns)',type:'number',ph:'1'}],
+  dot:       [{key:'value',label:'Total Damage',type:'number',ph:'90'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'35'},{key:'dot_turns',label:'Turns',type:'number',ph:'3'}],
+  multi:     [{key:'value',label:'Damage per Hit',type:'number',ph:'25'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'45'},{key:'hits_min',label:'Min Hits',type:'number',ph:'2'},{key:'hits_max',label:'Max Hits',type:'number',ph:'4'}],
+  power:     [{key:'value',label:'Damage',type:'number',ph:'180'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'100'}],
+  combo:     [{key:'value',label:'Base Damage',type:'number',ph:'70'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'50'},{key:'combo_chance',label:'Combo Chance (0-1)',type:'number',ph:'0.4',step:'0.05'},{key:'combo_mult',label:'Combo Multiplier',type:'number',ph:'1.5',step:'0.1'}],
+  speed:     [{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'0'},{key:'dodge_mult',label:'Dodge Multiplier',type:'number',ph:'2',step:'0.1'}],
+  aoe:       [{key:'value',label:'Damage per Target',type:'number',ph:'40'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'80'}],
+  lifesteal: [{key:'value',label:'Damage Dealt',type:'number',ph:'60'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'45'},{key:'steal_pct',label:'% Stolen as HP (0-1)',type:'number',ph:'0.5',step:'0.05'}],
+  stamina_steal:[{key:'value',label:'Damage',type:'number',ph:'30'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'30'},{key:'steal_stamina',label:'Stamina Stolen',type:'number',ph:'25'}],
+  taunt:     [{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'0'},{key:'taunt_turns',label:'Lasts (turns)',type:'number',ph:'2'}],
+  curse:     [{key:'value',label:'Stat Reduction %',type:'number',ph:'20'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'40'},{key:'curse_turns',label:'Turns',type:'number',ph:'3'}],
+  counter:   [{key:'value',label:'Counter Damage %',type:'number',ph:'150'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'30'}],
+  execute:   [{key:'value',label:'Damage',type:'number',ph:'120'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'90'},{key:'execute_threshold',label:'Instakill below HP%',type:'number',ph:'20'}]
+};
 const QUEUE_SIZES={0:1,1:3,2:5};
 
 let currentUser=null,allUsers=[],battleSub=null,incomingSub=null,incomingPoll=null,currentBattle=null,selectedTeam=[],selectedQueue=1,_lastIncomingCount=0;
@@ -739,10 +759,28 @@ function adminTab(name,btn){
 }
 
 // ── MOVE BLOCKS ────────────────────────────────────────
-function addMoveBlock(containerId, defaultUnlockLevel){
-  const c=document.getElementById(containerId);
+function moveTypeOptions(selected){
+  return Object.keys(MOVE_LABELS).map(t=>`<option value="${t}"${t===selected?' selected':''}>${MOVE_ICONS[t]||'⚔️'} ${MOVE_LABELS[t]}</option>`).join('');
+}
+
+function renderMoveFields(block, type, existing){
+  const fields=MOVE_FIELDS[type]||MOVE_FIELDS.attack;
+  const container=block.querySelector('.mv-extra-fields');
+  if(!container)return;
+  container.innerHTML=`<div style="grid-column:1/-1;font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">${MOVE_LABELS[type]||type} fields</div>`+fields.map(f=>{
+    const val=existing&&existing[f.key]!==undefined?existing[f.key]:'';
+    return `<div class="field">
+      <label>${f.label}</label>
+      <input type="number" class="mv-extra mv-${f.key}" data-key="${f.key}" placeholder="${f.ph||''}" ${f.step?`step="${f.step}"`:'min="0"'} value="${val}">
+    </div>`;
+  }).join('');
+}
+
+function addMoveBlock(containerId, defaultUnlockLevel, existing){
+  const c=document.getElementById(containerId);if(!c)return;
   const isLevelUp=containerId==='levelup-moves-container';
   const moveNum=c.querySelectorAll('.move-block').length+1;
+  const initType=existing?.type||'attack';
   const div=document.createElement('div');
   div.className='move-block';
   div.innerHTML=`
@@ -753,54 +791,47 @@ function addMoveBlock(containerId, defaultUnlockLevel){
     <div class="field-row" style="margin-bottom:10px;">
       <div class="field">
         <label>Move Name</label>
-        <input type="text" class="mv-name" placeholder="e.g. Slash">
+        <input type="text" class="mv-name" placeholder="e.g. Shadow Strike" value="${existing?.name||''}">
       </div>
       <div class="field">
         <label>Move Type</label>
-        <select class="mv-type">
-          <option value="attack">⚔️ Attack</option>
-          <option value="heavy">💥 Heavy Attack</option>
-          <option value="heal">💚 Heal</option>
-          <option value="shield">🛡️ Shield</option>
-          <option value="dot">🔥 Damage-over-Time</option>
-          <option value="multi">🌀 Multi-hit</option>
-          <option value="power">⚡ Power Move</option>
-          <option value="combo">🎯 Combo</option>
-          <option value="speed">💨 Speed Boost</option>
+        <select class="mv-type" onchange="renderMoveFields(this.closest('.move-block'),this.value,null)">
+          ${moveTypeOptions(initType)}
         </select>
       </div>
     </div>
-    <div class="field-row" style="margin-bottom:10px;">
-      <div class="field">
-        <label>Damage / Heal Value</label>
-        <input type="number" class="mv-value" placeholder="e.g. 50" min="0">
-      </div>
-      <div class="field">
-        <label>Stamina Cost</label>
-        <input type="number" class="mv-stamina" placeholder="e.g. 25" min="0">
-      </div>
-    </div>
+    <div class="field-row mv-extra-fields" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;"></div>
     ${isLevelUp?`<div class="field" style="margin-bottom:10px;">
       <label>Unlocks at Level</label>
-      <input type="number" class="mv-unlock-level" value="${defaultUnlockLevel}" min="2" max="50">
+      <input type="number" class="mv-unlock-level" value="${existing?.unlock_level||defaultUnlockLevel||5}" min="2" max="50">
     </div>`:''}
     <div class="field">
-      <label>Description (optional)</label>
-      <textarea class="mv-desc" rows="2" placeholder="Describe what this move does..."></textarea>
+      <label>Description</label>
+      <textarea class="mv-desc" rows="2" placeholder="Describe what this move does...">${existing?.desc||''}</textarea>
     </div>`;
   c.appendChild(div);
+  renderMoveFields(div, initType, existing);
 }
 
 function getMoveBlocks(containerId){
   const c=document.getElementById(containerId);if(!c)return[];
-  return Array.from(c.querySelectorAll('.move-block')).map(b=>({
-    name:b.querySelector('.mv-name')?.value?.trim()||'',
-    type:b.querySelector('.mv-type')?.value||'attack',
-    value:parseInt(b.querySelector('.mv-value')?.value)||0,
-    stamina_cost:parseInt(b.querySelector('.mv-stamina')?.value)||0,
-    desc:b.querySelector('.mv-desc')?.value?.trim()||'',
-    unlock_level:parseInt(b.querySelector('.mv-unlock-level')?.value)||1
-  })).filter(m=>m.name);
+  return Array.from(c.querySelectorAll('.move-block')).map(b=>{
+    const type=b.querySelector('.mv-type')?.value||'attack';
+    const move={
+      name:b.querySelector('.mv-name')?.value?.trim()||'',
+      type,
+      desc:b.querySelector('.mv-desc')?.value?.trim()||'',
+      unlock_level:parseInt(b.querySelector('.mv-unlock-level')?.value)||1,
+      stamina_cost:0, value:0
+    };
+    // Collect all extra fields
+    b.querySelectorAll('.mv-extra').forEach(inp=>{
+      const key=inp.dataset.key;
+      const val=parseFloat(inp.value);
+      if(key&&!isNaN(val))move[key]=val;
+    });
+    return move;
+  }).filter(m=>m.name);
 }
 
 // ── MY CARDS ───────────────────────────────────────────
@@ -1448,6 +1479,69 @@ async function useMove(fighterUid,moveName,targetUid){
       }
     }
     attacker.speedBuff=false;
+  } else if(move.type==='aoe'){
+    // Hits ALL opponents not just one
+    const targets=state[oppKey].filter(f=>!f.defeated);
+    let totalDealt=0;
+    targets.forEach(t=>{
+      const tm=getTypeMult(attacker.element,t.element||'neutral');
+      const crit2=Math.random()<(attacker.crit||0.1);
+      const dmg=Math.max(1,Math.round((move.value-t.def*0.4)*tm*(crit2?1.5:1)));
+      if(t.shielded){const bl=Math.round(dmg*t.shieldPct);t.hp=Math.max(0,t.hp-(dmg-bl));t.shielded=false;log.push(`🛡️ ${t.name} shield absorbed ${bl}!`);}
+      else t.hp=Math.max(0,t.hp-dmg);
+      totalDealt+=dmg;
+      if(t.hp<=0){t.hp=0;t.defeated=true;log.push(`💀 ${t.name} was defeated!`);}
+    });
+    log.push(`💣 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — hit ${targets.length} enemies for ${totalDealt} total damage!`);
+  } else if(move.type==='lifesteal'){
+    if(defender){
+      const tm=getTypeMult(attacker.element,defender.element||'neutral');
+      const dmg=Math.max(1,Math.round((move.value-defender.def*0.5)*tm*critMult));
+      const stolen=Math.round(dmg*(move.steal_pct||0.5));
+      if(defender.shielded){const bl=Math.round(dmg*defender.shieldPct);defender.hp=Math.max(0,defender.hp-(dmg-bl));defender.shielded=false;}
+      else defender.hp=Math.max(0,defender.hp-dmg);
+      attacker.hp=Math.min(attacker.maxHp,attacker.hp+stolen);
+      log.push(`🩸 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${dmg} dmg, stole ${stolen} HP!`);
+      if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
+    }
+  } else if(move.type==='stamina_steal'){
+    if(defender){
+      const tm=getTypeMult(attacker.element,defender.element||'neutral');
+      const dmg=Math.max(1,Math.round((move.value-defender.def*0.5)*tm*critMult));
+      const stealAmt=Math.round(move.steal_stamina||25);
+      defender.hp=Math.max(0,defender.hp-dmg);
+      const actualSteal=Math.min(stealAmt,defender.stamina);
+      defender.stamina=Math.max(0,defender.stamina-actualSteal);
+      attacker.stamina=Math.min(attacker.maxStamina,attacker.stamina+actualSteal);
+      log.push(`⚡🔻 ${attacker.name} used ${moveName} — ${dmg} dmg + stole ${actualSteal} stamina from ${defender.name}!`);
+      if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
+    }
+  } else if(move.type==='taunt'){
+    attacker.taunting=move.taunt_turns||2;
+    log.push(`😤 ${attacker.name} used ${moveName} — all enemies must target them for ${move.taunt_turns||2} turns!`);
+  } else if(move.type==='curse'){
+    if(defender){
+      const pct=(move.value||20)/100;
+      defender.cursed=true;defender.curse_atk_mult=1-pct;defender.curseTurns=move.curse_turns||3;
+      log.push(`🌀 ${attacker.name} used ${moveName} — ${defender.name}'s ATK reduced by ${move.value||20}% for ${move.curse_turns||3} turns!`);
+    }
+  } else if(move.type==='counter'){
+    attacker.countering=true;attacker.counter_mult=(move.value||150)/100;
+    log.push(`🔄 ${attacker.name} used ${moveName} — will counter the next attack for ${move.value||150}% damage!`);
+  } else if(move.type==='execute'){
+    if(defender){
+      const tm=getTypeMult(attacker.element,defender.element||'neutral');
+      const threshold=(move.execute_threshold||20)/100;
+      const hpPct=defender.hp/defender.maxHp;
+      let dmg=Math.max(1,Math.round((move.value-defender.def*0.5)*tm*critMult));
+      if(hpPct<=threshold){
+        dmg=defender.hp; // instant kill below threshold
+        log.push(`💀 EXECUTE! ${defender.name} is below ${move.execute_threshold||20}% HP!`);
+      }
+      defender.hp=Math.max(0,defender.hp-dmg);
+      log.push(`💀 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${dmg} damage!`);
+      if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
+    }
   }
   state.log.push(...log);
   const a1=state.fighters1.filter(f=>!f.defeated).length;const a2=state.fighters2.filter(f=>!f.defeated).length;
@@ -1636,30 +1730,13 @@ async function loadCardForEdit(){
     </div>
     <hr class="divider">
     <h4 style="margin-bottom:8px;">Moves</h4>
-    <div id="ec-moves-container">
-      ${(c.moves||[]).map((m,i)=>`
-        <div class="move-block" data-move-index="${i}">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <span class="move-block-header">${m.unlock_level>1?`Unlocks at Lv${m.unlock_level}`:'Base Move'}</span>
-            <button class="btn btn-sm" style="color:#dc2626;border-color:#7f1d1d;padding:3px 10px;" onclick="this.closest('.move-block').remove()">Remove</button>
-          </div>
-          <div class="field-row" style="margin-bottom:10px;">
-            <div class="field"><label>Name</label><input type="text" class="mv-name" value="${m.name}"></div>
-            <div class="field"><label>Type</label><select class="mv-type">
-              ${['attack','heavy','heal','shield','dot','multi','power','combo','speed'].map(t=>`<option value="${t}"${m.type===t?' selected':''}>${MOVE_LABELS[t]}</option>`).join('')}
-            </select></div>
-          </div>
-          <div class="field-row" style="margin-bottom:10px;">
-            <div class="field"><label>Damage/Value</label><input type="number" class="mv-value" value="${m.value||0}"></div>
-            <div class="field"><label>Stamina Cost</label><input type="number" class="mv-stamina" value="${m.stamina_cost||0}"></div>
-          </div>
-          <div class="field-row" style="margin-bottom:10px;">
-            <div class="field"><label>Unlock Level</label><input type="number" class="mv-unlock-level" value="${m.unlock_level||1}" min="1"></div>
-          </div>
-          <div class="field"><label>Description</label><textarea class="mv-desc" rows="2">${m.desc||''}</textarea></div>
-        </div>`).join('')}
-    </div>
-    <button class="btn btn-sm" onclick="addMoveBlock('ec-moves-container',1)" style="margin-bottom:12px;">+ Add Move</button>
+    <div id="ec-moves-container"></div>
+    <button class="btn btn-sm" onclick="addMoveBlock('ec-moves-container',1)" style="margin-bottom:12px;">+ Add Move</button>`;
+  // Add existing moves dynamically so fields render correctly
+  (c.moves||[]).forEach(m=>{
+    addMoveBlock('ec-moves-container', m.unlock_level||1, m);
+  });
+  form.innerHTML+=`
     <hr class="divider">
     <div class="field" style="margin-bottom:12px;">
       <label>Replace Image (optional)</label>
@@ -1730,7 +1807,19 @@ async function openModal(uid){
       const locked=pc.moves.filter(m=>!ul.includes(m.name)&&(m.unlock_level||1)>1);
       movesHTML=unlocked.map(m=>{
         const typeColor={attack:'#3b82f6',heavy:'#ef4444',heal:'#22c55e',shield:'#f59e0b',dot:'#f97316',multi:'#8b5cf6',power:'#ec4899',combo:'#06b6d4',speed:'#84cc16'}[m.type]||'#6b7280';
-        const dmgLabel=m.type==='heal'?`+${m.value} HP`:m.type==='shield'?`${m.value}% block`:m.type==='speed'?'Dodge ×2':m.type==='dot'?`${Math.round(m.value/3)}/turn`:m.value?`${m.value} dmg`:'—';
+        const dmgLabel=m.type==='heal'?`+${m.value} HP`
+          :m.type==='shield'?`${m.value}% block`
+          :m.type==='speed'?`Dodge ×${m.dodge_mult||2}`
+          :m.type==='dot'?`${Math.round(m.value/3)}/turn ×${m.dot_turns||3}t`
+          :m.type==='multi'?`${m.value} dmg ×${m.hits_min||2}–${m.hits_max||4} hits`
+          :m.type==='aoe'?`${m.value} dmg (all enemies)`
+          :m.type==='lifesteal'?`${m.value} dmg + ${Math.round((m.steal_pct||0.5)*100)}% steal`
+          :m.type==='stamina_steal'?`${m.value} dmg + ${m.steal_stamina||25} stamina`
+          :m.type==='taunt'?`${m.taunt_turns||2} turns`
+          :m.type==='curse'?`-${m.value||20}% ATK ×${m.curse_turns||3}t`
+          :m.type==='counter'?`${m.value||150}% counter`
+          :m.type==='execute'?`${m.value} dmg (kill <${m.execute_threshold||20}%)`
+          :m.value?`${m.value} dmg`:'—';
         return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
             <div style="display:flex;align-items:center;gap:8px;">
