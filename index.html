@@ -556,8 +556,8 @@ const PACK_COSTS=[100,500,1750];
 const RARITY_XP_MULT=[1.0,1.15,1.35,1.6,1.9,2.2,2.6,3.0];
 const RARITY_STAT_MULT=[1.04,1.07,1.10,1.13,1.16,1.20,1.24,1.28];
 const TYPE_CHART={fire:{ice:1.5,earth:1.3,wind:1.2,water:0.5,fire:0.7},ice:{earth:1.4,fire:0.5,lightning:0.8,ice:0.7,wind:1.2},lightning:{water:1.6,ice:1.2,earth:0.6,lightning:0.7},earth:{fire:1.3,lightning:1.4,ice:0.8,earth:0.7,wind:0.8},dark:{light:1.5,neutral:1.1,dark:0.5,void:0.8},light:{dark:1.5,void:1.3,light:0.6},water:{fire:1.5,earth:1.2,lightning:0.8,water:0.7},wind:{earth:1.3,lightning:1.2,wind:0.7},void:{light:1.4,neutral:1.2,void:0.5},neutral:{}};
-const MOVE_ICONS={attack:'⚔️',heavy:'💥',heal:'💚',shield:'🛡️',dot:'🔥',multi:'🌀',power:'⚡',combo:'🎯',speed:'💨',aoe:'💣',lifesteal:'🩸',stamina_steal:'⚡🔻',taunt:'😤',curse:'🌀',counter:'🔄',execute:'💀'};
-const MOVE_LABELS={attack:'Attack',heavy:'Heavy Attack',heal:'Heal',shield:'Shield',dot:'Damage-over-Time',multi:'Multi-hit',power:'Power Move',combo:'Combo',speed:'Speed Boost',aoe:'AOE (hits all enemies)',lifesteal:'Life Steal',stamina_steal:'Stamina Steal',taunt:'Taunt',curse:'Curse',counter:'Counter',execute:'Execute'};
+const MOVE_ICONS={attack:'⚔️',heavy:'💥',heal:'💚',shield:'🛡️',dot:'🔥',multi:'🌀',power:'⚡',combo:'🎯',speed:'💨',aoe:'💣',lifesteal:'🩸',stamina_steal:'⚡🔻',taunt:'😤',curse:'🌀',counter:'🔄',execute:'💀',scatter:'🎯💥'};
+const MOVE_LABELS={attack:'Attack',heavy:'Heavy Attack',heal:'Heal',shield:'Shield',dot:'Damage-over-Time',multi:'Multi-hit',power:'Power Move',combo:'Combo',speed:'Speed Boost',aoe:'AOE (hits all enemies)',lifesteal:'Life Steal',stamina_steal:'Stamina Steal',taunt:'Taunt',curse:'Curse',counter:'Counter',execute:'Execute',scatter:'Scatter (pick X targets)'};
 
 // Move type field definitions — what extra fields each type needs
 const MOVE_FIELDS={
@@ -576,7 +576,8 @@ const MOVE_FIELDS={
   taunt:     [{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'0'},{key:'taunt_turns',label:'Lasts (turns)',type:'number',ph:'2'}],
   curse:     [{key:'value',label:'Stat Reduction %',type:'number',ph:'20'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'40'},{key:'curse_turns',label:'Turns',type:'number',ph:'3'}],
   counter:   [{key:'value',label:'Counter Damage %',type:'number',ph:'150'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'30'}],
-  execute:   [{key:'value',label:'Damage',type:'number',ph:'120'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'90'},{key:'execute_threshold',label:'Instakill below HP%',type:'number',ph:'20'}]
+  execute:   [{key:'value',label:'Damage',type:'number',ph:'120'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'90'},{key:'execute_threshold',label:'Instakill below HP%',type:'number',ph:'20'}],
+  scatter:   [{key:'value',label:'Damage per Target',type:'number',ph:'60'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'70'},{key:'scatter_targets',label:'Number of Targets',type:'number',ph:'2'}]
 };
 const QUEUE_SIZES={0:1,1:3,2:5};
 
@@ -1454,11 +1455,11 @@ async function useMove(fighterUid,moveName,targetUid){
     else{
       let dmg=0;
       if(move.type==='dot'){
-        const dpt=Math.round((move.value||30)/3);defender.dot=dpt;defender.dotTurns=move.dot_turns||3;
+        const dpt=Math.max(1,Math.round(((move.value||30)+(attacker.atk*0.15))/3));defender.dot=dpt;defender.dotTurns=move.dot_turns||3;
         log.push(`🔥 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${defender.name} burns for ${dpt} dmg/turn × ${defender.dotTurns} turns!`);
       } else if(move.type==='multi'){
         const hits=rand(move.hits_min||2,move.hits_max||3);let tot=0;
-        for(let i=0;i<hits;i++){const d=Math.max(1,Math.round(((move.value||30)/hits-defender.def*0.3)*typeMult*critMult));tot+=d;}
+        for(let i=0;i<hits;i++){const d=Math.max(1,Math.round(((move.value||30)/hits+(attacker.atk*0.2)-defender.def*0.3)*typeMult*critMult));tot+=d;}
         if(defender.shielded){const bl=Math.round(tot*defender.shieldPct);tot=Math.max(1,tot-bl);log.push(`🛡️ Shield absorbed ${bl} damage!`);defender.shielded=false;}
         defender.hp=Math.max(0,defender.hp-tot);
         log.push(`🌀 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${hits} hits for ${tot} total!${typeMult>1?' ⚡ Super effective!':''}`);
@@ -1471,7 +1472,7 @@ async function useMove(fighterUid,moveName,targetUid){
         log.push(`🎯 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''}${triggered?' COMBO!':''} — ${dmg} damage!`);
         if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
       } else {
-        dmg=Math.max(1,Math.round((move.value-defender.def*0.5)*typeMult*critMult));
+        dmg=Math.max(1,Math.round((move.value+(attacker.atk*0.3)-defender.def*0.5)*typeMult*critMult));
         if(defender.shielded){const bl=Math.round(dmg*defender.shieldPct);dmg=Math.max(1,dmg-bl);log.push(`🛡️ Shield absorbed ${bl} damage!`);defender.shielded=false;}
         defender.hp=Math.max(0,defender.hp-dmg);
         log.push(`${MOVE_ICONS[move.type]||'⚔️'} ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${dmg} damage!${typeMult>1?' ⚡ Super effective!':''}`);
@@ -1493,10 +1494,27 @@ async function useMove(fighterUid,moveName,targetUid){
       if(t.hp<=0){t.hp=0;t.defeated=true;log.push(`💀 ${t.name} was defeated!`);}
     });
     log.push(`💣 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — hit ${targets.length} enemies for ${totalDealt} total damage!`);
+  } else if(move.type==='scatter'){
+    // Pick up to scatter_targets enemies, deal damage to each
+    const targets=state[oppKey].filter(f=>!f.defeated);
+    const numTargets=Math.min(move.scatter_targets||2,targets.length);
+    // Shuffle and pick
+    const picked=[...targets].sort(()=>Math.random()-0.5).slice(0,numTargets);
+    let totalDealt=0;
+    picked.forEach(t=>{
+      const tm=getTypeMult(attacker.element,t.element||'neutral');
+      const crit2=Math.random()<(attacker.crit||0.1);
+      const dmg=Math.max(1,Math.round((move.value+(attacker.atk*0.3)-t.def*0.5)*tm*(crit2?1.5:1)));
+      if(t.shielded){const bl=Math.round(dmg*t.shieldPct);t.hp=Math.max(0,t.hp-(dmg-bl));t.shielded=false;}
+      else t.hp=Math.max(0,t.hp-dmg);
+      totalDealt+=dmg;
+      if(t.hp<=0){t.hp=0;t.defeated=true;log.push(`💀 ${t.name} was defeated!`);}
+    });
+    log.push(`🎯💥 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — hit ${picked.map(t=>t.name).join(' & ')} for ${totalDealt} total damage!`);
   } else if(move.type==='lifesteal'){
     if(defender){
       const tm=getTypeMult(attacker.element,defender.element||'neutral');
-      const dmg=Math.max(1,Math.round((move.value-defender.def*0.5)*tm*critMult));
+      const dmg=Math.max(1,Math.round((move.value+(attacker.atk*0.3)-defender.def*0.5)*tm*critMult));
       const stolen=Math.round(dmg*(move.steal_pct||0.5));
       if(defender.shielded){const bl=Math.round(dmg*defender.shieldPct);defender.hp=Math.max(0,defender.hp-(dmg-bl));defender.shielded=false;}
       else defender.hp=Math.max(0,defender.hp-dmg);
@@ -1819,6 +1837,7 @@ async function openModal(uid){
           :m.type==='curse'?`-${m.value||20}% ATK ×${m.curse_turns||3}t`
           :m.type==='counter'?`${m.value||150}% counter`
           :m.type==='execute'?`${m.value} dmg (kill <${m.execute_threshold||20}%)`
+          :m.type==='scatter'?`${m.value} dmg × ${m.scatter_targets||2} targets`
           :m.value?`${m.value} dmg`:'—';
         return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
@@ -1871,20 +1890,45 @@ async function openModal(uid){
 
 async function combineDuplicate(keepUid,sacrificeUid,cost){
   if((currentUser.money||0)<cost){showToast(`Need $${cost} to combine`);return;}
-  const xpBonus=200+(50*currentModalCard.rarity);
-  let{xp,level,atk,def,max_hp,unlocked_moves}={...currentModalCard,unlocked_moves:currentModalCard.unlocked_moves||[]};
+  // Load both cards fresh from DB
+  const{data:keepCard}=await sb.from('player_cards').select('*').eq('uid',keepUid).single();
+  const{data:sacrificeCard}=await sb.from('player_cards').select('*').eq('uid',sacrificeUid).single();
+  if(!keepCard||!sacrificeCard){showToast('Error loading cards');return;}
+
+  // XP bonus scales with sacrifice card's level and rarity
+  const xpBonus=Math.round((200+(50*keepCard.rarity))*(1+sacrificeCard.level*0.1));
+
+  // Keep the BETTER stats between the two cards
+  let level=Math.max(keepCard.level,sacrificeCard.level);
+  let atk=Math.max(keepCard.atk,sacrificeCard.atk);
+  let def=Math.max(keepCard.def,sacrificeCard.def);
+  let max_hp=Math.max(keepCard.max_hp||keepCard.hp,sacrificeCard.max_hp||sacrificeCard.hp);
+
+  // Merge unlocked moves — union of both
+  const unlocked_moves=[...new Set([...(keepCard.unlocked_moves||[]),...(sacrificeCard.unlocked_moves||[])])];
+
+  // Apply XP on top of the merged stats
+  let xp=(keepCard.xp||0)+xpBonus;
   const oldLevel=level;
-  xp+=xpBonus;
-  while(xp>=xpForCard(level)){xp-=xpForCard(level);level++;atk=Math.round(atk*RARITY_STAT_MULT[currentModalCard.rarity]);def=Math.round(def*RARITY_STAT_MULT[currentModalCard.rarity]);max_hp=Math.round((max_hp||100)*(1+(RARITY_STAT_MULT[currentModalCard.rarity]-1)*0.7));}
+  while(xp>=xpForCard(level)){
+    xp-=xpForCard(level);level++;
+    atk=Math.round(atk*RARITY_STAT_MULT[keepCard.rarity]);
+    def=Math.round(def*RARITY_STAT_MULT[keepCard.rarity]);
+    max_hp=Math.round(max_hp*(1+(RARITY_STAT_MULT[keepCard.rarity]-1)*0.7));
+    if(keepCard.pool_card_id){
+      const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',keepCard.pool_card_id).single();
+      if(pc&&pc.moves)pc.moves.forEach(m=>{if(m.unlock_level===level&&!unlocked_moves.includes(m.name))unlocked_moves.push(m.name);});
+    }
+  }
+
   await sb.from('player_cards').update({xp,level,atk,def,max_hp,unlocked_moves}).eq('uid',keepUid);
   await sb.from('player_cards').delete().eq('uid',sacrificeUid);
   const nm=(currentUser.money||0)-cost;
   await sb.from('users').update({money:nm}).eq('id',currentUser.id);
   currentUser.money=nm;updateHUD();
-  showToast(`Combined! +${xpBonus} XP${level>oldLevel?` — Level ${level}!`:''}`);
+  showToast(`Combined! +${xpBonus} XP · Best stats kept${level>oldLevel?` · Level ${level}!`:''}`);
   closeModal();
   await renderMyCards();
-  // Reopen modal with fresh data so XP bar reflects the change
   openModal(keepUid);
 }
 
