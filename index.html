@@ -290,7 +290,7 @@ document.addEventListener("DOMContentLoaded",function(){
         <div class="field-row">
           <div class="field"><label>Card Name</label><input type="text" id="ac-name" placeholder="e.g. Shadow Knight"></div>
           <div class="field"><label>Class</label>
-            <select id="ac-class">
+            <select id="ac-class" onchange="updateSuggestedStats()">
               <option>Warrior</option><option>Assassin</option><option>Brawler</option><option>Ranger</option>
               <option>Mage</option><option>Knight</option><option>Specter</option><option>Titan</option>
               <option>Beast</option><option>Elemental</option><option>Necromancer</option><option>Paladin</option>
@@ -301,7 +301,7 @@ document.addEventListener("DOMContentLoaded",function(){
         </div>
         <div class="field-row">
           <div class="field"><label>Rarity</label>
-            <select id="ac-rarity">
+            <select id="ac-rarity" onchange="updateSuggestedStats()">
               <option value="0">Common</option><option value="1">Uncommon</option><option value="2">Rare</option>
               <option value="3">Epic</option><option value="4">Legendary</option><option value="5">Mythic</option>
               <option value="6">Ancient</option><option value="7">Celestial</option>
@@ -340,10 +340,11 @@ document.addEventListener("DOMContentLoaded",function(){
             <div class="field"><label>Starting Stamina</label><input type="number" id="ac-stamina-start" value="50" min="0" max="300"></div>
             <div class="field"><label>Stamina per turn</label><input type="number" id="ac-stamina-regen" value="25" min="5" max="100"></div>
           </div>
-          <div class="field-row" style="margin-bottom:12px;">
+          <div class="field-row" style="margin-bottom:8px;">
             <div class="field"><label>Crit chance (0–0.5)</label><input type="number" id="ac-crit" value="0.1" min="0" max="0.5" step="0.01"></div>
             <div class="field"><label>Dodge chance (0–0.4)</label><input type="number" id="ac-dodge" value="0.05" min="0" max="0.4" step="0.01"></div>
           </div>
+          <div id="stat-suggest-tip" style="font-size:12px;color:#4f8ef7;background:#0c1829;border-radius:8px;padding:7px 12px;margin-bottom:12px;">Select a rarity and class above to get suggested stats.</div>
           <div class="field" style="margin-bottom:12px;">
             <label>Card Image</label>
             <input type="file" id="ac-image" accept="image/*" onchange="previewAdminImage('ac-img-preview','ac-image')" style="padding:6px;">
@@ -744,7 +745,7 @@ function go(name){
   if(name==='trade')renderTrade();
   if(name==='leaderboard')renderLB();
   if(name==='news')renderNews();
-  if(name==='admin'){adminTab('add-card',document.querySelector('.tab-btn'));loadPoolForEdit();}
+  if(name==='admin'){adminTab('add-card',document.querySelector('.tab-btn'));loadPoolForEdit();setTimeout(updateSuggestedStats,100);}
 }
 
 // ── ADMIN TABS ─────────────────────────────────────────
@@ -835,7 +836,82 @@ function getMoveBlocks(containerId){
   }).filter(m=>m.name);
 }
 
-// ── MY CARDS ───────────────────────────────────────────
+// ── SUGGESTED STAT VALUES ─────────────────────────────
+const RARITY_SUGGESTED={
+  0:{hp:125,atk:20,def:14,stamina_max:90,stamina_start:45,stamina_regen:20,crit:0.06,dodge:0.04},
+  1:{hp:170,atk:28,def:20,stamina_max:100,stamina_start:50,stamina_regen:22,crit:0.10,dodge:0.06},
+  2:{hp:230,atk:40,def:28,stamina_max:115,stamina_start:55,stamina_regen:25,crit:0.12,dodge:0.08},
+  3:{hp:310,atk:57,def:40,stamina_max:130,stamina_start:60,stamina_regen:28,crit:0.15,dodge:0.10},
+  4:{hp:415,atk:80,def:57,stamina_max:145,stamina_start:65,stamina_regen:30,crit:0.18,dodge:0.13},
+  5:{hp:540,atk:109,def:78,stamina_max:170,stamina_start:75,stamina_regen:33,crit:0.23,dodge:0.16},
+  6:{hp:700,atk:147,def:107,stamina_max:200,stamina_start:90,stamina_regen:36,crit:0.28,dodge:0.21},
+  7:{hp:1000,atk:205,def:147,stamina_max:250,stamina_start:110,stamina_regen:40,crit:0.36,dodge:0.27}
+};
+
+// Class modifiers — multipliers on top of rarity base stats
+const CLASS_MODS={
+  Warrior:  {atk:1.0,def:1.0,hp:1.0},
+  Assassin: {atk:1.3,def:0.7,hp:0.85,dodge:1.5,crit:1.5},
+  Brawler:  {atk:1.4,def:0.75,hp:0.9},
+  Ranger:   {atk:1.1,def:0.85,hp:0.9,dodge:1.3},
+  Mage:     {atk:1.2,def:0.8,hp:0.85,crit:1.3},
+  Knight:   {atk:0.85,def:1.4,hp:1.2},
+  Specter:  {atk:1.1,def:0.8,hp:0.85,dodge:1.6,crit:1.2},
+  Titan:    {atk:1.2,def:1.1,hp:1.4},
+  Beast:    {atk:1.25,def:0.9,hp:1.1},
+  Elemental:{atk:1.15,def:0.9,hp:0.95,crit:1.2},
+  Necromancer:{atk:1.0,def:0.85,hp:1.0},
+  Paladin:  {atk:0.8,def:1.2,hp:1.3},
+  Demon:    {atk:1.35,def:0.85,hp:1.05,crit:1.2},
+  Angel:    {atk:0.9,def:1.1,hp:1.2},
+  Cosmic:   {atk:1.1,def:0.9,hp:1.0,crit:1.3,dodge:1.2},
+  Icon:     {atk:1.1,def:1.0,hp:1.1},
+  Mythborn: {atk:1.2,def:1.1,hp:1.2,crit:1.2},
+  Druid:    {atk:0.9,def:1.0,hp:1.1},
+  Sniper:   {atk:1.3,def:0.7,hp:0.85,crit:1.6,dodge:1.4},
+  Machine:  {atk:1.0,def:1.3,hp:1.1}
+};
+
+function updateSuggestedStats(){
+  const rarity=parseInt(document.getElementById('ac-rarity').value)||0;
+  const cls=document.getElementById('ac-class').value||'Warrior';
+  const base=RARITY_SUGGESTED[rarity]||RARITY_SUGGESTED[0];
+  const mod=CLASS_MODS[cls]||CLASS_MODS.Warrior;
+  const suggest=(key,mult)=>Math.round((base[key]||0)*(mult||1));
+
+  const fields=[
+    ['ac-hp',   suggest('hp',  mod.hp||1)],
+    ['ac-atk',  suggest('atk', mod.atk||1)],
+    ['ac-def',  suggest('def', mod.def||1)],
+    ['ac-stamina-max',   suggest('stamina_max',1)],
+    ['ac-stamina-start', suggest('stamina_start',1)],
+    ['ac-stamina-regen', suggest('stamina_regen',1)],
+    ['ac-crit',  parseFloat(((base.crit||0.1)*(mod.crit||1)).toFixed(2))],
+    ['ac-dodge', parseFloat(((base.dodge||0.05)*(mod.dodge||1)).toFixed(2))]
+  ];
+
+  fields.forEach(([id,val])=>{
+    const el=document.getElementById(id);
+    if(el){
+      el.placeholder=`Suggested: ${val}`;
+      // Only auto-fill if field is empty or still at default
+      if(!el.dataset.userEdited) el.value=val;
+    }
+  });
+
+  // Show a tip
+  const tip=document.getElementById('stat-suggest-tip');
+  if(tip){
+    const rarityName=RARITIES[rarity];
+    tip.textContent=`Suggested stats for ${rarityName} ${cls} — edit any field to override.`;
+  }
+}
+
+// Mark field as user-edited when they type in it
+document.addEventListener('input',function(e){
+  const adminFields=['ac-hp','ac-atk','ac-def','ac-stamina-max','ac-stamina-start','ac-stamina-regen','ac-crit','ac-dodge'];
+  if(adminFields.includes(e.target.id)) e.target.dataset.userEdited='1';
+});
 async function renderMyCards(){
   const pid=currentUser.id;
   const sort=document.getElementById('sort-select').value;
@@ -1623,8 +1699,13 @@ function renderBattleOver(state){
 }
 
 async function leaveBattle(){
-  if(battleSub)sb.removeChannel(battleSub);
+  if(battleSub){sb.removeChannel(battleSub);battleSub=null;}
+  // Mark battle as abandoned in DB so it doesn't auto-rejoin
+  if(currentBattle&&currentBattle.id){
+    await sb.from('live_battles').update({status:'abandoned'}).eq('id',currentBattle.id);
+  }
   currentBattle=null;selectedTeam=[];pendingTargetMode=false;pendingMove=null;pendingFighterUid=null;
+  _pendingAcceptBattleId=null;
   document.getElementById('battle-active').style.display='none';
   document.getElementById('battle-lobby').style.display='block';
   await loadUsers();renderBattleLobby();
@@ -1715,6 +1796,10 @@ async function addPoolCard(){
   document.getElementById('base-moves-container').innerHTML='';
   document.getElementById('levelup-moves-container').innerHTML='';
   document.getElementById('ac-is-income').checked=false;toggleIncomeFields();
+  ['ac-hp','ac-atk','ac-def','ac-stamina-max','ac-stamina-start','ac-stamina-regen','ac-crit','ac-dodge'].forEach(id=>{
+    const el=document.getElementById(id);if(el)delete el.dataset.userEdited;
+  });
+  updateSuggestedStats();
   showToast(`${name} added to pool!`);
 }
 
