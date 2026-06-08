@@ -177,7 +177,7 @@ document.addEventListener("DOMContentLoaded",function(){
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.4rem;flex-wrap:wrap;gap:6px;">
     <h2>⚔️ Battle Card Game</h2>
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-      <span class="level-badge" id="level-badge">Lv 1</span>
+      <span class="level-badge" id="level-badge" onclick="openLevelModal()" style="cursor:pointer;" title="Click to see milestones & quests">Lv 1</span>
       <span class="money-badge" id="money-badge">💰 $0</span>
       <button class="theme-btn" id="theme-btn" onclick="toggleTheme()">🌙</button>
       <span style="font-size:13px;color:var(--text3);" id="user-label"></span>
@@ -556,6 +556,41 @@ const PACK_ODDS=[
 const PACK_COSTS=[100,500,1750];
 const RARITY_XP_MULT=[1.0,1.15,1.35,1.6,1.9,2.2,2.6,3.0];
 const RARITY_STAT_MULT=[1.04,1.07,1.10,1.13,1.16,1.20,1.24,1.28];
+
+// ── MILESTONES & QUESTS ───────────────────────────────
+const MILESTONES={
+  5: {title:'Rookie',reward:'gold',amount:200,desc:'$200 gold bonus',icon:'💰',color:'#9ca3af'},
+  10:{title:'Warrior',reward:'gold',amount:500,desc:'$500 gold bonus + all cards get 100 XP',icon:'⚔️',color:'#60a5fa',cardXp:100},
+  15:{title:'Champion',reward:'pack',amount:1,desc:'Free Rare Pack',icon:'💎',color:'#34d399',packType:1},
+  20:{title:'Veteran',reward:'gold',amount:1000,desc:'$1,000 gold bonus',icon:'🏆',color:'#f59e0b'},
+  25:{title:'Elite',reward:'title',amount:0,desc:'Unlock "Elite" name title + $500',icon:'🌟',color:'#a78bfa',extraGold:500},
+  30:{title:'Legend',reward:'gold',amount:2000,desc:'$2,000 gold + all cards get 300 XP',icon:'🔥',color:'#f97316',cardXp:300},
+  40:{title:'Mythic',reward:'title',amount:0,desc:'Unlock "Mythic" name title + Free Legendary Pack',icon:'🌀',color:'#ec4899',packType:2,extraGold:0},
+  50:{title:'Ancient',reward:'gold',amount:5000,desc:'$5,000 gold + all cards get 500 XP',icon:'🌑',color:'#8b5cf6',cardXp:500},
+  75:{title:'Celestial',reward:'title',amount:0,desc:'Unlock "Celestial" name title + $10,000 gold',icon:'✨',color:'#c7d2fe',extraGold:10000},
+  100:{title:'Transcendent',reward:'special',amount:0,desc:'Unlock gold name color + $25,000 + all cards get 1000 XP',icon:'👑',color:'#fbbf24',cardXp:1000,extraGold:25000}
+};
+
+const QUEST_TEMPLATES=[
+  {id:'win3',desc:'Win 3 battles',icon:'⚔️',type:'wins',target:3,reward:300},
+  {id:'win10',desc:'Win 10 battles',icon:'🏆',type:'wins',target:10,reward:1000},
+  {id:'open3packs',desc:'Open 3 packs',icon:'📦',type:'packs',target:3,reward:250},
+  {id:'open10packs',desc:'Open 10 packs',icon:'💎',type:'packs',target:10,reward:800},
+  {id:'reach5',desc:'Reach player level 5',icon:'⭐',type:'level',target:5,reward:500},
+  {id:'reach10',desc:'Reach player level 10',icon:'🌟',type:'level',target:10,reward:1500},
+  {id:'collect10',desc:'Collect 10 cards',icon:'🃏',type:'cards',target:10,reward:400},
+  {id:'collect25',desc:'Collect 25 cards',icon:'🃏',type:'cards',target:25,reward:1200},
+  {id:'win1v1',desc:'Win a 1v1 battle',icon:'🥊',type:'win_mode',target:1,mode:0,reward:350},
+  {id:'win3v3',desc:'Win a 3v3 battle',icon:'⚔️',type:'win_mode',target:1,mode:1,reward:500},
+  {id:'win5v5',desc:'Win a 5v5 battle',icon:'💥',type:'win_mode',target:1,mode:2,reward:750},
+  {id:'combine',desc:'Combine 2 duplicate cards',icon:'🔗',type:'combine',target:1,reward:300},
+  {id:'login7',desc:'Log in 7 days in a row',icon:'📅',type:'login_streak',target:7,reward:700},
+];
+
+const TITLE_COLORS={
+  'Elite':'#a78bfa','Mythic':'#ec4899','Celestial':'#c7d2fe','Transcendent':'#fbbf24'
+};
+
 const TYPE_CHART={fire:{ice:1.5,earth:1.3,wind:1.2,water:0.5,fire:0.7},ice:{earth:1.4,fire:0.5,lightning:0.8,ice:0.7,wind:1.2},lightning:{water:1.6,ice:1.2,earth:0.6,lightning:0.7},earth:{fire:1.3,lightning:1.4,ice:0.8,earth:0.7,wind:0.8},dark:{light:1.5,neutral:1.1,dark:0.5,void:0.8},light:{dark:1.5,void:1.3,light:0.6},water:{fire:1.5,earth:1.2,lightning:0.8,water:0.7},wind:{earth:1.3,lightning:1.2,wind:0.7},void:{light:1.4,neutral:1.2,void:0.5},neutral:{}};
 const MOVE_ICONS={attack:'⚔️',heavy:'💥',heal:'💚',shield:'🛡️',dot:'🔥',multi:'🌀',power:'⚡',combo:'🎯',speed:'💨',aoe:'💣',lifesteal:'🩸',stamina_steal:'⚡🔻',taunt:'😤',curse:'🌀',counter:'🔄',execute:'💀',scatter:'🎯💥'};
 const MOVE_LABELS={attack:'Attack',heavy:'Heavy Attack',heal:'Heal',shield:'Shield',dot:'Damage-over-Time',multi:'Multi-hit',power:'Power Move',combo:'Combo',speed:'Speed Boost',aoe:'AOE (hits all enemies)',lifesteal:'Life Steal',stamina_steal:'Stamina Steal',taunt:'Taunt',curse:'Curse',counter:'Counter',execute:'Execute',scatter:'Scatter (pick X targets)'};
@@ -684,6 +719,9 @@ async function handleDailyLogin(){
   currentUser={...currentUser,money,player_xp,level,last_login:today};
   const leveledUp=level>oldLevel;
   showXpGain(`Daily Login Reward`,reward,pxp,leveledUp?level:null);
+  await checkMilestones(level);
+  await updateQuestProgress('login_streak',1);
+  await updateQuestProgress('level',level);
 }
 
 async function enterApp(){
@@ -711,11 +749,18 @@ async function forceDailyLogin(){
 
 function updateHUD(){
   document.getElementById('money-badge').textContent=`💰 $${currentUser.money||0}`;
-  document.getElementById('level-badge').textContent=`Lv ${currentUser.level||1}`;
+  const title=currentUser.title||null;
+  const titleColor=currentUser.title_color||null;
+  const lvBadge=document.getElementById('level-badge');
+  if(title&&titleColor){
+    lvBadge.innerHTML=`<span style="color:${titleColor};">[${title}]</span> Lv ${currentUser.level||1}`;
+  } else {
+    lvBadge.textContent=`Lv ${currentUser.level||1}`;
+  }
   const needed=xpForPlayer(currentUser.level||1);
   const pct=Math.min(100,Math.round(((currentUser.player_xp||0)/needed)*100));
   document.getElementById('player-xp-fill').style.width=pct+'%';
-  document.getElementById('player-xp-text').textContent=`Player XP: ${currentUser.player_xp||0} / ${needed}`;
+  document.getElementById('player-xp-text').textContent=`Player XP: ${currentUser.player_xp||0} / ${needed} — click level badge to see milestones & quests`;
 }
 
 function logout(){
@@ -1044,6 +1089,8 @@ async function openPack(pt){
   }).join('');
   document.getElementById('pack-result').innerHTML=`<div class="box"><div style="font-size:14px;font-weight:700;margin-bottom:10px;">🎉 You drew 3 cards!</div><div style="display:flex;gap:10px;flex-wrap:wrap;">${html}</div></div>`;
   showToast('Pack opened!');
+  await updateQuestProgress('packs',1);
+  await updateQuestProgress('cards',drawn.length);
 }
 
 // ── TRADE ──────────────────────────────────────────────
@@ -1674,12 +1721,18 @@ async function awardRewards(state,battle){
   let lpx=(lu?.player_xp||0)+20;let llv=lu?.level||1;while(lpx>=xpForPlayer(llv)){lpx-=xpForPlayer(llv);llv++;}
   await sb.from('users').update({wins:(wu?.wins||0)+1,money:(wu?.money||0)+150,player_xp:wpx,level:wlv}).eq('id',winner);
   await sb.from('users').update({losses:(lu?.losses||0)+1,money:Math.max(0,(lu?.money||0)+50),player_xp:lpx,level:llv}).eq('id',loser);
+  const prevWinnerLevel=allUsers.find(u=>u.id===winner)?.level||1;
+  const prevLoserLevel=allUsers.find(u=>u.id===loser)?.level||1;
   if(currentUser.id===winner){
     currentUser={...currentUser,money:(currentUser.money||0)+150,player_xp:wpx,level:wlv};
-    showXpGain('Victory!',150,80,wlv>(allUsers.find(u=>u.id===winner)?.level||1)?wlv:null);
+    showXpGain('Victory!',150,80,wlv>prevWinnerLevel?wlv:null);
+    await checkMilestones(wlv);
+    await updateQuestProgress('wins',currentUser.wins||0);
+    await updateQuestProgress('win_mode',1,selectedQueue);
   } else {
     currentUser={...currentUser,money:Math.max(0,(currentUser.money||0)+50),player_xp:lpx,level:llv};
-    showXpGain('Defeat',50,20,llv>(allUsers.find(u=>u.id===loser)?.level||1)?llv:null);
+    showXpGain('Defeat',50,20,llv>prevLoserLevel?llv:null);
+    await checkMilestones(llv);
   }
   updateHUD();
 }
@@ -1727,7 +1780,7 @@ async function renderLB(){
       <div style="display:flex;align-items:center;gap:12px;">
         <div style="font-size:22px;width:28px;text-align:center;">${medals[i]||i+1}</div>
         <div>
-          <div style="font-size:14px;font-weight:700;">${p.id} <span style="font-size:12px;color:var(--text3);">Lv ${p.level||1}</span></div>
+          <div style="font-size:14px;font-weight:700;">${p.title?`<span style="color:${p.title_color||'var(--text)'};">[${p.title}]</span> `:''}${p.id} <span style="font-size:12px;color:var(--text3);">Lv ${p.level||1}</span></div>
           <div style="font-size:12px;color:var(--text3);">${pc.length} cards${top?` · Best: <span style="color:${RARITY_COLORS[top.rarity]}">${top.name}</span> Lv${top.level}`:''}</div>
         </div>
       </div>
@@ -2012,6 +2065,7 @@ async function combineDuplicate(keepUid,sacrificeUid,cost){
   await sb.from('users').update({money:nm}).eq('id',currentUser.id);
   currentUser.money=nm;updateHUD();
   showToast(`Combined! +${xpBonus} XP · Best stats kept${level>oldLevel?` · Level ${level}!`:''}`);
+  await updateQuestProgress('combine',1);
   closeModal();
   await renderMyCards();
   openModal(keepUid);
@@ -2118,6 +2172,265 @@ document.addEventListener('click',function(e){
   if(tile.dataset.selectable)toggleTeam(uid);
   else if(tile.dataset.openmodal)openModal(uid);
 });
+
+
+// ── MILESTONES ────────────────────────────────────────
+async function checkMilestones(level){
+  const claimed=currentUser.claimed_milestones||[];
+  const newMilestones=Object.keys(MILESTONES).map(Number).filter(lv=>lv<=level&&!claimed.includes(lv));
+  if(!newMilestones.length)return;
+  for(const lv of newMilestones){
+    await claimMilestone(lv);
+  }
+}
+
+async function claimMilestone(lv){
+  const m=MILESTONES[lv];if(!m)return;
+  const claimed=[...(currentUser.claimed_milestones||[]),lv];
+  let money=currentUser.money||0;
+  let updates={claimed_milestones:claimed};
+
+  if(m.reward==='gold')money+=m.amount;
+  if(m.extraGold)money+=m.extraGold;
+  if(m.reward==='pack'){
+    // Give a free pack open
+    const{data:pool}=await sb.from('pool_cards').select('*');
+    if(pool&&pool.length){
+      const drawn=[];
+      for(let i=0;i<3;i++){
+        const rarity=rollRarity(m.packType||1);
+        const byR=pool.filter(c=>c.rarity===rarity);
+        const src=byR.length?byR:pool;
+        const t=src[Math.floor(Math.random()*src.length)];
+        const startMoves=(t.moves||[]).filter(mv=>!mv.unlock_level||mv.unlock_level<=1).map(mv=>mv.name);
+        drawn.push({uid:`${currentUser.id}-ms${Date.now()}-${i}`,owner:currentUser.id,name:t.name,cat:t.class_name||t.cat||'Warrior',class_name:t.class_name||t.cat||'Warrior',rarity:t.rarity,element:t.element||'neutral',atk:t.atk||10,def:t.def||10,hp:t.hp||100,max_hp:t.hp||100,stamina:t.stamina_start||50,max_stamina:t.stamina_max||100,stamina_regen:t.stamina_regen||25,crit_chance:t.crit_chance||0.1,dodge_chance:t.dodge_chance||0.05,level:1,xp:0,unlocked_moves:startMoves,image_url:t.image_url||null,pool_card_id:t.id,is_income_card:t.is_income_card||false,income_amount:t.income_amount||0,income_interval_hours:t.income_interval_hours||24});
+      }
+      await sb.from('player_cards').insert(drawn);
+    }
+  }
+  if(m.reward==='title'||m.title){
+    updates.title=m.title;
+    updates.title_color=TITLE_COLORS[m.title]||null;
+  }
+  if(m.cardXp){
+    const{data:cards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id);
+    for(const c of (cards||[])){
+      let{xp,level,atk,def,max_hp,unlocked_moves}={...c,unlocked_moves:c.unlocked_moves||[]};
+      xp+=m.cardXp;
+      while(xp>=xpForCard(level)){xp-=xpForCard(level);level++;atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);def=Math.round(def*RARITY_STAT_MULT[c.rarity]);max_hp=Math.round((max_hp||c.hp||100)*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));}
+      await sb.from('player_cards').update({xp,level,atk,def,max_hp,unlocked_moves}).eq('uid',c.uid);
+    }
+  }
+
+  updates.money=money;
+  await sb.from('users').update(updates).eq('id',currentUser.id);
+  currentUser={...currentUser,...updates};
+  updateHUD();
+  showMilestonePopup(lv,m);
+}
+
+function showMilestonePopup(lv,m){
+  const old=document.getElementById('milestone-popup');if(old)old.remove();
+  const div=document.createElement('div');
+  div.id='milestone-popup';
+  div.style.cssText=`position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:500;background:var(--bg2);border:2px solid ${m.color};border-radius:16px;padding:2rem;text-align:center;min-width:280px;max-width:90vw;box-shadow:0 0 40px ${m.color}44;`;
+  div.innerHTML=`
+    <div style="font-size:48px;margin-bottom:12px;">${m.icon}</div>
+    <div style="font-size:11px;color:${m.color};font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Level ${lv} Milestone!</div>
+    <div style="font-size:22px;font-weight:800;color:${m.color};margin-bottom:8px;">${m.title}</div>
+    <div style="font-size:14px;color:var(--text2);margin-bottom:20px;">${m.desc}</div>
+    <button class="btn btn-primary" onclick="document.getElementById('milestone-popup').remove()">Claim! 🎉</button>`;
+  document.body.appendChild(div);
+  // Auto-dismiss after 8 seconds
+  setTimeout(()=>{const el=document.getElementById('milestone-popup');if(el)el.remove();},8000);
+}
+
+async function renderMilestonesPanel(){
+  const level=currentUser.level||1;
+  const claimed=currentUser.claimed_milestones||[];
+  const milestoneList=Object.entries(MILESTONES).map(([lv,m])=>{
+    const lvNum=parseInt(lv);
+    const done=claimed.includes(lvNum);
+    const current=lvNum===Object.keys(MILESTONES).map(Number).find(l=>l>level);
+    const pct=done?100:Math.min(100,Math.round((level/lvNum)*100));
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);opacity:${done?0.6:1}">
+      <div style="font-size:24px;width:36px;text-align:center;">${done?'✅':m.icon}</div>
+      <div style="flex:1;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+          <span style="font-size:14px;font-weight:700;color:${m.color};">${m.title}</span>
+          <span style="font-size:11px;color:var(--text3);">Level ${lv}</span>
+          ${done?`<span style="font-size:10px;background:#16a34a22;color:#16a34a;padding:1px 6px;border-radius:4px;">CLAIMED</span>`:''}
+        </div>
+        <div style="font-size:12px;color:var(--text3);">${m.desc}</div>
+        ${!done?`<div style="background:var(--bg3);border-radius:4px;height:4px;margin-top:5px;"><div style="background:${m.color};height:4px;border-radius:4px;width:${pct}%;transition:width 0.3s;"></div></div>`:''}
+      </div>
+      <div style="font-size:12px;color:var(--text3);white-space:nowrap;">Lv ${lv}</div>
+    </div>`;
+  }).join('');
+
+  return `<div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+      <h3 style="margin:0;">🏆 Milestones</h3>
+      <span style="font-size:13px;color:var(--text3);">${claimed.length}/${Object.keys(MILESTONES).length} claimed</span>
+    </div>
+    ${milestoneList}
+  </div>`;
+}
+
+// ── QUESTS ────────────────────────────────────────────
+async function renderQuestsPanel(){
+  const quests=currentUser.active_quests||[];
+  const completed=currentUser.completed_quests||[];
+
+  // Assign quests if none active
+  if(quests.length===0){
+    await assignQuests();
+    return renderQuestsPanel();
+  }
+
+  const{data:cards}=await sb.from('player_cards').select('uid').eq('owner',currentUser.id);
+  const cardCount=(cards||[]).length;
+
+  const questHTML=quests.map(q=>{
+    const template=QUEST_TEMPLATES.find(t=>t.id===q.id);
+    if(!template)return'';
+    let progress=0;
+    if(template.type==='wins')progress=currentUser.wins||0;
+    else if(template.type==='level')progress=currentUser.level||1;
+    else if(template.type==='cards')progress=cardCount;
+    else if(template.type==='packs')progress=q.progress||0;
+    else if(template.type==='combine')progress=q.progress||0;
+    else if(template.type==='win_mode')progress=q.progress||0;
+    else if(template.type==='login_streak')progress=q.progress||0;
+    const pct=Math.min(100,Math.round((progress/template.target)*100));
+    const done=progress>=template.target;
+    return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:18px;">${template.icon}</span>
+          <span style="font-size:14px;font-weight:600;">${template.desc}</span>
+        </div>
+        <span style="font-size:13px;font-weight:700;color:#fbbf24;">+$${template.reward}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="flex:1;background:var(--bg2);border-radius:4px;height:6px;">
+          <div style="background:${done?'#16a34a':'#4f8ef7'};height:6px;border-radius:4px;width:${pct}%;"></div>
+        </div>
+        <span style="font-size:12px;color:var(--text3);">${progress}/${template.target}</span>
+        ${done?`<button class="btn btn-green btn-sm" onclick="claimQuest('${q.id}',${template.reward})">Claim!</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+      <h3 style="margin:0;">📋 Quests</h3>
+      <button class="btn btn-sm" onclick="refreshQuestPanel()">🔄 Refresh</button>
+    </div>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:12px;">Complete quests to earn gold. New quests assigned when you finish all 3.</p>
+    ${questHTML}
+    ${completed.length?`<div style="font-size:12px;color:var(--text3);margin-top:8px;">Completed: ${completed.length} quest${completed.length!==1?'s':''}</div>`:''}
+  </div>`;
+}
+
+async function assignQuests(){
+  const completed=currentUser.completed_quests||[];
+  const available=QUEST_TEMPLATES.filter(t=>!completed.includes(t.id));
+  if(!available.length)return;
+  const shuffled=[...available].sort(()=>Math.random()-0.5).slice(0,3);
+  const quests=shuffled.map(t=>({id:t.id,progress:0}));
+  await sb.from('users').update({active_quests:quests}).eq('id',currentUser.id);
+  currentUser.active_quests=quests;
+}
+
+async function claimQuest(questId,reward){
+  const quests=(currentUser.active_quests||[]).filter(q=>q.id!==questId);
+  const completed=[...(currentUser.completed_quests||[]),questId];
+  const money=(currentUser.money||0)+reward;
+  await sb.from('users').update({active_quests:quests,completed_quests:completed,money}).eq('id',currentUser.id);
+  currentUser={...currentUser,active_quests:quests,completed_quests:completed,money};
+  if(quests.length===0)await assignQuests();
+  updateHUD();
+  showToast(`Quest complete! +$${reward} 💰`);
+  refreshQuestPanel();
+}
+
+async function refreshQuestPanel(){
+  const modal=document.getElementById('level-modal');
+  if(!modal)return;
+  const tab=modal.querySelector('[data-tab="quests"]');
+  if(tab)showLevelTab('quests');
+}
+
+// ── LEVEL MODAL ───────────────────────────────────────
+async function openLevelModal(){
+  const old=document.getElementById('level-modal');if(old)old.remove();
+  const div=document.createElement('div');
+  div.id='level-modal';
+  div.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;display:flex;align-items:center;justify-content:center;';
+  const level=currentUser.level||1;
+  const needed=xpForPlayer(level);
+  const xp=currentUser.player_xp||0;
+  const pct=Math.min(100,Math.round((xp/needed)*100));
+  const title=currentUser.title||null;
+  const titleColor=currentUser.title_color||'var(--text)';
+  div.innerHTML=`
+    <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:1.5rem;width:500px;max-width:95vw;max-height:88vh;overflow-y:auto;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;">
+        <div>
+          <div style="font-size:24px;font-weight:800;">${title?`<span style="color:${titleColor};">[${title}]</span> `:''}Level ${level}</div>
+          <div style="font-size:13px;color:var(--text3);margin-top:3px;">${xp} / ${needed} XP to next level</div>
+          <div style="background:var(--bg3);border-radius:6px;height:8px;margin-top:6px;width:200px;">
+            <div style="background:linear-gradient(90deg,#4f8ef7,#a78bfa);height:8px;border-radius:6px;width:${pct}%;"></div>
+          </div>
+        </div>
+        <button class="btn btn-sm" onclick="document.getElementById('level-modal').remove()">✕ Close</button>
+      </div>
+      <div style="display:flex;gap:4px;margin-bottom:1rem;border-bottom:1px solid var(--border);">
+        <button class="tab-btn active" data-tab="milestones" onclick="showLevelTab('milestones')">🏆 Milestones</button>
+        <button class="tab-btn" data-tab="quests" onclick="showLevelTab('quests')">📋 Quests</button>
+      </div>
+      <div id="level-tab-content"><div class="empty">Loading...</div></div>
+    </div>`;
+  document.body.appendChild(div);
+  div.addEventListener('click',function(e){if(e.target===this)this.remove();});
+  showLevelTab('milestones');
+}
+
+async function showLevelTab(tab){
+  const modal=document.getElementById('level-modal');if(!modal)return;
+  modal.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+  const content=document.getElementById('level-tab-content');
+  content.innerHTML='<div class="empty">Loading...</div>';
+  if(tab==='milestones')content.innerHTML=await renderMilestonesPanel();
+  else if(tab==='quests')content.innerHTML=await renderQuestsPanel();
+}
+
+async function updateQuestProgress(type, amount, mode){
+  const quests=currentUser.active_quests||[];
+  if(!quests.length)return;
+  let updated=false;
+  const newQuests=quests.map(q=>{
+    const template=QUEST_TEMPLATES.find(t=>t.id===q.id);
+    if(!template||template.type!==type)return q;
+    if(type==='win_mode'&&template.mode!==mode)return q;
+    if(type==='wins'||type==='level'||type==='cards'){
+      // Absolute value — just set to current amount
+      return{...q,progress:Math.max(q.progress||0,amount)};
+    }
+    // Incremental
+    const newProgress=(q.progress||0)+amount;
+    updated=true;
+    return{...q,progress:newProgress};
+  });
+  if(!updated&&(type==='wins'||type==='level'||type==='cards')){
+    // Check if any changed
+    const changed=newQuests.some((q,i)=>q.progress!==quests[i].progress);
+    if(!changed)return;
+  }
+  await sb.from('users').update({active_quests:newQuests}).eq('id',currentUser.id);
+  currentUser.active_quests=newQuests;
+}
 
 // ── HELPERS ────────────────────────────────────────────
 function classColor(cls){
