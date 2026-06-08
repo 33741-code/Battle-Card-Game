@@ -197,6 +197,7 @@ document.addEventListener("DOMContentLoaded",function(){
     <button onclick="go('packs')">📦 Shop</button>
     <button onclick="go('battle')">⚔️ Battle</button>
     <button onclick="go('trade')">🤝 Trade</button>
+    <button onclick="go('training')">🏋️ Training</button>
     <button onclick="go('leaderboard')">🏆 Leaderboard</button>
     <button onclick="go('news')">📰 News</button>
     <button id="admin-tab" style="display:none;" onclick="go('admin')">⚙️ Admin</button>
@@ -267,6 +268,9 @@ document.addEventListener("DOMContentLoaded",function(){
     <div id="trade-content"></div>
   </div>
 
+  <!-- TRAINING -->
+  <div id="screen-training" class="screen"><div id="training-content"></div></div>
+
   <!-- LEADERBOARD -->
   <div id="screen-leaderboard" class="screen"><div id="lb-content"></div></div>
 
@@ -281,6 +285,7 @@ document.addEventListener("DOMContentLoaded",function(){
       <button class="tab-btn" onclick="adminTab('pool',this)">📋 Card Pool</button>
       <button class="tab-btn" onclick="adminTab('guide',this)">📖 Balance Guide</button>
       <button class="tab-btn" onclick="adminTab('post-news',this)">📰 Post News</button>
+      <button class="tab-btn" onclick="adminTab('manage',this)">👥 Manage</button>
     </div>
 
     <!-- ADD CARD -->
@@ -783,11 +788,12 @@ function go(name){
   if(name!=='battle'){if(incomingPoll){clearInterval(incomingPoll);incomingPoll=null;}_lastIncomingCount=0;}
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
-  const names=['mycards','packs','battle','trade','leaderboard','news','admin'];
+  const names=['mycards','packs','battle','trade','training','leaderboard','news','admin'];
   document.querySelectorAll('.nav button').forEach((b,i)=>b.classList.toggle('active',names[i]===name));
   if(name==='mycards')renderMyCards();
   if(name==='battle')renderBattleLobby();
   if(name==='trade')renderTrade();
+  if(name==='training')renderTraining();
   if(name==='leaderboard')renderLB();
   if(name==='news')renderNews();
   if(name==='admin'){adminTab('add-card',document.querySelector('.tab-btn'));loadPoolForEdit();setTimeout(updateSuggestedStats,100);}
@@ -795,7 +801,7 @@ function go(name){
 
 // ── ADMIN TABS ─────────────────────────────────────────
 function adminTab(name,btn){
-  ['add-card','edit-card','pool','guide','post-news'].forEach(t=>{
+  ['add-card','edit-card','pool','guide','post-news','manage'].forEach(t=>{
     const el=document.getElementById('admin-'+t);if(el)el.style.display=t===name?'block':'none';
   });
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -803,6 +809,7 @@ function adminTab(name,btn){
   if(name==='pool')renderPool();
   if(name==='edit-card')loadPoolForEdit();
   if(name==='post-news')renderAdminNews();
+  if(name==='manage')loadAdminPlayers();
 }
 
 // ── MOVE BLOCKS ────────────────────────────────────────
@@ -1215,7 +1222,8 @@ async function renderBattleLobby(){
   selectedTeam=[];
   // Only auto-enter active battles (not waiting ones — those show as incoming challenges)
   const{data:existing}=await sb.from('live_battles').select('*').or(`player1.eq.${currentUser.id},player2.eq.${currentUser.id}`).eq('status','active').order('created_at',{ascending:false}).limit(1);
-  if(existing&&existing.length){currentBattle=existing[0];enterBattle(currentBattle);return;}
+  // Don't rejoin if it was abandoned
+  if(existing&&existing.length&&existing[0].status!=='abandoned'){currentBattle=existing[0];enterBattle(currentBattle);return;}
   const opponents=allUsers.filter(u=>u.id!==currentUser.id);
   const el=document.getElementById('battle-lobby');
   el.innerHTML=`
@@ -1298,7 +1306,21 @@ async function challengePlayer(){
   const{error:cErr}=await sb.from('live_battles').insert({id:bid,player1:currentUser.id,player2:opp,team1:selectedTeam,team2:[],state:JSON.stringify({log:[`⚔️ ${currentUser.id} challenged ${opp}!`],phase:'waiting',turn:null,winner:null,queue:selectedQueue}),status:'waiting'});
   console.log('Challenge insert result:',cErr||'success');
   if(cErr){showToast('Error sending challenge: '+cErr.message);return;}
-  showToast(`Challenge sent to ${opp}!`);selectedTeam=[];renderBattleLobby();
+  showToast(`Challenge sent to ${opp}! Waiting for them to accept...`);
+  selectedTeam=[];
+  // Watch for the battle to become active (when opponent accepts)
+  if(battleSub)sb.removeChannel(battleSub);
+  battleSub=sb.channel('waiting-'+bid)
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'live_battles',filter:`id=eq.${bid}`},
+      payload=>{
+        if(payload.new.status==='active'){
+          currentBattle=payload.new;
+          if(battleSub)sb.removeChannel(battleSub);
+          enterBattle(payload.new);
+        }
+      })
+    .subscribe();
+  renderBattleLobby();
 }
 
 async function clearStaleBattles(){
@@ -1752,16 +1774,21 @@ function renderBattleOver(state){
 }
 
 async function leaveBattle(){
+  // Stop all subscriptions
   if(battleSub){sb.removeChannel(battleSub);battleSub=null;}
-  // Mark battle as abandoned in DB so it doesn't auto-rejoin
+  if(incomingSub){sb.removeChannel(incomingSub);incomingSub=null;}
+  // Mark battle as abandoned so we don't auto-rejoin
   if(currentBattle&&currentBattle.id){
-    await sb.from('live_battles').update({status:'abandoned'}).eq('id',currentBattle.id);
+    try{await sb.from('live_battles').update({status:'abandoned'}).eq('id',currentBattle.id);}catch(e){}
   }
-  currentBattle=null;selectedTeam=[];pendingTargetMode=false;pendingMove=null;pendingFighterUid=null;
-  _pendingAcceptBattleId=null;
-  document.getElementById('battle-active').style.display='none';
-  document.getElementById('battle-lobby').style.display='block';
-  await loadUsers();renderBattleLobby();
+  currentBattle=null;selectedTeam=[];pendingTargetMode=false;pendingMove=null;pendingFighterUid=null;_pendingAcceptBattleId=null;
+  // Force show lobby, hide battle
+  const ba=document.getElementById('battle-active');
+  const bl=document.getElementById('battle-lobby');
+  if(ba)ba.style.display='none';
+  if(bl)bl.style.display='block';
+  await loadUsers();
+  renderBattleLobby();
 }
 
 // ── LEADERBOARD ────────────────────────────────────────
@@ -1854,6 +1881,87 @@ async function addPoolCard(){
   });
   updateSuggestedStats();
   showToast(`${name} added to pool!`);
+}
+
+// ── ADMIN MANAGEMENT ──────────────────────────────────
+async function loadAdminPlayers(){
+  const{data:users}=await sb.from('users').select('*').order('id');
+  const{data:cards}=await sb.from('player_cards').select('uid,owner').eq('is_income_card',false);
+  const el=document.getElementById('admin-player-list');
+  if(el){
+    el.innerHTML=(users||[]).map(u=>{
+      const cc=(cards||[]).filter(c=>c.owner===u.id).length;
+      return `<div class="row-item">
+        <div>
+          <div style="font-size:14px;font-weight:600;">${u.id}${u.is_admin?' 👑':''}</div>
+          <div style="font-size:12px;color:var(--text3);">Lv${u.level||1} · $${u.money||0} · ${cc} cards · ${u.wins||0}W/${u.losses||0}L</div>
+        </div>
+        <div style="font-size:12px;color:var(--text3);">${u.title||'No title'}</div>
+      </div>`;
+    }).join('');
+  }
+  // Populate all player selects
+  const opts=(users||[]).filter(u=>!u.is_admin).map(u=>`<option value="${u.id}">${u.id}</option>`).join('');
+  const allOpts=(users||[]).map(u=>`<option value="${u.id}">${u.id}</option>`).join('');
+  ['admin-give-player','admin-xp-player','admin-cardxp-player'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.innerHTML=opts||allOpts;
+  });
+  const delEl=document.getElementById('admin-del-player');
+  if(delEl)delEl.innerHTML=opts||allOpts;
+}
+
+async function adminGiveGold(){
+  const pid=document.getElementById('admin-give-player').value;
+  const amt=parseInt(document.getElementById('admin-give-amount').value)||0;
+  if(!pid||!amt){showToast('Select player and amount');return;}
+  const u=allUsers.find(x=>x.id===pid);
+  await sb.from('users').update({money:(u?.money||0)+amt}).eq('id',pid);
+  showToast(`Gave $${amt} to ${pid}`);
+  await loadUsers();loadAdminPlayers();
+}
+
+async function adminGiveXP(){
+  const pid=document.getElementById('admin-xp-player').value;
+  const amt=parseInt(document.getElementById('admin-give-xp').value)||0;
+  if(!pid||!amt){showToast('Select player and amount');return;}
+  const u=allUsers.find(x=>x.id===pid);
+  let player_xp=(u?.player_xp||0)+amt;
+  let level=u?.level||1;
+  while(player_xp>=xpForPlayer(level)){player_xp-=xpForPlayer(level);level++;}
+  await sb.from('users').update({player_xp,level}).eq('id',pid);
+  showToast(`Gave ${amt} player XP to ${pid}`);
+  await loadUsers();loadAdminPlayers();
+}
+
+async function adminGiveCardXP(){
+  const pid=document.getElementById('admin-cardxp-player').value;
+  const amt=parseInt(document.getElementById('admin-cardxp-amount').value)||0;
+  if(!pid||!amt){showToast('Select player and amount');return;}
+  const{data:cards}=await sb.from('player_cards').select('*').eq('owner',pid).eq('is_income_card',false);
+  if(!cards||!cards.length){showToast('Player has no cards');return;}
+  for(const c of cards){
+    let{xp,level,atk,def,max_hp,unlocked_moves}={...c,unlocked_moves:c.unlocked_moves||[]};
+    xp+=amt;
+    while(xp>=xpForCard(level)){
+      xp-=xpForCard(level);level++;
+      atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);
+      def=Math.round(def*RARITY_STAT_MULT[c.rarity]);
+      max_hp=Math.round((max_hp||c.hp||100)*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
+    }
+    await sb.from('player_cards').update({xp,level,atk,def,max_hp,unlocked_moves}).eq('uid',c.uid);
+  }
+  showToast(`Gave ${amt} XP to all ${cards.length} cards of ${pid}`);
+}
+
+async function adminDeletePlayer(){
+  const pid=document.getElementById('admin-del-player').value;
+  if(!pid){showToast('Select a player');return;}
+  if(pid===currentUser.id){showToast("Can't delete yourself");return;}
+  if(!confirm(`Delete ${pid} and all their cards? This cannot be undone.`))return;
+  await sb.from('player_cards').delete().eq('owner',pid);
+  await sb.from('users').delete().eq('id',pid);
+  showToast(`${pid} deleted`);
+  await loadUsers();loadAdminPlayers();
 }
 
 async function loadPoolForEdit(){
@@ -2430,6 +2538,117 @@ async function updateQuestProgress(type, amount, mode){
   }
   await sb.from('users').update({active_quests:newQuests}).eq('id',currentUser.id);
   currentUser.active_quests=newQuests;
+}
+
+// ── TRAINING ──────────────────────────────────────────
+// Cost formula: base cost × rarity multiplier × level
+const TRAINING_BASE_COST=[50,100,200,400,800,1500,3000,6000]; // per rarity
+const TRAINING_DURATION_HOURS=[1,2,3,4,6,8,12,24]; // per rarity — longer = better XP
+const TRAINING_XP_PER_HOUR=[30,60,100,160,250,400,650,1000]; // per rarity
+
+function trainingCost(card){
+  const base=TRAINING_BASE_COST[card.rarity]||50;
+  return Math.round(base*(1+card.level*0.1));
+}
+function trainingDuration(card){return TRAINING_DURATION_HOURS[card.rarity]||1;}
+function trainingXpTotal(card){return Math.round(TRAINING_XP_PER_HOUR[card.rarity]*trainingDuration(card));}
+
+async function renderTraining(){
+  const el=document.getElementById('training-content');
+  el.innerHTML='<div class="empty">Loading...</div>';
+  const{data:cards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
+  if(!cards||!cards.length){el.innerHTML='<div class="empty">No cards yet — open a pack first!</div>';return;}
+
+  const now=Date.now();
+  const trainingCards=cards.filter(c=>c.training_until&&now<new Date(c.training_until).getTime());
+  const idleCards=cards.filter(c=>!c.training_until||now>=new Date(c.training_until).getTime());
+  const readyCards=cards.filter(c=>c.training_until&&now>=new Date(c.training_until).getTime()&&c.training_xp_pending>0);
+
+  el.innerHTML=`
+    <h3 style="margin-bottom:0.5rem;">🏋️ Training</h3>
+    <p style="font-size:13px;color:var(--text3);margin-bottom:1rem;">Send cards to train while you're away. They earn XP over time. Cost scales with rarity and level.</p>
+
+    ${readyCards.length?`<div class="box" style="border-color:#16a34a;">
+      <h4 style="margin-bottom:8px;color:#16a34a;">✅ Ready to collect (${readyCards.length})</h4>
+      ${readyCards.map(c=>`<div class="row-item">
+        <div style="display:flex;align-items:center;gap:10px;">
+          ${c.image_url?`<img src="${c.image_url}" style="width:36px;height:36px;object-fit:contain;border-radius:6px;background:var(--bg3);">`:`<span style="font-size:22px;">${classEmoji(c.class_name)}</span>`}
+          <div>
+            <div style="font-size:14px;font-weight:600;">${c.name}</div>
+            <div style="font-size:12px;color:#16a34a;">+${c.training_xp_pending||0} XP ready!</div>
+          </div>
+        </div>
+        <button class="btn btn-green btn-sm" onclick="collectTraining('${c.uid}')">Collect</button>
+      </div>`).join('')}
+    </div>`:''}
+
+    ${trainingCards.length?`<div class="box">
+      <h4 style="margin-bottom:8px;">⏳ In Training (${trainingCards.length})</h4>
+      ${trainingCards.map(c=>{
+        const remaining=Math.max(0,Math.ceil((new Date(c.training_until).getTime()-now)/60000));
+        const hrs=Math.floor(remaining/60);const mins=remaining%60;
+        return `<div class="row-item">
+          <div style="display:flex;align-items:center;gap:10px;">
+            ${c.image_url?`<img src="${c.image_url}" style="width:36px;height:36px;object-fit:contain;border-radius:6px;background:var(--bg3);">`:`<span style="font-size:22px;">${classEmoji(c.class_name)}</span>`}
+            <div>
+              <div style="font-size:14px;font-weight:600;">${c.name}</div>
+              <div style="font-size:12px;color:var(--text3);">Returns in ${hrs>0?hrs+'h ':''}${mins}m · +${c.training_xp_pending||0} XP</div>
+            </div>
+          </div>
+          <span style="font-size:11px;color:var(--text3);">Training...</span>
+        </div>`;
+      }).join('')}
+    </div>`:''}
+
+    <div class="box">
+      <h4 style="margin-bottom:8px;">🃏 Available to Train (${idleCards.length})</h4>
+      ${idleCards.length?idleCards.map(c=>{
+        const cost=trainingCost(c);
+        const dur=trainingDuration(c);
+        const xp=trainingXpTotal(c);
+        return `<div class="row-item">
+          <div style="display:flex;align-items:center;gap:10px;">
+            ${c.image_url?`<img src="${c.image_url}" style="width:36px;height:36px;object-fit:contain;border-radius:6px;background:var(--bg3);">`:`<span style="font-size:22px;">${classEmoji(c.class_name)}</span>`}
+            <div>
+              <div style="font-size:14px;font-weight:600;">${c.name} <span style="font-size:11px;color:var(--text3);">Lv${c.level} ${RARITIES[c.rarity]}</span></div>
+              <div style="font-size:12px;color:var(--text3);">+${xp} XP over ${dur}h · Cost: <span style="color:#fbbf24;">$${cost}</span></div>
+            </div>
+          </div>
+          <button class="btn btn-sm${(currentUser.money||0)<cost?' disabled':''}" onclick="startTraining('${c.uid}',${cost},${xp},${dur})" ${(currentUser.money||0)<cost?'disabled':''}>Train</button>
+        </div>`;
+      }).join(''):`<div class="empty">All cards are training!</div>`}
+    </div>`;
+}
+
+async function startTraining(uid,cost,xp,hours){
+  if((currentUser.money||0)<cost){showToast(`Need $${cost} to train this card`);return;}
+  const until=new Date(Date.now()+hours*3600000).toISOString();
+  await sb.from('player_cards').update({training_until:until,training_xp_pending:xp}).eq('uid',uid);
+  const nm=(currentUser.money||0)-cost;
+  await sb.from('users').update({money:nm}).eq('id',currentUser.id);
+  currentUser.money=nm;updateHUD();
+  showToast('Training started!');renderTraining();
+}
+
+async function collectTraining(uid){
+  const{data:c}=await sb.from('player_cards').select('*').eq('uid',uid).single();
+  if(!c||!c.training_xp_pending)return;
+  const xpGain=Math.round(c.training_xp_pending*RARITY_XP_MULT[c.rarity]);
+  let{xp,level,atk,def,max_hp,unlocked_moves}={...c,unlocked_moves:c.unlocked_moves||[]};
+  xp+=xpGain;
+  while(xp>=xpForCard(level)){
+    xp-=xpForCard(level);level++;
+    atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);
+    def=Math.round(def*RARITY_STAT_MULT[c.rarity]);
+    max_hp=Math.round((max_hp||c.hp||100)*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
+    if(c.pool_card_id){
+      const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',c.pool_card_id).single();
+      if(pc&&pc.moves)pc.moves.forEach(m=>{if(m.unlock_level===level&&!unlocked_moves.includes(m.name))unlocked_moves.push(m.name);});
+    }
+  }
+  await sb.from('player_cards').update({xp,level,atk,def,max_hp,unlocked_moves,training_until:null,training_xp_pending:0}).eq('uid',uid);
+  showToast(`+${xpGain} XP collected${level>c.level?` — Level ${level}!`:''}`);
+  renderTraining();
 }
 
 // ── HELPERS ────────────────────────────────────────────
