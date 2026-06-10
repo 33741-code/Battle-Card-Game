@@ -429,6 +429,49 @@ document.addEventListener("DOMContentLoaded",function(){
       <h3 style="margin-bottom:0.75rem;">Posted News</h3>
       <div id="admin-news-list"></div>
     </div>
+
+    <!-- MANAGE -->
+    <div id="admin-manage" style="display:none;">
+      <div class="box">
+        <h3>👥 Player Overview</h3>
+        <div id="admin-player-list"><div class="empty">Click Refresh to load</div></div>
+        <button class="btn btn-sm" style="margin-top:8px;" onclick="loadAdminPlayers()">🔄 Refresh</button>
+      </div>
+      <div class="box">
+        <h3>💰 Give Gold</h3>
+        <div class="field-row">
+          <div class="field"><label>Player</label><select id="admin-give-player" style="background:var(--input-bg);color:var(--text);"></select></div>
+          <div class="field"><label>Amount ($)</label><input type="number" id="admin-give-amount" value="500" min="1"></div>
+        </div>
+        <button class="btn btn-primary" onclick="adminGiveGold()">Give Gold</button>
+      </div>
+      <div class="box">
+        <h3>⭐ Give Player XP</h3>
+        <div class="field-row">
+          <div class="field"><label>Player</label><select id="admin-xp-player" style="background:var(--input-bg);color:var(--text);"></select></div>
+          <div class="field"><label>XP Amount</label><input type="number" id="admin-give-xp" value="200" min="1"></div>
+        </div>
+        <button class="btn btn-primary" onclick="adminGiveXP()">Give XP</button>
+      </div>
+      <div class="box">
+        <h3>🃏 Boost Card XP</h3>
+        <div class="field-row">
+          <div class="field"><label>Player</label><select id="admin-cardxp-player" style="background:var(--input-bg);color:var(--text);"></select></div>
+          <div class="field"><label>XP per card</label><input type="number" id="admin-cardxp-amount" value="100" min="1"></div>
+        </div>
+        <button class="btn btn-primary" onclick="adminGiveCardXP()">Boost All Cards</button>
+      </div>
+      <div class="box" style="border-color:#dc2626;">
+        <h3 style="color:#dc2626;">⚠️ Danger Zone</h3>
+        <div class="field" style="margin-bottom:10px;">
+          <label>Delete player account</label>
+          <select id="admin-del-player" style="background:var(--input-bg);color:var(--text);max-width:200px;"></select>
+        </div>
+        <button class="btn btn-sm btn-red" onclick="adminDeletePlayer()">Delete Player</button>
+        <p style="font-size:11px;color:var(--text3);margin-top:6px;">Permanently deletes the account and all their cards.</p>
+      </div>
+    </div>
+
     <div id="admin-guide" style="display:none;">
       <div class="box">
         <h3>📖 Card Balance Guide</h3>
