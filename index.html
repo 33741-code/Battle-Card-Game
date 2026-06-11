@@ -98,25 +98,32 @@ body.light .ability-btn{color:#1a1a1a;}
 .err{font-size:12px;color:#dc2626;margin-top:8px;display:none;}
 .money-badge{background:#92400e;border:1px solid #d97706;color:#fbbf24;border-radius:8px;padding:4px 10px;font-size:13px;font-weight:700;}
 .level-badge{background:#1e3a5f;border:1px solid #2563eb;color:#93c5fd;border-radius:8px;padding:4px 10px;font-size:13px;font-weight:700;}
-.battle-field{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.field-side{background:var(--arena-bg);border:1px solid var(--border);border-radius:12px;padding:10px;}
-.field-side-label{font-size:12px;font-weight:700;margin-bottom:8px;padding:4px 8px;border-radius:6px;display:inline-block;}
-.yours{background:#0c2340;color:#93c5fd;}
-.theirs{background:#2d0a0a;color:#fca5a5;}
-.fighter-card{background:var(--arena-card);border:1px solid var(--arena-card-border);border-radius:10px;padding:8px;margin-bottom:6px;transition:all 0.2s;cursor:default;}
-.fighter-card.active{border-color:#4f8ef7;background:#0c1829;}
-.fighter-card.defeated{opacity:0.25;filter:grayscale(1);}
-.fighter-card.dot{border-color:#f97316;}
-.fighter-card.targetable{cursor:pointer;border-color:#f59e0b;}
-.fighter-card.targetable:hover{border-color:#fbbf24;background:#2d2000;}
-.fighter-img{width:100%;height:90px;object-fit:contain;border-radius:6px;margin-bottom:5px;background:var(--bg3);}
-.fighter-img-ph{width:100%;height:90px;display:flex;align-items:center;justify-content:center;font-size:22px;background:var(--bg3);border-radius:6px;margin-bottom:5px;}
-.battle-log-box{background:var(--log-bg);border:1px solid var(--border);border-radius:10px;padding:10px;max-height:160px;overflow-y:auto;}
-.turn-bar{text-align:center;padding:8px;font-size:14px;font-weight:700;border-radius:8px;margin-bottom:8px;}
+/* ── BATTLE ARENA ── */
+.battle-arena-wrap{display:flex;flex-direction:column;gap:8px;min-height:100vh;padding-bottom:1rem;}
+.battle-field-opp{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:8px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;}
+.battle-field-mine{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:8px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;}
+.battle-card{background:var(--card-bg);border:2px solid var(--border);border-radius:12px;padding:8px;width:155px;flex-shrink:0;transition:all 0.2s;cursor:default;position:relative;}
+.battle-card.active-fighter{border-color:#4f8ef7;box-shadow:0 0 12px #4f8ef744;}
+.battle-card.selectable-fighter{cursor:pointer;border-color:#f59e0b;}
+.battle-card.selectable-fighter:hover{border-color:#fbbf24;box-shadow:0 0 10px #fbbf2444;transform:translateY(-3px);}
+.battle-card.targetable-card{cursor:pointer;border-color:#dc2626;}
+.battle-card.targetable-card:hover{border-color:#ef4444;box-shadow:0 0 10px #dc262644;transform:translateY(-3px);}
+.battle-card.defeated-card{opacity:0.2;filter:grayscale(1);}
+.battle-card.dot-card{border-color:#f97316;}
+.battle-card-img{width:100%;height:100px;object-fit:contain;border-radius:8px;margin-bottom:6px;background:var(--bg3);}
+.battle-card-img-ph{width:100%;height:100px;display:flex;align-items:center;justify-content:center;font-size:30px;background:var(--bg3);border-radius:8px;margin-bottom:6px;}
+.battle-log-box{background:var(--log-bg);border:1px solid var(--border);border-radius:10px;padding:10px;max-height:140px;overflow-y:auto;}
+.turn-bar{text-align:center;padding:8px;font-size:14px;font-weight:700;border-radius:8px;}
 .turn-yours{background:#0c2340;color:#93c5fd;border:1px solid #1e40af;}
 .turn-opp{background:#2d0a0a;color:#fca5a5;border:1px solid #7f1d1d;}
-.action-panel{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:10px;}
+.action-panel{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px;}
 .phase-label{font-size:11px;color:var(--text3);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;}
+.dmg-popup{position:absolute;top:-20px;left:50%;transform:translateX(-50%);font-size:18px;font-weight:800;color:#ef4444;text-shadow:0 2px 4px rgba(0,0,0,0.5);pointer-events:none;animation:dmgFloat 1.5s ease forwards;z-index:100;}
+.heal-popup{position:absolute;top:-20px;left:50%;transform:translateX(-50%);font-size:18px;font-weight:800;color:#22c55e;text-shadow:0 2px 4px rgba(0,0,0,0.5);pointer-events:none;animation:dmgFloat 1.5s ease forwards;z-index:100;}
+@keyframes dmgFloat{0%{opacity:1;transform:translateX(-50%) translateY(0);}100%{opacity:0;transform:translateX(-50%) translateY(-50px);}}
+/* old compat */
+.yours{background:#0c2340;color:#93c5fd;}
+.theirs{background:#2d0a0a;color:#fca5a5;}
 /* MOVE BLOCK — fixed formatting */
 .move-block{background:var(--move-block);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;}
 .move-block-header{font-size:12px;font-weight:600;color:var(--text3);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.04em;}
@@ -1351,18 +1358,19 @@ async function challengePlayer(){
   if(cErr){showToast('Error sending challenge: '+cErr.message);return;}
   showToast(`Challenge sent to ${opp}! Waiting for them to accept...`);
   selectedTeam=[];
-  // Watch for the battle to become active (when opponent accepts)
-  if(battleSub)sb.removeChannel(battleSub);
-  battleSub=sb.channel('waiting-'+bid)
-    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'live_battles',filter:`id=eq.${bid}`},
-      payload=>{
-        if(payload.new.status==='active'){
-          currentBattle=payload.new;
-          if(battleSub)sb.removeChannel(battleSub);
-          enterBattle(payload.new);
-        }
-      })
-    .subscribe();
+  // Poll every 3 seconds waiting for opponent to accept
+  if(incomingPoll)clearInterval(incomingPoll);
+  let _waitingBattleId=bid;
+  incomingPoll=setInterval(async()=>{
+    const{data:b}=await sb.from('live_battles').select('*').eq('id',_waitingBattleId).single();
+    if(b&&b.status==='active'){
+      clearInterval(incomingPoll);incomingPoll=null;
+      currentBattle=b;
+      enterBattle(b);
+    } else if(!b||b.status==='abandoned'){
+      clearInterval(incomingPoll);incomingPoll=null;
+    }
+  },3000);
   renderBattleLobby();
 }
 
@@ -1469,7 +1477,8 @@ async function confirmAccept(){
   if(poolIds.length){const{data:pcs}=await sb.from('pool_cards').select('id,moves').in('id',poolIds);(pcs||[]).forEach(pc=>{poolMovesMap[pc.id]=pc.moves||[];});}
   const buildF=c=>({uid:c.uid,name:c.name,class_name:c.class_name,rarity:c.rarity,element:c.element||'neutral',atk:c.atk,def:c.def,hp:c.max_hp||c.hp,maxHp:c.max_hp||c.hp,stamina:c.stamina||50,maxStamina:c.max_stamina||100,staminaRegen:c.stamina_regen||25,crit:c.crit_chance||0.1,dodge:c.dodge_chance||0.05,unlockedMoves:c.unlocked_moves||[],level:c.level,pool_card_id:c.pool_card_id||null,image_url:c.image_url||null,dot:0,dotTurns:0,shielded:false,shieldPct:0,speedBuff:false,defeated:false});
   const st=typeof b.state==='string'?JSON.parse(b.state):b.state;
-  const state={fighters1:(t1||[]).map(buildF),fighters2:(t2||[]).map(buildF),active1:null,active2:null,turn:b.player1,phase:'pick1',log:[`🏟️ Battle! ${b.player1} vs ${currentUser.id}`],winner:null,usedUids:[],poolMoves:poolMovesMap,queue:st.queue!==undefined?st.queue:1};
+  // Challenged player (player2) goes first
+  const state={fighters1:(t1||[]).map(buildF),fighters2:(t2||[]).map(buildF),active1:null,active2:null,turn:b.player2,phase:'pick2',log:[`🏟️ Battle! ${b.player1} vs ${b.player2}`,`${b.player2} was challenged — they go first!`],winner:null,usedUids:[],poolMoves:poolMovesMap,queue:st.queue!==undefined?st.queue:1};
   await sb.from('live_battles').update({team2:selectedTeam,state:JSON.stringify(state),status:'active'}).eq('id',battleId);
   selectedTeam=[];_pendingAcceptBattleId=null;
   const{data:updated}=await sb.from('live_battles').select('*').eq('id',battleId).single();
@@ -1495,6 +1504,7 @@ function renderBattleUI(){
   const el=document.getElementById('battle-active');if(!currentBattle)return;
   const state=typeof currentBattle.state==='string'?JSON.parse(currentBattle.state):currentBattle.state;
   if(state.winner){renderBattleOver(state);return;}
+
   const isP1=currentBattle.player1===currentUser.id;
   const myF=isP1?state.fighters1:state.fighters2;
   const oppF=isP1?state.fighters2:state.fighters1;
@@ -1507,81 +1517,167 @@ function renderBattleUI(){
   const isPickPhase=(phase==='pick1'&&isP1)||(phase==='pick2'&&!isP1);
   const isActionPhase=(phase==='action1'&&isP1)||(phase==='action2'&&!isP1);
 
-  const bFC=(f,isMine,isActive)=>{
+  // Build opponent card (top) — limited info
+  const buildOppCard=(f)=>{
     const hpPct=Math.max(0,Math.round((f.hp/f.maxHp)*100));
-    const stPct=Math.max(0,Math.round((f.stamina/f.maxStamina)*100));
-    const isTargetable=!isMine&&!f.defeated&&isActionPhase&&isMyTurn&&pendingTargetMode;
-    let cls='fighter-card';
-    if(f.defeated)cls+=' defeated';
-    else if(isActive)cls+=' active';
-    else if(f.dot>0)cls+=' dot';
-    if(isTargetable)cls+=' targetable';
-    const isPickable=isMine&&isPickPhase&&isMyTurn&&!f.defeated;
-    const fDataAttrs=`data-uid="${f.uid}"${isTargetable?' data-target="1"':''}${isPickable?' data-pickfighter="1"':''}`;
-    return `<div class="${cls}" ${fDataAttrs} id="fc-${f.uid}">
-      ${f.image_url?`<img class="fighter-img" src="${f.image_url}">`:`<div class="fighter-img-ph">${classEmoji(f.class_name)}</div>`}
-      <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.name}</div>
-      <div class="hp-bar-wrap"><div class="hp-bar" style="width:${hpPct}%;background:${hpColor(hpPct)};"></div></div>
-      <div style="font-size:10px;color:var(--text2);">❤️ ${f.hp}/${f.maxHp}</div>
-      ${isMine?`<div class="stamina-bar-wrap"><div class="stamina-bar" style="width:${stPct}%;"></div></div>
-      <div style="font-size:10px;color:var(--text3);">⚡${f.stamina}/${f.maxStamina}${f.shielded?' 🛡️':''}</div>`:`<div style="font-size:10px;color:var(--text3);">${f.dot>0?`🔥${f.dotTurns}t`:''}</div>`}
+    const isActive=f.uid===oppActiveUid;
+    const isTarget=!f.defeated&&isActionPhase&&isMyTurn&&pendingTargetMode;
+    let cls='battle-card';
+    if(f.defeated)cls+=' defeated-card';
+    else if(isActive)cls+=' active-fighter';
+    if(isTarget)cls+=' targetable-card';
+    if(f.dot>0)cls+=' dot-card';
+    const attrs=`data-uid="${f.uid}"${isTarget?' data-target="1"':''}`;
+    const col=classColor(f.class_name);
+    const typeEmoji={fire:'🔥',ice:'❄️',lightning:'⚡',earth:'🌿',dark:'🌑',light:'☀️',water:'💧',wind:'🌪️',void:'🌀',neutral:''}[f.element||'neutral']||'';
+    return `<div class="${cls}" ${attrs} id="fc-${f.uid}">
+      ${f.image_url?`<img class="battle-card-img" src="${f.image_url}">`:`<div class="battle-card-img-ph">${classEmoji(f.class_name)}</div>`}
+      <div style="font-size:12px;font-weight:700;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.name}</div>
+      <span class="cat-badge" style="background:${col.bg};color:${col.fg};font-size:9px;">${f.class_name}${typeEmoji?' '+typeEmoji:''}</span>
+      <div class="hp-bar-wrap" style="margin:4px 0;"><div class="hp-bar" style="width:${hpPct}%;background:${hpColor(hpPct)};"></div></div>
+      <div style="font-size:10px;color:var(--text2);">❤️ ${f.hp}/${f.maxHp}${f.dot>0?` 🔥${f.dotTurns}t`:''}</div>
+      <div style="font-size:10px;color:var(--text3);">⚔️${f.atk} 🛡️${f.def}</div>
     </div>`;
   };
 
+  // Build my card (bottom) — full info
+  const buildMyCard=(f)=>{
+    const hpPct=Math.max(0,Math.round((f.hp/f.maxHp)*100));
+    const stPct=Math.max(0,Math.round((f.stamina/f.maxStamina)*100));
+    const isActive=f.uid===myActiveUid;
+    const isPickable=!f.defeated&&isPickPhase&&isMyTurn;
+    let cls='battle-card';
+    if(f.defeated)cls+=' defeated-card';
+    else if(isActive)cls+=' active-fighter';
+    else if(isPickable)cls+=' selectable-fighter';
+    if(f.dot>0)cls+=' dot-card';
+    const attrs=`data-uid="${f.uid}"${isPickable?' data-pickfighter="1"':''}`;
+    const col=classColor(f.class_name);
+    const typeEmoji={fire:'🔥',ice:'❄️',lightning:'⚡',earth:'🌿',dark:'🌑',light:'☀️',water:'💧',wind:'🌪️',void:'🌀',neutral:''}[f.element||'neutral']||'';
+    const moves=getMoves(f,state);
+    const movesHTML=isActive||isPickable?moves.slice(0,3).map(m=>{
+      const ok=f.stamina>=(m.stamina_cost||0);
+      return `<div style="font-size:10px;color:${ok?'var(--text2)':'var(--text4)'};padding:2px 0;border-top:1px solid var(--border);">${MOVE_ICONS[m.type]||'⚔️'} ${m.name} <span style="float:right;">⚡${m.stamina_cost||0}</span></div>`;
+    }).join(''):'';
+    return `<div class="${cls}" ${attrs} id="fc-${f.uid}">
+      ${isActive?`<div style="position:absolute;top:4px;right:4px;background:#4f8ef7;color:#fff;font-size:9px;padding:1px 5px;border-radius:4px;font-weight:700;">ACTIVE</div>`:''}
+      ${f.image_url?`<img class="battle-card-img" src="${f.image_url}">`:`<div class="battle-card-img-ph">${classEmoji(f.class_name)}</div>`}
+      <div style="font-size:12px;font-weight:700;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.name}</div>
+      <span class="cat-badge" style="background:${col.bg};color:${col.fg};font-size:9px;">${f.class_name}${typeEmoji?' '+typeEmoji:''}</span>
+      <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">⚔️${f.atk} 🛡️${f.def}</div>
+      <div class="hp-bar-wrap"><div class="hp-bar" style="width:${hpPct}%;background:${hpColor(hpPct)};"></div></div>
+      <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">❤️ ${f.hp}/${f.maxHp}</div>
+      <div class="stamina-bar-wrap"><div class="stamina-bar" style="width:${stPct}%;"></div></div>
+      <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">⚡ ${f.stamina}/${f.maxStamina}${f.shielded?' 🛡️':''}</div>
+      ${movesHTML}
+    </div>`;
+  };
+
+  // Action panel
   let actionHTML='';
   if(isMyTurn){
     if(isPickPhase){
-      actionHTML=`<div class="action-panel"><div class="phase-label">Pick your fighter</div><p style="font-size:13px;color:var(--text3);">Tap one of your cards above to send them out.</p></div>`;
+      actionHTML=`<div class="action-panel"><div class="phase-label">Your turn — pick a fighter</div>
+        <p style="font-size:13px;color:var(--text3);">Tap a card below to select it.</p></div>`;
     } else if(isActionPhase&&!pendingTargetMode){
       const fighter=myF.find(f=>f.uid===myActiveUid);
       if(fighter){
         const moves=getMoves(fighter,state);
-        actionHTML=`<div class="action-panel"><div class="phase-label">${fighter.name}'s move</div>
+        actionHTML=`<div class="action-panel">
+          <div class="phase-label">${fighter.name}'s turn — pick a move</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
           ${moves.length?moves.map(m=>{
             const ok=fighter.stamina>=(m.stamina_cost||0);
-            return `<button class="ability-btn${!ok?' no-stamina':''}" ${!ok?'disabled':''} onclick="selectMove('${fighter.uid}','${m.name}')">
-              ${MOVE_ICONS[m.type]||'⚔️'} <strong>${m.name}</strong>
-              <span style="float:right;font-size:11px;color:var(--text3);">${MOVE_LABELS[m.type]||m.type} · ⚡${m.stamina_cost||0}${m.type==='heal'?` · +${m.value}HP`:` · ${m.value}dmg`}</span>
+            const typeColor={attack:'#3b82f6',heavy:'#ef4444',heal:'#22c55e',shield:'#f59e0b',dot:'#f97316',multi:'#8b5cf6',power:'#ec4899',combo:'#06b6d4',speed:'#84cc16',aoe:'#dc2626',lifesteal:'#e11d48',stamina_steal:'#7c3aed',taunt:'#92400e',curse:'#6b21a8',counter:'#065f46',execute:'#1c1917',scatter:'#0369a1'}[m.type]||'#6b7280';
+            const dmgLabel=m.type==='heal'?`+${m.value}HP`:m.type==='shield'?`${m.value}% block`:m.type==='speed'?'Dodge×2':m.type==='dot'?`${Math.round(m.value/3)}/t×${m.dot_turns||3}`:m.type==='multi'?`${m.value}×${m.hits_min||2}-${m.hits_max||4}`:m.type==='aoe'?`${m.value} all`:m.type==='scatter'?`${m.value}×${m.scatter_targets||2}`:m.value?`${m.value}dmg`:'';
+            return `<button class="ability-btn${!ok?' no-stamina':''}" ${!ok?'disabled':''} data-uid="${fighter.uid}" data-move="${encodeURIComponent(m.name)}" style="border-left:3px solid ${typeColor};">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div><span style="font-size:15px;">${MOVE_ICONS[m.type]||'⚔️'}</span> <strong>${m.name}</strong> <span style="font-size:11px;color:${typeColor};">${MOVE_LABELS[m.type]||m.type}</span></div>
+                <div style="font-size:12px;color:var(--text3);">⚡${m.stamina_cost||0} · ${dmgLabel}</div>
+              </div>
+              ${m.desc?`<div style="font-size:11px;color:var(--text3);margin-top:2px;">${m.desc}</div>`:''}
             </button>`;
           }).join(''):`<p style="font-size:13px;color:var(--text3);">No moves available.</p>`}
+          </div>
         </div>`;
       }
     } else if(isActionPhase&&pendingTargetMode){
-      actionHTML=`<div class="action-panel"><div class="phase-label">Select target</div><p style="font-size:13px;color:var(--text3);">Tap an opponent's card above to attack them.</p><button class="btn btn-sm" style="margin-top:8px;" onclick="cancelTarget()">← Cancel</button></div>`;
+      actionHTML=`<div class="action-panel">
+        <div class="phase-label">Select a target</div>
+        <p style="font-size:13px;color:var(--text3);">Tap an enemy card above to attack.</p>
+        <button class="btn btn-sm" style="margin-top:8px;" onclick="cancelTarget()">← Cancel</button>
+      </div>`;
     }
+  } else {
+    actionHTML=`<div class="action-panel turn-wait" style="text-align:center;padding:12px;border-radius:12px;background:var(--bg3);">
+      <div style="font-size:13px;color:var(--text3);">⏳ Waiting for ${state.turn}...</div>
+    </div>`;
   }
 
-  const logHTML=[...(state.log||[])].reverse().slice(0,25).map(l=>{
+  // Log
+  const logHTML=[...(state.log||[])].reverse().slice(0,20).map(l=>{
     let cls='log-entry';
-    if(l.includes('CRIT'))cls+=' crit';
-    else if(l.includes('damage')||l.includes('defeated'))cls+=' dmg';
-    else if(l.includes('healed')||l.includes('restored')||l.includes('HP'))cls+=' heal-log';
-    else if(l.includes('Battle')||l.includes('wins')||l.includes('🏆'))cls+=' highlight';
+    if(l.includes('CRIT')||l.includes('EXECUTE'))cls+=' crit';
+    else if(l.includes('damage')||l.includes('defeated')||l.includes('dmg'))cls+=' dmg';
+    else if(l.includes('healed')||l.includes('restored')||l.includes('HP!'))cls+=' heal-log';
+    else if(l.includes('wins')||l.includes('🏆'))cls+=' highlight';
     return `<div class="${cls}">${l}</div>`;
   }).join('');
 
-  const turnMsg=isMyTurn?`⚡ Your Turn — ${isPickPhase?'Pick your fighter':pendingTargetMode?'Click a target':'Pick a move'}`:`⏳ Waiting for ${state.turn}...`;
+  const turnMsg=isMyTurn
+    ?`⚡ Your Turn${isPickPhase?' — Pick a fighter':pendingTargetMode?' — Tap an enemy':' — Pick a move'}`
+    :`⏳ ${state.turn}'s turn...`;
 
   el.innerHTML=`
-    <div class="turn-bar ${isMyTurn?'turn-yours':'turn-opp'}">${turnMsg}</div>
-    <div class="battle-field" style="margin-bottom:10px;">
-      <div class="field-side">
-        <span class="field-side-label yours">🟢 ${myLabel}</span>
-        ${myF.map(f=>bFC(f,true,f.uid===myActiveUid)).join('')}
+    <div class="battle-arena-wrap">
+      <div class="turn-bar ${isMyTurn?'turn-yours':'turn-opp'}">${turnMsg}</div>
+
+      <!-- OPPONENT TOP -->
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#fca5a5;margin-bottom:4px;padding:3px 8px;background:#2d0a0a;border-radius:6px;display:inline-block;">🔴 ${oppLabel}</div>
+        <div class="battle-field-opp">${oppF.map(f=>buildOppCard(f)).join('')}</div>
       </div>
-      <div class="field-side">
-        <span class="field-side-label theirs">🔴 ${oppLabel}</span>
-        ${oppF.map(f=>bFC(f,false,f.uid===oppActiveUid)).join('')}
+
+      <!-- LOG -->
+      <div class="battle-log-box">${logHTML}</div>
+
+      <!-- ACTION -->
+      ${actionHTML}
+
+      <!-- MY CARDS BOTTOM -->
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#93c5fd;margin-bottom:4px;padding:3px 8px;background:#0c2340;border-radius:6px;display:inline-block;">🟢 ${myLabel} (You)</div>
+        <div class="battle-field-mine">${myF.map(f=>buildMyCard(f)).join('')}</div>
       </div>
-    </div>
-    ${actionHTML}
-    <div class="battle-log-box" style="margin-top:10px;">${logHTML}</div>
-    <button class="btn btn-sm" style="margin-top:8px;color:var(--text3);" onclick="leaveBattle()">← Leave</button>`;
+
+      <button class="btn btn-sm" style="color:var(--text3);align-self:flex-start;" onclick="leaveBattle()">← Leave Battle</button>
+    </div>`;
+
+  // Wire up ability buttons via delegation (moves use encoded names)
+  el.querySelectorAll('.ability-btn[data-uid]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const fuid=btn.dataset.uid;
+      const mname=decodeURIComponent(btn.dataset.move||'');
+      if(fuid&&mname)selectMove(fuid,mname);
+    });
+  });
 }
 
 function getMoves(fighter,state){
   const pm=(state.poolMoves&&state.poolMoves[fighter.pool_card_id])||[];
   return pm.filter(m=>(fighter.unlockedMoves||[]).includes(m.name));
+}
+
+function showDmgPopup(targetUid,amount,isHeal){
+  // Show floating damage number on the target card
+  const el=document.getElementById('fc-'+targetUid);
+  if(!el)return;
+  const pop=document.createElement('div');
+  pop.className=isHeal?'heal-popup':'dmg-popup';
+  pop.textContent=isHeal?`+${amount} HP`:`-${amount}`;
+  el.style.position='relative';
+  el.appendChild(pop);
+  setTimeout(()=>pop.remove(),1500);
 }
 
 async function pickFighter(uid){
@@ -1632,6 +1728,7 @@ async function useMove(fighterUid,moveName,targetUid){
   if(move.type==='heal'){
     const h=move.value||30;attacker.hp=Math.min(attacker.maxHp,attacker.hp+h);
     log.push(`💚 ${attacker.name} used ${moveName} and restored ${h} HP!`);
+    setTimeout(()=>showDmgPopup(attacker.uid,h,true),100);
   } else if(move.type==='shield'){
     attacker.shielded=true;attacker.shieldPct=(move.value||75)/100;
     log.push(`🛡️ ${attacker.name} used ${moveName} — shields ${move.value||75}% of the next hit!`);
@@ -1653,6 +1750,7 @@ async function useMove(fighterUid,moveName,targetUid){
         log.push(`🌀 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${hits} hits for ${tot} total!${typeMult>1?' ⚡ Super effective!':''}`);
         if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
       } else if(move.type==='combo'){
+        setTimeout(()=>showDmgPopup(defender.uid,tot,false),100);
         const triggered=Math.random()<0.4;
         dmg=Math.max(1,Math.round((move.value-defender.def*0.4)*typeMult*critMult*(triggered?1.5:1)));
         if(defender.shielded){const bl=Math.round(dmg*defender.shieldPct);dmg=Math.max(1,dmg-bl);log.push(`🛡️ Shield absorbed ${bl} damage!`);defender.shielded=false;}
@@ -1665,6 +1763,7 @@ async function useMove(fighterUid,moveName,targetUid){
         defender.hp=Math.max(0,defender.hp-dmg);
         log.push(`${MOVE_ICONS[move.type]||'⚔️'} ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${dmg} damage!${typeMult>1?' ⚡ Super effective!':''}`);
         if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
+        setTimeout(()=>showDmgPopup(defender.uid,dmg,false),100);
       }
     }
     attacker.speedBuff=false;
