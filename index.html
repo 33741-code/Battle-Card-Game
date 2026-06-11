@@ -1527,7 +1527,8 @@ function renderBattleUI(){
     else if(isActive)cls+=' active-fighter';
     if(isTarget)cls+=' targetable-card';
     if(f.dot>0)cls+=' dot-card';
-    const attrs=`data-uid="${f.uid}"${isTarget?' data-target="1"':''}`;
+    const safeUid=btoa(encodeURIComponent(f.uid)).replace(/=/g,"");
+    const attrs=`data-safeuid="${safeUid}"${isTarget?' data-target="1"':''}`; 
     const col=classColor(f.class_name);
     const typeEmoji={fire:'🔥',ice:'❄️',lightning:'⚡',earth:'🌿',dark:'🌑',light:'☀️',water:'💧',wind:'🌪️',void:'🌀',neutral:''}[f.element||'neutral']||'';
     return `<div class="${cls}" ${attrs} id="fc-${f.uid}">
@@ -1551,7 +1552,8 @@ function renderBattleUI(){
     else if(isActive)cls+=' active-fighter';
     else if(isPickable)cls+=' selectable-fighter';
     if(f.dot>0)cls+=' dot-card';
-    const attrs=`data-uid="${f.uid}"${isPickable?' data-pickfighter="1"':''}`;
+    const safeUid2=btoa(encodeURIComponent(f.uid)).replace(/=/g,"");
+    const attrs=`data-safeuid="${safeUid2}"${isPickable?' data-pickfighter="1"':''}`; 
     const col=classColor(f.class_name);
     const typeEmoji={fire:'🔥',ice:'❄️',lightning:'⚡',earth:'🌿',dark:'🌑',light:'☀️',water:'💧',wind:'🌪️',void:'🌀',neutral:''}[f.element||'neutral']||'';
     const moves=getMoves(f,state);
@@ -2402,16 +2404,29 @@ async function deleteNews(id){
 
 // ── CARD CLICK DELEGATION ──────────────────────────────
 document.addEventListener('click',function(e){
-  // Fighter cards in battle
+  // Battle cards — new layout uses .battle-card
+  const battleCard=e.target.closest('.battle-card');
+  if(battleCard){
+    const safeUid=battleCard.dataset.safeuid;
+    if(!safeUid)return;
+    let uid;try{uid=decodeURIComponent(atob(safeUid));}catch(err){return;}
+    if(!uid)return;
+    if(battleCard.dataset.target)selectTarget(uid);
+    else if(battleCard.dataset.pickfighter)pickFighter(uid);
+    return;
+  }
+  // Legacy fighter-card class
   const fighter=e.target.closest('.fighter-card');
   if(fighter){
-    const uid=fighter.dataset.uid;
+    const safeUid=fighter.dataset.safeuid||fighter.dataset.uid;
+    if(!safeUid)return;
+    let uid;try{uid=decodeURIComponent(atob(safeUid));}catch(err){uid=safeUid;}
     if(!uid)return;
     if(fighter.dataset.target)selectTarget(uid);
     else if(fighter.dataset.pickfighter)pickFighter(uid);
     return;
   }
-  // Card tiles — decode safeuid back to real uid
+  // Card tiles (my cards page, team picker) — decode safeuid
   const tile=e.target.closest('.card-tile');
   if(!tile)return;
   const safeUid=tile.dataset.safeuid;
