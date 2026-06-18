@@ -1,0 +1,2801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Battle Card Game</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0f0f0f;--bg2:#1a1a1a;--bg3:#111;--border:#2a2a2a;--border2:#333;
+  --text:#f0f0ee;--text2:#aaa;--text3:#666;--text4:#444;
+  --input-bg:#111;--btn-bg:#222;--btn-border:#444;
+  --card-bg:#1a1a1a;--modal-bg:#1a1a1a;--stat-box:#111;
+  --ability-btn:#111;--ability-btn-border:#2a2a2a;
+  --arena-bg:#1a1a1a;--arena-card:#111;--arena-card-border:#222;
+  --log-bg:#111;--log-border:#1e1e1e;--move-block:#111;--divider:#222;
+}
+body.light{
+  --bg:#f0f0ee;--bg2:#ffffff;--bg3:#f5f5f3;--border:#e0e0dc;--border2:#ccc;
+  --text:#1a1a1a;--text2:#555;--text3:#777;--text4:#aaa;
+  --input-bg:#f5f5f3;--btn-bg:#e8e8e6;--btn-border:#ccc;
+  --card-bg:#ffffff;--modal-bg:#ffffff;--stat-box:#f5f5f3;
+  --ability-btn:#f5f5f3;--ability-btn-border:#e0e0dc;
+  --arena-bg:#ffffff;--arena-card:#f5f5f3;--arena-card-border:#e0e0dc;
+  --log-bg:#f5f5f3;--log-border:#e8e8e6;--move-block:#f5f5f3;--divider:#e0e0dc;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;transition:background 0.2s,color 0.2s;}
+.app{width:100vw;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+.screen{display:none;}.screen.active{display:block;}
+h2{font-size:20px;font-weight:700;}
+h3{font-size:16px;font-weight:600;margin-bottom:0.75rem;}
+h4{font-size:14px;font-weight:600;margin-bottom:0.5rem;}
+.nav{display:flex;flex-direction:column;gap:4px;}
+.nav button{font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;text-align:left;width:100%;}
+.nav button.active{background:var(--text);color:var(--bg);border-color:var(--text);font-weight:600;}
+.nav button:hover:not(.active){border-color:var(--text2);color:var(--text);}
+.box{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem;}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.field-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:0;}
+.field label{font-size:12px;color:var(--text3);}
+select,input[type=text],input[type=number],input[type=password],textarea{font-size:14px;padding:7px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--input-bg);color:var(--text);width:100%;}
+select:focus,input:focus,textarea:focus{outline:2px solid #4f8ef7;border-color:transparent;}
+textarea{resize:vertical;min-height:60px;}
+.btn{background:var(--btn-bg);border:1px solid var(--btn-border);border-radius:8px;padding:8px 18px;font-size:14px;font-weight:500;cursor:pointer;color:var(--text);transition:all 0.15s;}
+.btn:hover{border-color:var(--text2);}
+.btn-primary{background:#4f8ef7;border-color:#4f8ef7;color:#fff!important;}
+.btn-primary:hover{background:#3a7de8;}
+.btn-green{background:#16a34a;border-color:#16a34a;color:#fff!important;}
+.btn-green:hover{background:#15803d;}
+.btn-red{background:#dc2626;border-color:#dc2626;color:#fff!important;}
+.btn-yellow{background:#d97706;border-color:#d97706;color:#fff!important;}
+.btn-gold{background:#92400e;border-color:#d97706;color:#fbbf24!important;}
+.btn-gold:hover{background:#78350f;}
+.btn-sm{padding:5px 12px;font-size:12px;}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:12px;margin-bottom:1.5rem;}
+.card-tile{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:12px;cursor:pointer;transition:all 0.15s;position:relative;overflow:hidden;}
+.card-tile:hover{border-color:var(--text2);transform:translateY(-1px);}
+.card-tile.selected{border-color:#16a34a;box-shadow:0 0 0 2px #16a34a44;}
+.card-tile.selected::after{content:'✓';position:absolute;top:6px;right:6px;background:#16a34a;color:#fff;font-size:13px;font-weight:700;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;line-height:22px;text-align:center;}
+.card-img{width:100%;height:140px;object-fit:contain;border-radius:8px;margin-bottom:8px;background:var(--bg3);}
+.card-img-placeholder{width:100%;height:140px;border-radius:8px;margin-bottom:8px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:28px;}
+.xp-bar-wrap{background:var(--bg3);border-radius:4px;height:4px;margin-bottom:4px;}
+.xp-bar{height:4px;border-radius:4px;background:#4f8ef7;}
+.hp-bar-wrap{background:var(--bg3);border-radius:4px;height:5px;margin-bottom:3px;}
+.hp-bar{height:5px;border-radius:4px;transition:width 0.4s;}
+.stamina-bar-wrap{background:var(--bg3);border-radius:4px;height:4px;margin-bottom:3px;}
+.stamina-bar{height:4px;border-radius:4px;background:#f59e0b;}
+.row-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);}
+.row-item:last-child{border-bottom:none;}
+.empty{color:var(--text4);font-size:14px;text-align:center;padding:2rem;}
+.log-entry{font-size:13px;padding:6px 0;border-bottom:1px solid var(--log-border);color:var(--text2);line-height:1.5;}
+.log-entry:last-child{border-bottom:none;}
+.log-entry.highlight{color:#fbbf24;font-weight:600;}
+.log-entry.dmg{color:#f87171;}
+.log-entry.heal-log{color:#4ade80;}
+.log-entry.crit{color:#f97316;font-weight:700;}
+.cat-badge{font-size:10px;padding:2px 7px;border-radius:6px;display:inline-block;margin-bottom:5px;white-space:nowrap;}
+.ability-btn{background:var(--ability-btn);border:1px solid var(--ability-btn-border);border-radius:8px;padding:9px 12px;font-size:13px;cursor:pointer;text-align:left;width:100%;margin-bottom:6px;transition:all 0.15s;color:#fff;}
+body.light .ability-btn{color:#1a1a1a;}
+.ability-btn:hover:not(:disabled){border-color:#4f8ef7;}
+.ability-btn:disabled{opacity:0.35;cursor:not-allowed;}
+.ability-btn.no-stamina{border-color:#dc2626;opacity:0.5;}
+.toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;z-index:400;opacity:0;transition:opacity 0.2s;pointer-events:none;white-space:nowrap;}
+.toast.show{opacity:1;}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border2);border-top-color:var(--text2);border-radius:50%;animation:spin 0.6s linear infinite;vertical-align:middle;margin-right:6px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--modal-bg);border-radius:12px;border:1px solid var(--border2);padding:1.25rem;width:480px;max-width:95vw;max-height:90vh;overflow-y:auto;}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:1rem;}
+.stat-box{background:var(--stat-box);border-radius:8px;padding:8px 10px;}
+.stat-box .lbl{font-size:11px;color:var(--text3);}
+.stat-box .val{font-size:20px;font-weight:600;}
+.ability-tag{display:inline-block;font-size:11px;padding:3px 9px;border-radius:6px;margin:3px 3px 3px 0;background:var(--bg3);border:1px solid var(--border);color:var(--text2);}
+.login-wrap{max-width:340px;margin:3rem auto;}
+.err{font-size:12px;color:#dc2626;margin-top:8px;display:none;}
+.money-badge{background:#92400e;border:1px solid #d97706;color:#fbbf24;border-radius:8px;padding:4px 10px;font-size:13px;font-weight:700;}
+.level-badge{background:#1e3a5f;border:1px solid #2563eb;color:#93c5fd;border-radius:8px;padding:4px 10px;font-size:13px;font-weight:700;}
+
+/* ── FULLSCREEN LAYOUT ── */
+#main-screen{display:flex;flex-direction:column;width:100%;height:100%;overflow:hidden;}
+.main-topbar{padding:10px 16px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;gap:6px;}
+.main-topbar-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;}
+.main-body{display:flex;flex:1;overflow:hidden;}
+.main-sidebar{display:flex;flex-direction:column;width:160px;flex-shrink:0;border-right:1px solid var(--border);padding:10px 8px;overflow-y:auto;gap:4px;}
+.main-content{flex:1;overflow-y:auto;padding:16px;}
+
+/* ── BATTLE ARENA ── */
+.battle-arena-wrap{display:flex;flex-direction:column;gap:10px;min-height:100vh;padding-bottom:1rem;}
+.battle-field-opp{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:10px;background:#1a0a0a;border:1px solid #5c1a1a;border-radius:14px;}
+.battle-field-mine{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:10px;background:#0a1a2a;border:1px solid #1a3a5a;border-radius:14px;}
+/* Battle card — same dimensions as card-tile, slightly wider */
+.battle-card{background:var(--card-bg);border:2px solid var(--border);border-radius:12px;padding:10px;width:160px;flex-shrink:0;transition:all 0.2s;cursor:default;position:relative;display:flex;flex-direction:column;gap:3px;}
+.battle-card.selectable-fighter{cursor:pointer;border-color:#f59e0b;box-shadow:0 0 8px #f59e0b44;}
+.battle-card.selectable-fighter:hover{border-color:#fbbf24;box-shadow:0 0 14px #fbbf2466;transform:translateY(-4px);}
+.battle-card.selected-attacker{cursor:pointer;border-color:#4f8ef7;box-shadow:0 0 16px #4f8ef788;}
+.battle-card.targetable-card{cursor:pointer;border-color:#dc2626;box-shadow:0 0 8px #dc262644;}
+.battle-card.targetable-card:hover{border-color:#ef4444;box-shadow:0 0 14px #ef444466;transform:translateY(-4px);}
+.battle-card.defeated-card{opacity:0.2;filter:grayscale(1);pointer-events:none;}
+.battle-card.dot-card{border-color:#f97316;}
+.battle-card-img{width:100%;height:110px;object-fit:contain;border-radius:8px;background:var(--bg3);}
+.battle-card-img-ph{width:100%;height:110px;display:flex;align-items:center;justify-content:center;font-size:36px;background:var(--bg3);border-radius:8px;}
+.bc-bar-wrap{background:var(--bg3);border-radius:3px;height:5px;margin:1px 0;}
+.bc-hp-fill{height:5px;border-radius:3px;transition:width 0.4s;}
+.bc-st-fill{height:5px;border-radius:3px;background:linear-gradient(90deg,#facc15,#f59e0b);transition:width 0.4s;}
+.bc-move-row{font-size:10px;color:var(--text3);padding:2px 0;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+.battle-log-box{background:var(--log-bg);border:1px solid var(--border);border-radius:10px;padding:10px;max-height:140px;overflow-y:auto;}
+.turn-bar{text-align:center;padding:8px 12px;font-size:14px;font-weight:700;border-radius:8px;}
+.turn-yours{background:#0c2340;color:#93c5fd;border:1px solid #1e40af;}
+.turn-opp{background:#2d0a0a;color:#fca5a5;border:1px solid #7f1d1d;}
+.action-panel{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px;}
+.phase-label{font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;}
+.ability-btn{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;cursor:pointer;text-align:left;color:var(--text);transition:background 0.15s;font-size:13px;}
+.ability-btn:hover:not(:disabled){background:var(--bg2);border-color:var(--text3);}
+.ability-btn.no-stamina{opacity:0.4;cursor:not-allowed;}
+.dmg-popup{position:absolute;top:-24px;left:50%;transform:translateX(-50%);font-size:20px;font-weight:800;color:#ef4444;text-shadow:0 2px 6px rgba(0,0,0,0.7);pointer-events:none;animation:dmgFloat 1.5s ease forwards;z-index:100;}
+.heal-popup{position:absolute;top:-24px;left:50%;transform:translateX(-50%);font-size:20px;font-weight:800;color:#22c55e;text-shadow:0 2px 6px rgba(0,0,0,0.7);pointer-events:none;animation:dmgFloat 1.5s ease forwards;z-index:100;}
+@keyframes dmgFloat{0%{opacity:1;transform:translateX(-50%) translateY(0);}100%{opacity:0;transform:translateX(-50%) translateY(-56px);}}
+/* old compat */
+.yours{background:#0c2340;color:#93c5fd;}
+.theirs{background:#2d0a0a;color:#fca5a5;}
+/* MOVE BLOCK — fixed formatting */
+.move-block{background:var(--move-block);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;}
+.move-block-header{font-size:12px;font-weight:600;color:var(--text3);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.04em;}
+.img-preview{width:100%;max-height:140px;object-fit:cover;border-radius:8px;margin-top:8px;display:none;}
+.loading-screen{display:flex;align-items:center;justify-content:center;min-height:60vh;flex-direction:column;gap:12px;}
+.divider{border:none;border-top:1px solid var(--divider);margin:1rem 0;}
+.theme-btn{background:var(--btn-bg);border:1px solid var(--btn-border);border-radius:8px;padding:5px 10px;font-size:16px;cursor:pointer;}
+.player-xp-bar{background:var(--bg3);border-radius:4px;height:6px;margin:4px 0;}
+.player-xp-fill{height:6px;border-radius:4px;background:linear-gradient(90deg,#4f8ef7,#a78bfa);}
+.income-card-badge{position:absolute;top:6px;right:6px;background:#16a34a;color:#fff;font-size:9px;padding:2px 5px;border-radius:4px;font-weight:700;}
+.pack-option{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;flex:1;min-width:150px;}
+.guide-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:1rem;}
+.guide-table th{background:var(--bg3);padding:6px 10px;text-align:left;font-weight:600;color:var(--text2);border:1px solid var(--border);}
+.guide-table td{padding:6px 10px;border:1px solid var(--border);color:var(--text2);}
+.guide-table tr:nth-child(even) td{background:var(--bg3);}
+.tab-row{display:flex;gap:4px;margin-bottom:1rem;border-bottom:1px solid var(--border);}
+.tab-btn{padding:6px 14px;font-size:13px;cursor:pointer;border:none;background:transparent;color:var(--text3);border-bottom:2px solid transparent;margin-bottom:-1px;}
+.tab-btn.active{color:var(--text);border-bottom-color:var(--text);font-weight:600;}
+@media(max-width:540px){.battle-field{grid-template-columns:1fr;}.field-row{grid-template-columns:1fr;}.field-row-3{grid-template-columns:1fr 1fr;}.app{padding:0.75rem;}}
+</style>
+</head>
+<body>
+<div class="app">
+
+<div id="loading-screen" class="loading-screen" style="display:none;">
+  <div class="spinner" style="width:24px;height:24px;border-width:3px;"></div>
+  <span style="color:var(--text3);">Loading...</span>
+</div>
+<script>
+// Hide loading immediately once DOM is ready - runs before anything else
+document.addEventListener("DOMContentLoaded",function(){
+  var ls=document.getElementById("loading-screen");
+  var li=document.getElementById("login-screen");
+  if(ls)ls.style.display="none";
+  if(li)li.style.display="block";
+});
+</script>
+
+<!-- LOGIN -->
+<div id="login-screen" style="height:100%;overflow-y:auto;">
+  <div class="login-wrap" style="max-width:340px;margin:5vh auto;padding:1rem;">
+    <h2 style="margin-bottom:0.25rem;">⚔️ Battle Card Game</h2>
+    <p style="font-size:13px;color:var(--text3);margin-bottom:1.5rem;">Sign in or create your account</p>
+    <div class="box">
+      <div class="field" style="margin-bottom:10px;"><label>Username</label><input type="text" id="li-user" placeholder="Your name" autocomplete="off"></div>
+      <div class="field" style="margin-bottom:14px;"><label>PIN (4 digits)</label><input type="password" id="li-pin" maxlength="4" placeholder="1234"></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary" style="flex:1;" onclick="login()"><span id="li-spin" class="spinner" style="display:none;"></span>Sign in</button>
+        <button class="btn" style="flex:1;" onclick="signup()">Create account</button>
+      </div>
+      <div id="li-err" class="err"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main-screen" style="display:none;">
+  <!-- Top bar: title, badges, XP -->
+  <div class="main-topbar">
+    <div class="main-topbar-row">
+      <h2 style="font-size:18px;">⚔️ Battle Card Game</h2>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <span class="level-badge" id="level-badge" onclick="openLevelModal()" style="cursor:pointer;" title="Click to see milestones &amp; quests">Lv 1</span>
+        <span class="money-badge" id="money-badge">💰 $0</span>
+        <p id="admin-label" style="font-size:12px;color:var(--text3);margin:0;"></p>
+        <div id="daily-reward-btn-wrap" style="display:none;">
+          <button class="btn btn-green btn-sm" onclick="forceDailyLogin()">🎁 Daily</button>
+        </div>
+        <button class="theme-btn" id="theme-btn" onclick="toggleTheme()">🌙</button>
+        <span style="font-size:13px;color:var(--text3);" id="user-label"></span>
+        <button class="btn btn-sm" onclick="logout()">Sign out</button>
+      </div>
+    </div>
+    <div>
+      <div class="player-xp-bar"><div class="player-xp-fill" id="player-xp-fill" style="width:0%"></div></div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;" id="player-xp-text"></div>
+    </div>
+  </div>
+  <!-- Body: sidebar + content -->
+  <div class="main-body">
+    <!-- Vertical sidebar nav -->
+    <div class="main-sidebar">
+      <button class="active" onclick="go('mycards')">🃏 My Cards</button>
+      <button onclick="go('packs')">📦 Shop</button>
+      <button onclick="go('battle')">⚔️ Battle</button>
+      <button onclick="go('trade')">🤝 Trade</button>
+      <button onclick="go('training')">🏋️ Training</button>
+      <button onclick="go('leaderboard')">🏆 Leaderboard</button>
+      <button onclick="go('news')">📰 News</button>
+      <button id="admin-tab" style="display:none;" onclick="go('admin')">⚙️ Admin</button>
+    </div>
+    <!-- Scrollable content -->
+    <div class="main-content">
+
+  <!-- MY CARDS -->
+  <div id="screen-mycards" class="screen active">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;flex-wrap:wrap;gap:8px;">
+      <h3 id="mycards-title" style="margin:0;">My Cards</h3>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <label style="font-size:12px;color:var(--text3);">Sort by</label>
+        <select id="sort-select" onchange="renderMyCards()" style="width:auto;font-size:13px;padding:4px 8px;">
+          <option value="recent">Recent</option>
+          <option value="rarity">Rarity</option>
+          <option value="level">Level</option>
+          <option value="name">Name</option>
+          <option value="class">Class</option>
+        </select>
+      </div>
+    </div>
+    <div id="income-cards-section" style="margin-bottom:1rem;display:none;">
+      <div class="box" style="padding:10px 14px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:6px;">💵 Income Cards</div>
+        <div id="income-cards-list"></div>
+      </div>
+    </div>
+    <div id="mycards-grid" class="card-grid"></div>
+  </div>
+
+  <!-- SHOP -->
+  <div id="screen-packs" class="screen">
+    <h3>Pack Shop</h3>
+    <p style="font-size:13px;color:var(--text3);margin-bottom:14px;">Open packs to collect cards. Better packs = better odds.</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:1rem;">
+      <div class="pack-option">
+        <div style="font-size:32px;margin-bottom:6px;">📦</div>
+        <h4>Common Pack</h4>
+        <p style="font-size:12px;color:var(--text3);margin-bottom:8px;">Standard odds. Good for building your collection.</p>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Common 50% · Uncommon 25% · Rare 14% · Epic 8% · Legendary 3%</div>
+        <button class="btn btn-gold btn-sm" onclick="openPack(0)"><span class="spinner" id="spin-0" style="display:none;"></span>Open — $100</button>
+      </div>
+      <div class="pack-option">
+        <div style="font-size:32px;margin-bottom:6px;">💎</div>
+        <h4>Rare Pack</h4>
+        <p style="font-size:12px;color:var(--text3);margin-bottom:8px;">Higher chance of Rare+ cards.</p>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Rare 35% · Epic 25% · Legendary 20% · Mythic 12% · Ancient 6% · Celestial 2%</div>
+        <button class="btn btn-gold btn-sm" onclick="openPack(1)"><span class="spinner" id="spin-1" style="display:none;"></span>Open — $500</button>
+      </div>
+      <div class="pack-option">
+        <div style="font-size:32px;margin-bottom:6px;">👑</div>
+        <h4>Legendary Pack</h4>
+        <p style="font-size:12px;color:var(--text3);margin-bottom:8px;">Guaranteed Legendary or above.</p>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Legendary 40% · Mythic 28% · Ancient 20% · Celestial 12%</div>
+        <button class="btn btn-gold btn-sm" onclick="openPack(2)"><span class="spinner" id="spin-2" style="display:none;"></span>Open — $1,750</button>
+      </div>
+    </div>
+    <div id="pack-result"></div>
+  </div>
+
+  <!-- BATTLE -->
+  <div id="screen-battle" class="screen">
+    <div id="battle-lobby" style="display:block;"></div>
+    <div id="battle-active" style="display:none;"></div>
+  </div>
+
+  <!-- TRADE -->
+  <div id="screen-trade" class="screen">
+    <div id="trade-content"></div>
+  </div>
+
+  <!-- TRAINING -->
+  <div id="screen-training" class="screen"><div id="training-content"></div></div>
+
+  <!-- LEADERBOARD -->
+  <div id="screen-leaderboard" class="screen"><div id="lb-content"></div></div>
+
+  <!-- NEWS -->
+  <div id="screen-news" class="screen"><div id="news-content"></div></div>
+
+  <!-- ADMIN -->
+  <div id="screen-admin" class="screen">
+    <div class="tab-row">
+      <button class="tab-btn active" onclick="adminTab('add-card',this)">➕ Add Card</button>
+      <button class="tab-btn" onclick="adminTab('edit-card',this)">✏️ Edit Card</button>
+      <button class="tab-btn" onclick="adminTab('pool',this)">📋 Card Pool</button>
+      <button class="tab-btn" onclick="adminTab('guide',this)">📖 Balance Guide</button>
+      <button class="tab-btn" onclick="adminTab('post-news',this)">📰 Post News</button>
+      <button class="tab-btn" onclick="adminTab('manage',this)">👥 Manage</button>
+    </div>
+
+    <!-- ADD CARD -->
+    <div id="admin-add-card">
+      <div class="box">
+        <h3 style="margin-bottom:12px;">➕ Add New Card to Pool</h3>
+        <div class="field-row">
+          <div class="field"><label>Card Name</label><input type="text" id="ac-name" placeholder="e.g. Shadow Knight"></div>
+          <div class="field"><label>Class</label>
+            <select id="ac-class" onchange="updateSuggestedStats()">
+              <option>Warrior</option><option>Assassin</option><option>Brawler</option><option>Ranger</option>
+              <option>Mage</option><option>Knight</option><option>Specter</option><option>Titan</option>
+              <option>Beast</option><option>Elemental</option><option>Necromancer</option><option>Paladin</option>
+              <option>Demon</option><option>Angel</option><option>Cosmic</option><option>Icon</option>
+              <option>Mythborn</option><option>Druid</option><option>Sniper</option><option>Machine</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Rarity</label>
+            <select id="ac-rarity" onchange="updateSuggestedStats()">
+              <option value="0">Common</option><option value="1">Uncommon</option><option value="2">Rare</option>
+              <option value="3">Epic</option><option value="4">Legendary</option><option value="5">Mythic</option>
+              <option value="6">Ancient</option><option value="7">Celestial</option>
+            </select>
+          </div>
+          <div class="field"><label>Element / Type</label>
+            <select id="ac-element">
+              <option value="neutral">⚪ Neutral</option><option value="fire">🔥 Fire</option>
+              <option value="ice">❄️ Ice</option><option value="lightning">⚡ Lightning</option>
+              <option value="earth">🌿 Earth</option><option value="dark">🌑 Dark</option>
+              <option value="light">☀️ Light</option><option value="water">💧 Water</option>
+              <option value="wind">🌪️ Wind</option><option value="void">🌀 Void</option>
+            </select>
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:10px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="ac-is-income" onchange="toggleIncomeFields()" style="width:auto;">
+            <span>💵 Income card (earns money over time, not used in battle)</span>
+          </label>
+        </div>
+        <div id="income-fields" style="display:none;margin-bottom:10px;">
+          <div class="field-row">
+            <div class="field"><label>Income per collection ($)</label><input type="number" id="ac-income-amt" value="50" min="1"></div>
+            <div class="field"><label>Collection interval (hours)</label><input type="number" id="ac-income-hrs" value="24" min="1" max="168"></div>
+          </div>
+        </div>
+        <div id="battle-fields">
+          <div class="field-row-3" style="margin-bottom:10px;">
+            <div class="field"><label>Base HP</label><input type="number" id="ac-hp" value="150" min="50" max="1000"></div>
+            <div class="field"><label>Base ATK</label><input type="number" id="ac-atk" value="30" min="1" max="500"></div>
+            <div class="field"><label>Base DEF</label><input type="number" id="ac-def" value="20" min="1" max="500"></div>
+          </div>
+          <div class="field-row-3" style="margin-bottom:10px;">
+            <div class="field"><label>Max Stamina</label><input type="number" id="ac-stamina-max" value="100" min="50" max="300"></div>
+            <div class="field"><label>Starting Stamina</label><input type="number" id="ac-stamina-start" value="50" min="0" max="300"></div>
+            <div class="field"><label>Stamina per turn</label><input type="number" id="ac-stamina-regen" value="25" min="5" max="100"></div>
+          </div>
+          <div class="field-row" style="margin-bottom:8px;">
+            <div class="field"><label>Crit chance (0–0.5)</label><input type="number" id="ac-crit" value="0.1" min="0" max="0.5" step="0.01"></div>
+            <div class="field"><label>Dodge chance (0–0.4)</label><input type="number" id="ac-dodge" value="0.05" min="0" max="0.4" step="0.01"></div>
+          </div>
+          <div id="stat-suggest-tip" style="font-size:12px;color:#4f8ef7;background:#0c1829;border-radius:8px;padding:7px 12px;margin-bottom:12px;">Select a rarity and class above to get suggested stats.</div>
+          <div class="field" style="margin-bottom:12px;">
+            <label>Card Image</label>
+            <input type="file" id="ac-image" accept="image/*" onchange="previewAdminImage('ac-img-preview','ac-image')" style="padding:6px;">
+            <img id="ac-img-preview" class="img-preview">
+          </div>
+          <hr class="divider">
+          <h4>Base Moves (available from Level 1)</h4>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:12px;">Add 3 moves. Damage-over-Time = a burn/poison effect that deals damage each turn for several turns.</p>
+          <div id="base-moves-container"></div>
+          <button class="btn btn-sm" onclick="addMoveBlock('base-moves-container',1)" style="margin-bottom:16px;">+ Add Base Move</button>
+          <hr class="divider">
+          <h4>Level-Up Moves (unlock at specific levels)</h4>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:12px;">These moves unlock when a card reaches the specified level.</p>
+          <div id="levelup-moves-container"></div>
+          <button class="btn btn-sm" onclick="addMoveBlock('levelup-moves-container',5)" style="margin-bottom:16px;">+ Add Level-Up Move</button>
+        </div>
+        <button class="btn btn-primary" onclick="addPoolCard()"><span id="pool-spin" class="spinner" style="display:none;"></span>Add Card to Pool</button>
+      </div>
+    </div>
+
+    <!-- EDIT CARD -->
+    <div id="admin-edit-card" style="display:none;">
+      <div class="box">
+        <h3 style="margin-bottom:10px;">✏️ Edit Existing Card</h3>
+        <div class="field-row" style="margin-bottom:12px;">
+          <div class="field"><label>Select card to edit</label>
+            <select id="edit-card-select" onchange="loadCardForEdit()">
+              <option value="">— Select a card —</option>
+            </select>
+          </div>
+        </div>
+        <div id="edit-card-form" style="display:none;"></div>
+      </div>
+    </div>
+
+    <!-- POOL -->
+    <div id="admin-pool" style="display:none;">
+      <h3>Card Pool (<span id="pool-count">0</span> cards)</h3>
+      <div id="pool-grid" class="card-grid"></div>
+    </div>
+
+    <!-- POST NEWS -->
+    <div id="admin-post-news" style="display:none;">
+      <div class="box">
+        <h3>📰 Post a News Update</h3>
+        <p style="font-size:12px;color:var(--text3);margin-bottom:12px;">Posts are visible to all players on the News tab. Great for announcing new cards, packs, or events.</p>
+        <div class="field" style="margin-bottom:10px;">
+          <label>Headline</label>
+          <input type="text" id="news-title" placeholder="e.g. 🔥 New Legendary Cards Just Dropped!">
+        </div>
+        <div class="field" style="margin-bottom:10px;">
+          <label>Body</label>
+          <textarea id="news-body" rows="4" placeholder="Write your announcement here..."></textarea>
+        </div>
+        <div class="field-row" style="margin-bottom:12px;">
+          <div class="field">
+            <label>Tag (optional)</label>
+            <select id="news-tag">
+              <option value="">None</option>
+              <option value="new-cards">🃏 New Cards</option>
+              <option value="new-pack">📦 New Pack</option>
+              <option value="event">🎉 Event</option>
+              <option value="update">🔧 Update</option>
+              <option value="announcement">📣 Announcement</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Pin this post?</label>
+            <select id="news-pin">
+              <option value="false">No</option>
+              <option value="true">Yes — show at top</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="postNews()"><span id="news-spin" class="spinner" style="display:none;"></span>Post News</button>
+      </div>
+      <h3 style="margin-bottom:0.75rem;">Posted News</h3>
+      <div id="admin-news-list"></div>
+    </div>
+
+    <!-- MANAGE -->
+    <div id="admin-manage" style="display:none;">
+      <div class="box">
+        <h3>👥 Player Overview</h3>
+        <div id="admin-player-list"><div class="empty">Click Refresh to load</div></div>
+        <button class="btn btn-sm" style="margin-top:8px;" onclick="loadAdminPlayers()">🔄 Refresh</button>
+      </div>
+      <div class="box">
+        <h3>💰 Give Gold</h3>
+        <div class="field-row">
+          <div class="field"><label>Player</label><select id="admin-give-player" style="background:var(--input-bg);color:var(--text);"></select></div>
+          <div class="field"><label>Amount ($)</label><input type="number" id="admin-give-amount" value="500" min="1"></div>
+        </div>
+        <button class="btn btn-primary" onclick="adminGiveGold()">Give Gold</button>
+      </div>
+      <div class="box">
+        <h3>⭐ Give Player XP</h3>
+        <div class="field-row">
+          <div class="field"><label>Player</label><select id="admin-xp-player" style="background:var(--input-bg);color:var(--text);"></select></div>
+          <div class="field"><label>XP Amount</label><input type="number" id="admin-give-xp" value="200" min="1"></div>
+        </div>
+        <button class="btn btn-primary" onclick="adminGiveXP()">Give XP</button>
+      </div>
+      <div class="box">
+        <h3>🃏 Boost Card XP</h3>
+        <div class="field-row">
+          <div class="field"><label>Player</label><select id="admin-cardxp-player" style="background:var(--input-bg);color:var(--text);"></select></div>
+          <div class="field"><label>XP per card</label><input type="number" id="admin-cardxp-amount" value="100" min="1"></div>
+        </div>
+        <button class="btn btn-primary" onclick="adminGiveCardXP()">Boost All Cards</button>
+      </div>
+      <div class="box" style="border-color:#dc2626;">
+        <h3 style="color:#dc2626;">⚠️ Danger Zone</h3>
+        <div class="field" style="margin-bottom:10px;">
+          <label>Delete player account</label>
+          <select id="admin-del-player" style="background:var(--input-bg);color:var(--text);max-width:200px;"></select>
+        </div>
+        <button class="btn btn-sm btn-red" onclick="adminDeletePlayer()">Delete Player</button>
+        <p style="font-size:11px;color:var(--text3);margin-top:6px;">Permanently deletes the account and all their cards.</p>
+      </div>
+    </div>
+
+    <div id="admin-guide" style="display:none;">
+      <div class="box">
+        <h3>📖 Card Balance Guide</h3>
+        <p style="font-size:13px;color:var(--text3);margin-bottom:1rem;">Use this as a reference when creating cards to keep the game balanced.</p>
+
+        <h4 style="margin-bottom:8px;">Stats by Rarity</h4>
+        <table class="guide-table">
+          <tr><th>Rarity</th><th>HP</th><th>ATK</th><th>DEF</th><th>Max Stamina</th><th>Crit</th><th>Dodge</th></tr>
+          <tr><td style="color:#9ca3af">Common</td><td>100–150</td><td>15–25</td><td>10–18</td><td>80–100</td><td>0.05–0.08</td><td>0.03–0.06</td></tr>
+          <tr><td style="color:#34d399">Uncommon</td><td>140–200</td><td>22–35</td><td>15–25</td><td>90–110</td><td>0.08–0.12</td><td>0.05–0.08</td></tr>
+          <tr><td style="color:#60a5fa">Rare</td><td>190–270</td><td>30–50</td><td>22–35</td><td>100–130</td><td>0.10–0.15</td><td>0.06–0.10</td></tr>
+          <tr><td style="color:#a78bfa">Epic</td><td>260–360</td><td>45–70</td><td>30–50</td><td>110–150</td><td>0.12–0.18</td><td>0.08–0.13</td></tr>
+          <tr><td style="color:#f59e0b">Legendary</td><td>350–480</td><td>65–95</td><td>45–70</td><td>120–170</td><td>0.15–0.22</td><td>0.10–0.16</td></tr>
+          <tr><td style="color:#ec4899">Mythic</td><td>460–620</td><td>88–130</td><td>62–95</td><td>140–200</td><td>0.18–0.28</td><td>0.13–0.20</td></tr>
+          <tr><td style="color:#f97316">Ancient</td><td>600–800</td><td>120–175</td><td>85–130</td><td>160–240</td><td>0.22–0.35</td><td>0.16–0.26</td></tr>
+          <tr><td style="color:#c7d2fe">Celestial</td><td>800–1200</td><td>160–250</td><td>115–180</td><td>200–300</td><td>0.28–0.45</td><td>0.20–0.35</td></tr>
+        </table>
+
+        <h4 style="margin-bottom:8px;">Move Damage by Rarity</h4>
+        <table class="guide-table">
+          <tr><th>Rarity</th><th>Basic Attack</th><th>Heavy Attack</th><th>Power Move</th><th>Heal</th><th>DoT per turn</th></tr>
+          <tr><td style="color:#9ca3af">Common</td><td>20–35</td><td>45–60</td><td>70–90</td><td>20–35 HP</td><td>8–15</td></tr>
+          <tr><td style="color:#34d399">Uncommon</td><td>30–50</td><td>60–85</td><td>90–120</td><td>30–50 HP</td><td>12–22</td></tr>
+          <tr><td style="color:#60a5fa">Rare</td><td>45–70</td><td>85–120</td><td>120–165</td><td>45–70 HP</td><td>18–32</td></tr>
+          <tr><td style="color:#a78bfa">Epic</td><td>65–100</td><td>115–165</td><td>160–220</td><td>65–100 HP</td><td>26–48</td></tr>
+          <tr><td style="color:#f59e0b">Legendary</td><td>90–140</td><td>155–220</td><td>210–290</td><td>90–140 HP</td><td>38–68</td></tr>
+          <tr><td style="color:#ec4899">Mythic</td><td>125–190</td><td>210–295</td><td>280–385</td><td>125–190 HP</td><td>52–95</td></tr>
+          <tr><td style="color:#f97316">Ancient</td><td>170–255</td><td>280–395</td><td>370–510</td><td>170–255 HP</td><td>70–128</td></tr>
+          <tr><td style="color:#c7d2fe">Celestial</td><td>230–345</td><td>375–530</td><td>490–680</td><td>230–345 HP</td><td>95–172</td></tr>
+        </table>
+
+        <h4 style="margin-bottom:8px;">Stamina Cost Guide</h4>
+        <table class="guide-table">
+          <tr><th>Move Type</th><th>Suggested Stamina Cost</th><th>Notes</th></tr>
+          <tr><td>Basic Attack</td><td>20–35</td><td>Should be usable every turn</td></tr>
+          <tr><td>Heal / Shield / Speed</td><td>0–25</td><td>Utility moves — keep cheap</td></tr>
+          <tr><td>Heavy Attack</td><td>40–65</td><td>Skip every 2nd turn to build up</td></tr>
+          <tr><td>Damage-over-Time</td><td>30–55</td><td>Worth the cost — lingers</td></tr>
+          <tr><td>Multi-hit</td><td>35–60</td><td>Hits 2–4 times</td></tr>
+          <tr><td>Power Move</td><td>70–100</td><td>Needs 3–4 turns to charge</td></tr>
+          <tr><td>Combo</td><td>45–75</td><td>40% chance to deal 1.5× damage</td></tr>
+        </table>
+
+        <h4 style="margin-bottom:8px;">Class Tendencies</h4>
+        <table class="guide-table">
+          <tr><th>Class</th><th>Strengths</th><th>Design tip</th></tr>
+          <tr><td>Warrior</td><td>Balanced all-rounder</td><td>Solid stats across the board</td></tr>
+          <tr><td>Assassin</td><td>High crit + dodge</td><td>Low HP, high burst damage</td></tr>
+          <tr><td>Brawler</td><td>High ATK, low DEF</td><td>Glass cannon fighter</td></tr>
+          <tr><td>Ranger</td><td>High dodge, multi-hit</td><td>Hits fast, hard to pin down</td></tr>
+          <tr><td>Mage</td><td>High power moves + DoT</td><td>Stamina hungry, but devastating</td></tr>
+          <tr><td>Knight</td><td>High DEF + shield moves</td><td>Tanky — hard to kill</td></tr>
+          <tr><td>Specter</td><td>Dodge + combos</td><td>Unpredictable, slippery</td></tr>
+          <tr><td>Titan</td><td>Very high HP + ATK</td><td>Slow but hits like a truck</td></tr>
+          <tr><td>Beast</td><td>Multi-hit + DoT</td><td>Wild and relentless</td></tr>
+          <tr><td>Elemental</td><td>Type advantages</td><td>Exploit type matchups</td></tr>
+          <tr><td>Necromancer</td><td>DoT + heals</td><td>Attrition fighter</td></tr>
+          <tr><td>Paladin</td><td>Heal + shield</td><td>Support/sustain tank</td></tr>
+          <tr><td>Demon</td><td>High ATK + power moves</td><td>Aggressive and scary</td></tr>
+          <tr><td>Angel</td><td>Strong heals + light</td><td>Hard to burst down</td></tr>
+          <tr><td>Cosmic</td><td>Void/combo moves</td><td>Wildcard — unpredictable</td></tr>
+          <tr><td>Icon</td><td>Unique abilities</td><td>Real-world legends — anything goes</td></tr>
+          <tr><td>Mythborn</td><td>All stats high</td><td>Rare and powerful</td></tr>
+          <tr><td>Druid</td><td>Heals + DoT</td><td>Nature sustain fighter</td></tr>
+          <tr><td>Sniper</td><td>High crit + dodge</td><td>Long range, precise striker</td></tr>
+          <tr><td>Machine</td><td>High DEF + multi-hit</td><td>Mechanical precision</td></tr>
+        </table>
+
+        <h4 style="margin-bottom:8px;">Type Matchups (attacker → defender)</h4>
+        <table class="guide-table">
+          <tr><th>Attacker</th><th>Strong vs</th><th>Weak vs</th></tr>
+          <tr><td>🔥 Fire</td><td>Ice, Earth, Wind</td><td>Water, Fire</td></tr>
+          <tr><td>❄️ Ice</td><td>Earth, Wind</td><td>Fire, Ice</td></tr>
+          <tr><td>⚡ Lightning</td><td>Water, Ice</td><td>Earth, Lightning</td></tr>
+          <tr><td>🌿 Earth</td><td>Fire, Lightning</td><td>Ice, Earth</td></tr>
+          <tr><td>🌑 Dark</td><td>Light, Neutral</td><td>Dark, Void</td></tr>
+          <tr><td>☀️ Light</td><td>Dark, Void</td><td>Light</td></tr>
+          <tr><td>💧 Water</td><td>Fire, Earth</td><td>Lightning, Water</td></tr>
+          <tr><td>🌪️ Wind</td><td>Earth, Lightning</td><td>Wind</td></tr>
+          <tr><td>🌀 Void</td><td>Light, Neutral</td><td>Void</td></tr>
+          <tr><td>⚪ Neutral</td><td>—</td><td>—</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+    </div><!-- /main-content -->
+  </div><!-- /main-body -->
+</div><!-- /main-screen -->
+
+<!-- CARD DETAIL MODAL -->
+<div class="modal-overlay" id="card-modal">
+  <div class="modal">
+    <div id="m-img-wrap" style="margin-bottom:10px;"></div>
+    <h3 id="m-name" style="margin-bottom:4px;"></h3>
+    <div id="m-meta" style="margin-bottom:12px;font-size:13px;color:var(--text3);"></div>
+    <div class="stat-grid">
+      <div class="stat-box"><div class="lbl">ATK</div><div class="val" id="m-atk"></div></div>
+      <div class="stat-box"><div class="lbl">DEF</div><div class="val" id="m-def"></div></div>
+      <div class="stat-box"><div class="lbl">HP</div><div class="val" id="m-hp"></div></div>
+      <div class="stat-box"><div class="lbl">Level</div><div class="val" id="m-level"></div></div>
+    </div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:4px;">XP Progress</div>
+    <div class="xp-bar-wrap" style="height:7px;margin-bottom:6px;"><div class="xp-bar" id="m-xpbar"></div></div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px;" id="m-xptext"></div>
+    <div id="m-duplicate-section" style="margin-bottom:12px;display:none;">
+      <hr class="divider">
+      <h4 style="margin-bottom:8px;">🔗 Combine Duplicates</h4>
+      <div id="m-duplicate-list"></div>
+    </div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Moves</div>
+    <div id="m-moves"></div>
+    <button class="btn btn-sm" style="margin-top:12px;" onclick="closeModal()">Close</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SB_URL='https://mopoupijvoownusuaurt.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vcG91cGlqdm9vd251c3VhdXJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5ODcwNjIsImV4cCI6MjA5NTU2MzA2Mn0.bxFx1QA1Bea6SG5vSRNnhL1BjM6gFRHeONDgEhM1nJw';
+let sb;
+try{sb=supabase.createClient(SB_URL,SB_KEY);}catch(e){console.error('Supabase init failed:',e);}
+
+const RARITIES=['Common','Uncommon','Rare','Epic','Legendary','Mythic','Ancient','Celestial'];
+const RARITY_COLORS=['#9ca3af','#34d399','#60a5fa','#a78bfa','#f59e0b','#ec4899','#f97316','#c7d2fe'];
+const COMBINE_COSTS=[50,100,200,400,800,1500,3000,6000];
+const PACK_ODDS=[
+  [0.50,0.25,0.14,0.08,0.03,0,0,0],
+  [0,0,0.35,0.25,0.20,0.12,0.06,0.02],
+  [0,0,0,0,0.40,0.28,0.20,0.12]
+];
+const PACK_COSTS=[100,500,1750];
+const RARITY_XP_MULT=[1.0,1.15,1.35,1.6,1.9,2.2,2.6,3.0];
+const RARITY_STAT_MULT=[1.04,1.07,1.10,1.13,1.16,1.20,1.24,1.28];
+
+// ── MILESTONES & QUESTS ───────────────────────────────
+const MILESTONES={
+  5: {title:'Rookie',reward:'gold',amount:200,desc:'$200 gold bonus',icon:'💰',color:'#9ca3af'},
+  10:{title:'Warrior',reward:'gold',amount:500,desc:'$500 gold bonus + all cards get 100 XP',icon:'⚔️',color:'#60a5fa',cardXp:100},
+  15:{title:'Champion',reward:'pack',amount:1,desc:'Free Rare Pack',icon:'💎',color:'#34d399',packType:1},
+  20:{title:'Veteran',reward:'gold',amount:1000,desc:'$1,000 gold bonus',icon:'🏆',color:'#f59e0b'},
+  25:{title:'Elite',reward:'title',amount:0,desc:'Unlock "Elite" name title + $500',icon:'🌟',color:'#a78bfa',extraGold:500},
+  30:{title:'Legend',reward:'gold',amount:2000,desc:'$2,000 gold + all cards get 300 XP',icon:'🔥',color:'#f97316',cardXp:300},
+  40:{title:'Mythic',reward:'title',amount:0,desc:'Unlock "Mythic" name title + Free Legendary Pack',icon:'🌀',color:'#ec4899',packType:2,extraGold:0},
+  50:{title:'Ancient',reward:'gold',amount:5000,desc:'$5,000 gold + all cards get 500 XP',icon:'🌑',color:'#8b5cf6',cardXp:500},
+  75:{title:'Celestial',reward:'title',amount:0,desc:'Unlock "Celestial" name title + $10,000 gold',icon:'✨',color:'#c7d2fe',extraGold:10000},
+  100:{title:'Transcendent',reward:'special',amount:0,desc:'Unlock gold name color + $25,000 + all cards get 1000 XP',icon:'👑',color:'#fbbf24',cardXp:1000,extraGold:25000}
+};
+
+const QUEST_TEMPLATES=[
+  {id:'win3',desc:'Win 3 battles',icon:'⚔️',type:'wins',target:3,reward:300},
+  {id:'win10',desc:'Win 10 battles',icon:'🏆',type:'wins',target:10,reward:1000},
+  {id:'open3packs',desc:'Open 3 packs',icon:'📦',type:'packs',target:3,reward:250},
+  {id:'open10packs',desc:'Open 10 packs',icon:'💎',type:'packs',target:10,reward:800},
+  {id:'reach5',desc:'Reach player level 5',icon:'⭐',type:'level',target:5,reward:500},
+  {id:'reach10',desc:'Reach player level 10',icon:'🌟',type:'level',target:10,reward:1500},
+  {id:'collect10',desc:'Collect 10 cards',icon:'🃏',type:'cards',target:10,reward:400},
+  {id:'collect25',desc:'Collect 25 cards',icon:'🃏',type:'cards',target:25,reward:1200},
+  {id:'win1v1',desc:'Win a 1v1 battle',icon:'🥊',type:'win_mode',target:1,mode:0,reward:350},
+  {id:'win3v3',desc:'Win a 3v3 battle',icon:'⚔️',type:'win_mode',target:1,mode:1,reward:500},
+  {id:'win5v5',desc:'Win a 5v5 battle',icon:'💥',type:'win_mode',target:1,mode:2,reward:750},
+  {id:'combine',desc:'Combine 2 duplicate cards',icon:'🔗',type:'combine',target:1,reward:300},
+  {id:'login7',desc:'Log in 7 days in a row',icon:'📅',type:'login_streak',target:7,reward:700},
+];
+
+const TITLE_COLORS={
+  'Elite':'#a78bfa','Mythic':'#ec4899','Celestial':'#c7d2fe','Transcendent':'#fbbf24'
+};
+
+const TYPE_CHART={fire:{ice:1.5,earth:1.3,wind:1.2,water:0.5,fire:0.7},ice:{earth:1.4,fire:0.5,lightning:0.8,ice:0.7,wind:1.2},lightning:{water:1.6,ice:1.2,earth:0.6,lightning:0.7},earth:{fire:1.3,lightning:1.4,ice:0.8,earth:0.7,wind:0.8},dark:{light:1.5,neutral:1.1,dark:0.5,void:0.8},light:{dark:1.5,void:1.3,light:0.6},water:{fire:1.5,earth:1.2,lightning:0.8,water:0.7},wind:{earth:1.3,lightning:1.2,wind:0.7},void:{light:1.4,neutral:1.2,void:0.5},neutral:{}};
+const MOVE_ICONS={attack:'⚔️',heavy:'💥',heal:'💚',shield:'🛡️',dot:'🔥',multi:'🌀',power:'⚡',combo:'🎯',speed:'💨',aoe:'💣',lifesteal:'🩸',stamina_steal:'⚡🔻',taunt:'😤',curse:'🌀',counter:'🔄',execute:'💀',scatter:'🎯💥'};
+const MOVE_LABELS={attack:'Attack',heavy:'Heavy Attack',heal:'Heal',shield:'Shield',dot:'Damage-over-Time',multi:'Multi-hit',power:'Power Move',combo:'Combo',speed:'Speed Boost',aoe:'AOE (hits all enemies)',lifesteal:'Life Steal',stamina_steal:'Stamina Steal',taunt:'Taunt',curse:'Curse',counter:'Counter',execute:'Execute',scatter:'Scatter (pick X targets)'};
+
+// Move type field definitions — what extra fields each type needs
+const MOVE_FIELDS={
+  attack:    [{key:'value',label:'Damage',type:'number',ph:'50'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'25'}],
+  heavy:     [{key:'value',label:'Damage',type:'number',ph:'100'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'60'}],
+  heal:      [{key:'value',label:'HP Restored',type:'number',ph:'50'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'20'}],
+  shield:    [{key:'value',label:'Block % (0-100)',type:'number',ph:'75'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'0'},{key:'shield_turns',label:'Lasts (turns)',type:'number',ph:'1'}],
+  dot:       [{key:'value',label:'Total Damage',type:'number',ph:'90'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'35'},{key:'dot_turns',label:'Turns',type:'number',ph:'3'}],
+  multi:     [{key:'value',label:'Damage per Hit',type:'number',ph:'25'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'45'},{key:'hits_min',label:'Min Hits',type:'number',ph:'2'},{key:'hits_max',label:'Max Hits',type:'number',ph:'4'}],
+  power:     [{key:'value',label:'Damage',type:'number',ph:'180'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'100'}],
+  combo:     [{key:'value',label:'Base Damage',type:'number',ph:'70'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'50'},{key:'combo_chance',label:'Combo Chance (0-1)',type:'number',ph:'0.4',step:'0.05'},{key:'combo_mult',label:'Combo Multiplier',type:'number',ph:'1.5',step:'0.1'}],
+  speed:     [{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'0'},{key:'dodge_mult',label:'Dodge Multiplier',type:'number',ph:'2',step:'0.1'}],
+  aoe:       [{key:'value',label:'Damage per Target',type:'number',ph:'40'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'80'}],
+  lifesteal: [{key:'value',label:'Damage Dealt',type:'number',ph:'60'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'45'},{key:'steal_pct',label:'% Stolen as HP (0-1)',type:'number',ph:'0.5',step:'0.05'}],
+  stamina_steal:[{key:'value',label:'Damage',type:'number',ph:'30'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'30'},{key:'steal_stamina',label:'Stamina Stolen',type:'number',ph:'25'}],
+  taunt:     [{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'0'},{key:'taunt_turns',label:'Lasts (turns)',type:'number',ph:'2'}],
+  curse:     [{key:'value',label:'Stat Reduction %',type:'number',ph:'20'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'40'},{key:'curse_turns',label:'Turns',type:'number',ph:'3'}],
+  counter:   [{key:'value',label:'Counter Damage %',type:'number',ph:'150'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'30'}],
+  execute:   [{key:'value',label:'Damage',type:'number',ph:'120'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'90'},{key:'execute_threshold',label:'Instakill below HP%',type:'number',ph:'20'}],
+  scatter:   [{key:'value',label:'Damage per Target',type:'number',ph:'60'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'70'},{key:'scatter_targets',label:'Number of Targets',type:'number',ph:'2'}]
+};
+const QUEUE_SIZES={0:1,1:3,2:5};
+
+let currentUser=null,allUsers=[],battleSub=null,incomingSub=null,incomingPoll=null,currentBattle=null,selectedTeam=[],selectedQueue=1,_lastIncomingCount=0;
+let pendingTargetMode=false,pendingMove=null,pendingFighterUid=null,selectedAttackerUid=null;
+let currentModalCard=null;
+
+// ── THEME ──────────────────────────────────────────────
+function toggleTheme(){
+  const l=document.body.classList.toggle('light');
+  document.getElementById('theme-btn').textContent=l?'🌙':'☀️';
+  try{localStorage.setItem('bcg-theme',l?'light':'dark');}catch(e){}
+}
+(function(){try{if(localStorage.getItem('bcg-theme')==='light')document.body.classList.add('light');}catch(e){}})();
+
+// ── UTILS ──────────────────────────────────────────────
+function showToast(msg,dur=2800){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur);}
+
+function showXpGain(source,gold,xp,newLevel){
+  // Remove any existing popup
+  const old=document.getElementById('xp-popup');if(old)old.remove();
+  const popup=document.createElement('div');
+  popup.id='xp-popup';
+  popup.style.cssText=`position:fixed;top:80px;right:16px;z-index:500;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px 18px;min-width:200px;box-shadow:0 4px 20px rgba(0,0,0,0.4);animation:slideIn 0.3s ease;`;
+  popup.innerHTML=`
+    <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">${source}</div>
+    ${gold>0?`<div style="font-size:18px;font-weight:700;color:#fbbf24;margin-bottom:4px;">+$${gold} 💰</div>`:''}
+    ${xp>0?`<div style="font-size:18px;font-weight:700;color:#60a5fa;margin-bottom:4px;">+${xp} Player XP ⚡</div>`:''}
+    ${newLevel?`<div style="font-size:15px;font-weight:700;color:#a78bfa;margin-top:6px;">🎉 Level Up! → Lv ${newLevel}</div>`:''}
+  `;
+  document.body.appendChild(popup);
+  setTimeout(()=>{popup.style.animation='slideOut 0.3s ease forwards';setTimeout(()=>popup.remove(),300);},4000);
+}
+
+// Add CSS for popup animations
+(function(){
+  const s=document.createElement('style');
+  s.textContent=`@keyframes slideIn{from{opacity:0;transform:translateX(60px)}to{opacity:1;transform:translateX(0)}}
+  @keyframes slideOut{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(60px)}}`;
+  document.head.appendChild(s);
+})();
+function spin(id,on){const el=document.getElementById(id);if(el)el.style.display=on?'inline-block':'none';}
+function xpForCard(lv){return Math.round(50*Math.pow(lv,1.2));}
+function xpForPlayer(lv){return lv*200;}
+function rand(min,max){return Math.floor(Math.random()*(max-min+1))+min;}
+function getTypeMult(a,d){return(TYPE_CHART[a]&&TYPE_CHART[a][d])||1;}
+function hpColor(pct){return pct>50?'#22c55e':pct>25?'#f59e0b':'#ef4444';}
+
+// ── AUTH ──────────────────────────────────────────────
+window.addEventListener('load',()=>{
+  try{
+    if(!sb)sb=supabase.createClient(SB_URL,SB_KEY);
+    const b=document.getElementById('theme-btn');
+    if(b)b.textContent=document.body.classList.contains('light')?'🌙':'☀️';
+  }catch(e){console.error('Load error:',e);}
+});
+
+async function login(){
+  if(!sb){setErr('Still connecting — please wait a moment and try again');return;}
+  const user=document.getElementById('li-user').value.trim();
+  const pin=document.getElementById('li-pin').value.trim();
+  if(!user||!pin){setErr('Enter username and PIN');return;}
+  spin('li-spin',true);
+  const{data,error}=await sb.from('users').select('*').eq('id',user).single();
+  spin('li-spin',false);
+  if(error||!data){setErr('No account found');return;}
+  if(data.pin!==pin){setErr('Wrong PIN');return;}
+  currentUser=data;await handleDailyLogin();enterApp();
+}
+
+async function signup(){
+  const user=document.getElementById('li-user').value.trim();
+  const pin=document.getElementById('li-pin').value.trim();
+  if(!user||!pin){setErr('Enter username and PIN');return;}
+  if(pin.length!==4||isNaN(pin)){setErr('PIN must be 4 digits');return;}
+  spin('li-spin',true);
+  const{data:ex}=await sb.from('users').select('id').eq('id',user).single();
+  if(ex){spin('li-spin',false);setErr('Username taken');return;}
+  const{data:all}=await sb.from('users').select('id');
+  const isAdmin=!all||all.length===0;
+  const{data,error}=await sb.from('users').insert({id:user,pin,wins:0,losses:0,is_admin:isAdmin,money:300,level:1,player_xp:0}).select().single();
+  spin('li-spin',false);
+  if(error){setErr('Error: '+error.message);return;}
+  currentUser=data;await handleDailyLogin();enterApp();
+}
+
+function setErr(msg){const e=document.getElementById('li-err');e.textContent=msg;e.style.display='block';}
+
+async function handleDailyLogin(){
+  const today=new Date().toISOString().slice(0,10);
+  // Re-fetch from DB to get the real last_login value
+  const{data:fresh}=await sb.from('users').select('last_login,money,player_xp,level').eq('id',currentUser.id).single();
+  if(fresh)currentUser={...currentUser,...fresh};
+  const lastLogin=currentUser.last_login?String(currentUser.last_login).slice(0,10):'';
+  if(lastLogin===today)return;
+  const reward=20+(5*(currentUser.level||1));
+  const pxp=30;
+  const oldLevel=currentUser.level||1;
+  let{money,player_xp,level}={money:currentUser.money||0,player_xp:currentUser.player_xp||0,level:currentUser.level||1};
+  money+=reward;player_xp+=pxp;
+  while(player_xp>=xpForPlayer(level)){player_xp-=xpForPlayer(level);level++;}
+  await sb.from('users').update({money,player_xp,level,last_login:today}).eq('id',currentUser.id);
+  currentUser={...currentUser,money,player_xp,level,last_login:today};
+  const leveledUp=level>oldLevel;
+  showXpGain(`Daily Login Reward`,reward,pxp,leveledUp?level:null);
+  await checkMilestones(level);
+  await updateQuestProgress('login_streak',1);
+  await updateQuestProgress('level',level);
+}
+
+async function enterApp(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('main-screen').style.display='flex';
+  document.getElementById('user-label').textContent=currentUser.id;
+  document.getElementById('admin-label').textContent=currentUser.is_admin?'⚙️ Admin account':'';
+  document.getElementById('admin-tab').style.display=currentUser.is_admin?'':'none';
+  // Show daily reward button if not yet claimed today
+  const today=new Date().toISOString().slice(0,10);
+  const lastLogin=currentUser.last_login?String(currentUser.last_login).slice(0,10):'';
+  document.getElementById('daily-reward-btn-wrap').style.display=lastLogin!==today?'block':'none';
+  updateHUD();await loadUsers();go('mycards');
+}
+
+async function forceDailyLogin(){
+  // Reset last_login so handleDailyLogin fires again
+  const today=new Date().toISOString().slice(0,10);
+  const lastLogin=currentUser.last_login?String(currentUser.last_login).slice(0,10):'';
+  if(lastLogin===today){showToast('Already claimed today! Come back tomorrow.');return;}
+  await handleDailyLogin();
+  updateHUD();
+  document.getElementById('daily-reward-btn-wrap').style.display='none';
+}
+
+function updateHUD(){
+  document.getElementById('money-badge').textContent=`💰 $${currentUser.money||0}`;
+  const title=currentUser.title||null;
+  const titleColor=currentUser.title_color||null;
+  const lvBadge=document.getElementById('level-badge');
+  if(title&&titleColor){
+    lvBadge.innerHTML=`<span style="color:${titleColor};">[${title}]</span> Lv ${currentUser.level||1}`;
+  } else {
+    lvBadge.textContent=`Lv ${currentUser.level||1}`;
+  }
+  const needed=xpForPlayer(currentUser.level||1);
+  const pct=Math.min(100,Math.round(((currentUser.player_xp||0)/needed)*100));
+  document.getElementById('player-xp-fill').style.width=pct+'%';
+  document.getElementById('player-xp-text').textContent=`Player XP: ${currentUser.player_xp||0} / ${needed} — click level badge to see milestones & quests`;
+}
+
+function logout(){
+  currentUser=null;
+  if(battleSub)sb.removeChannel(battleSub);
+  if(incomingSub)sb.removeChannel(incomingSub);
+  if(incomingPoll)clearInterval(incomingPoll);
+  document.getElementById('main-screen').style.display='none';
+  document.getElementById('login-screen').style.display='block';
+  document.getElementById('li-err').style.display='none';
+  document.getElementById('li-user').value='';document.getElementById('li-pin').value='';
+}
+
+async function loadUsers(){
+  const{data}=await sb.from('users').select('*');allUsers=data||[];
+}
+
+function go(name){
+  // Stop incoming poll if leaving battle tab
+  if(name!=='battle'){if(incomingPoll){clearInterval(incomingPoll);incomingPoll=null;}_lastIncomingCount=0;}
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+name).classList.add('active');
+  const mc=document.querySelector('.main-content');if(mc)mc.scrollTop=0;
+  const names=['mycards','packs','battle','trade','training','leaderboard','news','admin'];
+  document.querySelectorAll('.main-sidebar button').forEach((b,i)=>b.classList.toggle('active',names[i]===name));
+  if(name==='mycards')renderMyCards();
+  if(name==='battle')renderBattleLobby();
+  if(name==='trade')renderTrade();
+  if(name==='training')renderTraining();
+  if(name==='leaderboard')renderLB();
+  if(name==='news')renderNews();
+  if(name==='admin'){adminTab('add-card',document.querySelector('.tab-btn'));loadPoolForEdit();setTimeout(updateSuggestedStats,100);}
+}
+
+// ── ADMIN TABS ─────────────────────────────────────────
+function adminTab(name,btn){
+  ['add-card','edit-card','pool','guide','post-news','manage'].forEach(t=>{
+    const el=document.getElementById('admin-'+t);if(el)el.style.display=t===name?'block':'none';
+  });
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  if(name==='pool')renderPool();
+  if(name==='edit-card')loadPoolForEdit();
+  if(name==='post-news')renderAdminNews();
+  if(name==='manage')loadAdminPlayers();
+}
+
+// ── MOVE BLOCKS ────────────────────────────────────────
+function moveTypeOptions(selected){
+  return Object.keys(MOVE_LABELS).map(t=>`<option value="${t}"${t===selected?' selected':''}>${MOVE_ICONS[t]||'⚔️'} ${MOVE_LABELS[t]}</option>`).join('');
+}
+
+function renderMoveFields(block, type, existing){
+  const fields=MOVE_FIELDS[type]||MOVE_FIELDS.attack;
+  const container=block.querySelector('.mv-extra-fields');
+  if(!container)return;
+  container.innerHTML=`<div style="grid-column:1/-1;font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">${MOVE_LABELS[type]||type} fields</div>`+fields.map(f=>{
+    const val=existing&&existing[f.key]!==undefined?existing[f.key]:'';
+    return `<div class="field">
+      <label>${f.label}</label>
+      <input type="number" class="mv-extra mv-${f.key}" data-key="${f.key}" placeholder="${f.ph||''}" ${f.step?`step="${f.step}"`:'min="0"'} value="${val}">
+    </div>`;
+  }).join('');
+}
+
+function addMoveBlock(containerId, defaultUnlockLevel, existing){
+  const c=document.getElementById(containerId);if(!c)return;
+  const isLevelUp=containerId==='levelup-moves-container';
+  const moveNum=c.querySelectorAll('.move-block').length+1;
+  const initType=existing?.type||'attack';
+  const div=document.createElement('div');
+  div.className='move-block';
+  div.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <span class="move-block-header">${isLevelUp?'Level-Up Move':'Move '+moveNum}</span>
+      <button class="btn btn-sm" style="color:#dc2626;border-color:#7f1d1d;padding:3px 10px;" onclick="this.closest('.move-block').remove()">Remove</button>
+    </div>
+    <div class="field-row" style="margin-bottom:10px;">
+      <div class="field">
+        <label>Move Name</label>
+        <input type="text" class="mv-name" placeholder="e.g. Shadow Strike" value="${existing?.name||''}">
+      </div>
+      <div class="field">
+        <label>Move Type</label>
+        <select class="mv-type" onchange="renderMoveFields(this.closest('.move-block'),this.value,null)">
+          ${moveTypeOptions(initType)}
+        </select>
+      </div>
+    </div>
+    <div class="field-row mv-extra-fields" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;"></div>
+    ${isLevelUp?`<div class="field" style="margin-bottom:10px;">
+      <label>Unlocks at Level</label>
+      <input type="number" class="mv-unlock-level" value="${existing?.unlock_level||defaultUnlockLevel||5}" min="2" max="50">
+    </div>`:''}
+    <div class="field">
+      <label>Description</label>
+      <textarea class="mv-desc" rows="2" placeholder="Describe what this move does...">${existing?.desc||''}</textarea>
+    </div>`;
+  c.appendChild(div);
+  renderMoveFields(div, initType, existing);
+}
+
+function getMoveBlocks(containerId){
+  const c=document.getElementById(containerId);if(!c)return[];
+  return Array.from(c.querySelectorAll('.move-block')).map(b=>{
+    const type=b.querySelector('.mv-type')?.value||'attack';
+    const move={
+      name:b.querySelector('.mv-name')?.value?.trim()||'',
+      type,
+      desc:b.querySelector('.mv-desc')?.value?.trim()||'',
+      unlock_level:parseInt(b.querySelector('.mv-unlock-level')?.value)||1,
+      stamina_cost:0, value:0
+    };
+    // Collect all extra fields
+    b.querySelectorAll('.mv-extra').forEach(inp=>{
+      const key=inp.dataset.key;
+      const val=parseFloat(inp.value);
+      if(key&&!isNaN(val))move[key]=val;
+    });
+    return move;
+  }).filter(m=>m.name);
+}
+
+// ── SUGGESTED STAT VALUES ─────────────────────────────
+const RARITY_SUGGESTED={
+  0:{hp:125,atk:20,def:14,stamina_max:90,stamina_start:45,stamina_regen:20,crit:0.06,dodge:0.04},
+  1:{hp:170,atk:28,def:20,stamina_max:100,stamina_start:50,stamina_regen:22,crit:0.10,dodge:0.06},
+  2:{hp:230,atk:40,def:28,stamina_max:115,stamina_start:55,stamina_regen:25,crit:0.12,dodge:0.08},
+  3:{hp:310,atk:57,def:40,stamina_max:130,stamina_start:60,stamina_regen:28,crit:0.15,dodge:0.10},
+  4:{hp:415,atk:80,def:57,stamina_max:145,stamina_start:65,stamina_regen:30,crit:0.18,dodge:0.13},
+  5:{hp:540,atk:109,def:78,stamina_max:170,stamina_start:75,stamina_regen:33,crit:0.23,dodge:0.16},
+  6:{hp:700,atk:147,def:107,stamina_max:200,stamina_start:90,stamina_regen:36,crit:0.28,dodge:0.21},
+  7:{hp:1000,atk:205,def:147,stamina_max:250,stamina_start:110,stamina_regen:40,crit:0.36,dodge:0.27}
+};
+
+// Class modifiers — multipliers on top of rarity base stats
+const CLASS_MODS={
+  Warrior:  {atk:1.0,def:1.0,hp:1.0},
+  Assassin: {atk:1.3,def:0.7,hp:0.85,dodge:1.5,crit:1.5},
+  Brawler:  {atk:1.4,def:0.75,hp:0.9},
+  Ranger:   {atk:1.1,def:0.85,hp:0.9,dodge:1.3},
+  Mage:     {atk:1.2,def:0.8,hp:0.85,crit:1.3},
+  Knight:   {atk:0.85,def:1.4,hp:1.2},
+  Specter:  {atk:1.1,def:0.8,hp:0.85,dodge:1.6,crit:1.2},
+  Titan:    {atk:1.2,def:1.1,hp:1.4},
+  Beast:    {atk:1.25,def:0.9,hp:1.1},
+  Elemental:{atk:1.15,def:0.9,hp:0.95,crit:1.2},
+  Necromancer:{atk:1.0,def:0.85,hp:1.0},
+  Paladin:  {atk:0.8,def:1.2,hp:1.3},
+  Demon:    {atk:1.35,def:0.85,hp:1.05,crit:1.2},
+  Angel:    {atk:0.9,def:1.1,hp:1.2},
+  Cosmic:   {atk:1.1,def:0.9,hp:1.0,crit:1.3,dodge:1.2},
+  Icon:     {atk:1.1,def:1.0,hp:1.1},
+  Mythborn: {atk:1.2,def:1.1,hp:1.2,crit:1.2},
+  Druid:    {atk:0.9,def:1.0,hp:1.1},
+  Sniper:   {atk:1.3,def:0.7,hp:0.85,crit:1.6,dodge:1.4},
+  Machine:  {atk:1.0,def:1.3,hp:1.1}
+};
+
+function updateSuggestedStats(){
+  const rarity=parseInt(document.getElementById('ac-rarity').value)||0;
+  const cls=document.getElementById('ac-class').value||'Warrior';
+  const base=RARITY_SUGGESTED[rarity]||RARITY_SUGGESTED[0];
+  const mod=CLASS_MODS[cls]||CLASS_MODS.Warrior;
+  const suggest=(key,mult)=>Math.round((base[key]||0)*(mult||1));
+
+  const fields=[
+    ['ac-hp',   suggest('hp',  mod.hp||1)],
+    ['ac-atk',  suggest('atk', mod.atk||1)],
+    ['ac-def',  suggest('def', mod.def||1)],
+    ['ac-stamina-max',   suggest('stamina_max',1)],
+    ['ac-stamina-start', suggest('stamina_start',1)],
+    ['ac-stamina-regen', suggest('stamina_regen',1)],
+    ['ac-crit',  parseFloat(((base.crit||0.1)*(mod.crit||1)).toFixed(2))],
+    ['ac-dodge', parseFloat(((base.dodge||0.05)*(mod.dodge||1)).toFixed(2))]
+  ];
+
+  fields.forEach(([id,val])=>{
+    const el=document.getElementById(id);
+    if(el){
+      el.placeholder=`Suggested: ${val}`;
+      // Only auto-fill if field is empty or still at default
+      if(!el.dataset.userEdited) el.value=val;
+    }
+  });
+
+  // Show a tip
+  const tip=document.getElementById('stat-suggest-tip');
+  if(tip){
+    const rarityName=RARITIES[rarity];
+    tip.textContent=`Suggested stats for ${rarityName} ${cls} — edit any field to override.`;
+  }
+}
+
+// Mark field as user-edited when they type in it
+document.addEventListener('input',function(e){
+  const adminFields=['ac-hp','ac-atk','ac-def','ac-stamina-max','ac-stamina-start','ac-stamina-regen','ac-crit','ac-dodge'];
+  if(adminFields.includes(e.target.id)) e.target.dataset.userEdited='1';
+});
+async function renderMyCards(){
+  const pid=currentUser.id;
+  const sort=document.getElementById('sort-select').value;
+  const el=document.getElementById('mycards-grid');
+  el.innerHTML='<div class="empty" style="grid-column:1/-1">Loading...</div>';
+  let{data}=await sb.from('player_cards').select('*').eq('owner',pid);
+  if(!data||!data.length){el.innerHTML='<div class="empty" style="grid-column:1/-1">No cards yet — open a pack!</div>';
+    document.getElementById('income-cards-section').style.display='none';return;}
+
+  // Sort
+  if(sort==='rarity')data.sort((a,b)=>b.rarity-a.rarity);
+  else if(sort==='level')data.sort((a,b)=>b.level-a.level);
+  else if(sort==='name')data.sort((a,b)=>a.name.localeCompare(b.name));
+  else if(sort==='class')data.sort((a,b)=>(a.class_name||'').localeCompare(b.class_name||''));
+
+  const incomeCards=data.filter(c=>c.is_income_card);
+  const battleCards=data.filter(c=>!c.is_income_card);
+
+  const incSec=document.getElementById('income-cards-section');
+  const incList=document.getElementById('income-cards-list');
+  if(incomeCards.length){
+    incSec.style.display='block';
+    incList.innerHTML=incomeCards.map(c=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);">
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${c.image_url?`<img src="${c.image_url}" style="width:32px;height:32px;border-radius:6px;object-fit:cover;">`:`<span style="font-size:18px;">${classEmoji(c.class_name)}</span>`}
+          <div>
+            <div style="font-size:13px;font-weight:600;">${c.name}</div>
+            <div style="font-size:11px;color:var(--text3);">$${c.income_amount} every ${c.income_interval_hours}h</div>
+          </div>
+        </div>
+        <button class="btn btn-green btn-sm" onclick="collectIncome('${c.uid}',${c.income_amount},${c.income_interval_hours},'${c.last_income_collected||''}')">💵 Collect</button>
+      </div>`).join('');
+  } else incSec.style.display='none';
+
+  el.innerHTML=battleCards.map(c=>cardTileHTML(c)).join('');
+}
+
+async function collectIncome(uid,amount,hours,last){
+  if(last){const diff=(new Date()-new Date(last))/3600000;if(diff<hours){showToast(`Ready in ${Math.ceil(hours-diff)}h`);return;}}
+  await sb.from('player_cards').update({last_income_collected:new Date().toISOString()}).eq('uid',uid);
+  const m=(currentUser.money||0)+amount;
+  await sb.from('users').update({money:m}).eq('id',currentUser.id);
+  currentUser.money=m;updateHUD();showToast(`💵 Collected $${amount}!`);renderMyCards();
+}
+
+// ── CARD HTML ──────────────────────────────────────────
+function cardTileHTML(c,selectable){
+  const col=classColor(c.class_name);
+  const needed=xpForCard(c.level);
+  const pct=Math.min(100,Math.round((c.xp/needed)*100));
+  const imgHTML=c.image_url
+    ? `<img class="card-img" src="${c.image_url}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`+`<div class="card-img-placeholder" style="display:none">${classEmoji(c.class_name)}</div>`
+    : `<div class="card-img-placeholder">${classEmoji(c.class_name)}</div>`;
+  const incBadge=c.is_income_card?`<div class="income-card-badge">💵</div>`:'';
+  const safeUid=btoa(encodeURIComponent(c.uid)).replace(/=/g,'');
+  const action=selectable?`data-selectable="1"`:`data-openmodal="1"`;
+  return `<div class="card-tile${selectable?' selectable':''}" data-safeuid="${safeUid}" data-action="${selectable?'select':'modal'}" ${action}>
+    ${incBadge}${imgHTML}
+    <div style="font-size:13px;font-weight:700;margin-bottom:3px;">${c.name}</div>
+    <span class="cat-badge" style="background:${col.bg};color:${col.fg};">${c.class_name}</span>
+    <div style="font-size:11px;font-weight:600;color:${RARITY_COLORS[c.rarity]};margin-bottom:4px;">${RARITIES[c.rarity]}</div>
+    ${c.is_income_card?`<div style="font-size:12px;color:#4ade80;">$${c.income_amount}/${c.income_interval_hours}h</div>`:
+    `<div style="font-size:11px;color:var(--text3);margin-bottom:4px;">⚔️${c.atk} 🛡️${c.def} ❤️${c.max_hp||c.hp}</div>
+    <div class="xp-bar-wrap"><div class="xp-bar" style="width:${pct}%"></div></div>
+    <div style="font-size:10px;color:var(--text4);">Lv ${c.level} · ${c.xp}/${needed} XP</div>`}
+  </div>`;
+}
+
+function poolTileHTML(c){
+  const col=classColor(c.class_name);
+  const imgHTML=c.image_url?`<img class="card-img" src="${c.image_url}" onerror="this.style.opacity='0'">`:`<div class="card-img-placeholder">${classEmoji(c.class_name)}</div>`;
+  return `<div class="card-tile" style="cursor:default;">
+    ${imgHTML}
+    <div style="font-size:13px;font-weight:700;margin-bottom:3px;">${c.name}</div>
+    <span class="cat-badge" style="background:${col.bg};color:${col.fg};">${c.class_name}</span>
+    <div style="font-size:11px;font-weight:600;color:${RARITY_COLORS[c.rarity]};margin-bottom:4px;">${RARITIES[c.rarity]}</div>
+    ${c.is_income_card?`<div style="font-size:12px;color:#4ade80;">Income: $${c.income_amount}/${c.income_interval_hours}h</div>`:`<div style="font-size:11px;color:var(--text3);">⚔️${c.atk} 🛡️${c.def} ❤️${c.hp}</div>`}
+  </div>`;
+}
+
+// ── PACKS ──────────────────────────────────────────────
+function rollRarity(packType){
+  const odds=PACK_ODDS[packType];const r=Math.random();let cum=0;
+  for(let i=0;i<odds.length;i++){cum+=odds[i];if(r<cum)return i;}
+  return odds.findIndex(o=>o>0);
+}
+
+async function openPack(pt){
+  const cost=PACK_COSTS[pt];
+  if((currentUser.money||0)<cost){showToast(`Need $${cost.toLocaleString()} — win battles to earn money!`);return;}
+  spin('spin-'+pt,true);
+  const{data:pool}=await sb.from('pool_cards').select('*');
+  if(!pool||!pool.length){spin('spin-'+pt,false);showToast('No cards in pool yet!');return;}
+  const drawn=[];
+  for(let i=0;i<3;i++){
+    const rarity=rollRarity(pt);
+    const byR=pool.filter(c=>c.rarity===rarity);
+    const src=byR.length?byR:pool;
+    const t=src[Math.floor(Math.random()*src.length)];
+    const startMoves=(t.moves||[]).filter(m=>!m.unlock_level||m.unlock_level<=1).map(m=>m.name);
+    drawn.push({
+      uid:`${currentUser.id}-${Date.now()}-${i}`,owner:currentUser.id,
+      name:t.name,
+      cat:t.class_name||t.cat||'Warrior',
+      class_name:t.class_name||t.cat||'Warrior',
+      rarity:t.rarity,element:t.element||'neutral',
+      atk:t.atk||10,def:t.def||10,hp:t.hp||100,max_hp:t.hp||100,
+      stamina:t.stamina_start||50,max_stamina:t.stamina_max||100,stamina_regen:t.stamina_regen||25,
+      crit_chance:t.crit_chance||0.1,dodge_chance:t.dodge_chance||0.05,
+      level:1,xp:0,unlocked_moves:startMoves,image_url:t.image_url||null,
+      pool_card_id:t.id,is_income_card:t.is_income_card||false,
+      income_amount:t.income_amount||0,income_interval_hours:t.income_interval_hours||24
+    });
+  }
+  const{error:insertErr}=await sb.from('player_cards').insert(drawn);
+  spin('spin-'+pt,false);
+  if(insertErr){showToast('Error saving cards: '+insertErr.message);console.error(insertErr);return;}
+  const nm=(currentUser.money||0)-cost;
+  await sb.from('users').update({money:nm}).eq('id',currentUser.id);
+  currentUser.money=nm;updateHUD();
+  const html=drawn.map(c=>{
+    const col=classColor(c.class_name);
+    return `<div style="flex:1;min-width:130px;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center;">
+      ${c.image_url?`<img style="width:100%;height:140px;object-fit:contain;border-radius:8px;margin-bottom:6px;background:var(--bg3);" src="${c.image_url}">`:`<div style="font-size:32px;margin-bottom:6px;">${classEmoji(c.class_name)}</div>`}
+      <div style="font-size:13px;font-weight:700;">${c.name}</div>
+      <div style="font-size:11px;font-weight:600;color:${RARITY_COLORS[c.rarity]};margin:3px 0;">${RARITIES[c.rarity]}</div>
+      <span class="cat-badge" style="background:${col.bg};color:${col.fg};">${c.class_name}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('pack-result').innerHTML=`<div class="box"><div style="font-size:14px;font-weight:700;margin-bottom:10px;">🎉 You drew 3 cards!</div><div style="display:flex;gap:10px;flex-wrap:wrap;">${html}</div></div>`;
+  showToast('Pack opened!');
+  await updateQuestProgress('packs',1);
+  await updateQuestProgress('cards',drawn.length);
+}
+
+// ── TRADE ──────────────────────────────────────────────
+async function renderTrade(){
+  const el=document.getElementById('trade-content');
+  el.innerHTML='<div class="empty">Loading...</div>';
+  const opponents=allUsers.filter(u=>u.id!==currentUser.id);
+  const{data:myCards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
+  const{data:incoming}=await sb.from('trades').select('*').eq('receiver',currentUser.id).eq('status','pending');
+  const{data:outgoing}=await sb.from('trades').select('*').eq('sender',currentUser.id).eq('status','pending');
+
+  let tradeSelectedCards=[];
+
+  el.innerHTML=`
+    <div class="box">
+      <h3>🤝 Send a Trade Offer</h3>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:12px;">Offer cards and/or gold to another player in exchange for theirs.</p>
+      <div class="field-row" style="margin-bottom:12px;">
+        <div class="field"><label>Trade with</label>
+          <select id="trade-opp">${opponents.map(u=>`<option value="${u.id}">${u.id}</option>`).join('')}</select>
+        </div>
+      </div>
+      <div class="field-row" style="margin-bottom:12px;">
+        <div class="field"><label>Your gold offer ($)</label><input type="number" id="trade-my-gold" value="0" min="0" max="${currentUser.money||0}"></div>
+        <div class="field"><label>Gold you want ($)</label><input type="number" id="trade-their-gold" value="0" min="0"></div>
+      </div>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:8px;">Your cards to offer (tap to select):</p>
+      <div class="card-grid" id="trade-my-cards">${(myCards||[]).map(c=>`
+        <div class="card-tile" id="trd-${c.uid}" onclick="toggleTradeCard('${c.uid}',this)">
+          ${c.image_url?`<img class="card-img" src="${c.image_url}">`:`<div class="card-img-placeholder">${classEmoji(c.class_name)}</div>`}
+          <div style="font-size:12px;font-weight:700;">${c.name}</div>
+          <div style="font-size:10px;color:${RARITY_COLORS[c.rarity]};">${RARITIES[c.rarity]}</div>
+          <div style="font-size:10px;color:var(--text4);">Lv ${c.level}</div>
+        </div>`).join('')}</div>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:6px;">Cards you want from them (by name, comma separated):</p>
+      <input type="text" id="trade-want-cards" placeholder="e.g. Shadow Knight, Fire Drake" style="margin-bottom:12px;">
+      <button class="btn btn-primary" onclick="sendTrade()">Send Trade Offer</button>
+    </div>
+
+    ${incoming&&incoming.length?`<div class="box"><h3>📥 Incoming Offers (${incoming.length})</h3>
+      ${incoming.map(t=>`<div class="row-item">
+        <div>
+          <div style="font-size:13px;font-weight:600;">From ${t.sender}</div>
+          <div style="font-size:12px;color:var(--text3);">They offer: ${t.sender_cards.length} card${t.sender_cards.length!==1?'s':''}${t.sender_gold>0?` + $${t.sender_gold}`:''}</div>
+          <div style="font-size:12px;color:var(--text3);">They want: ${t.receiver_cards.length} card${t.receiver_cards.length!==1?'s':''}${t.receiver_gold>0?` + $${t.receiver_gold}`:''}</div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-green btn-sm" onclick="respondTrade(${t.id},'accepted')">Accept</button>
+          <button class="btn btn-sm" style="color:#dc2626;" onclick="respondTrade(${t.id},'declined')">Decline</button>
+        </div>
+      </div>`).join('')}
+    </div>`:''}
+
+    ${outgoing&&outgoing.length?`<div class="box"><h3>📤 Sent Offers (${outgoing.length})</h3>
+      ${outgoing.map(t=>`<div class="row-item">
+        <div>
+          <div style="font-size:13px;font-weight:600;">To ${t.receiver}</div>
+          <div style="font-size:12px;color:var(--text3);">Waiting for response...</div>
+        </div>
+        <button class="btn btn-sm" style="color:#dc2626;" onclick="cancelTrade(${t.id})">Cancel</button>
+      </div>`).join('')}
+    </div>`:''}`;
+}
+
+let tradeSelectedCards=[];
+function toggleTradeCard(uid,el){
+  if(tradeSelectedCards.includes(uid)){tradeSelectedCards=tradeSelectedCards.filter(x=>x!==uid);el.classList.remove('selected');}
+  else{tradeSelectedCards.push(uid);el.classList.add('selected');}
+}
+
+async function sendTrade(){
+  const opp=document.getElementById('trade-opp').value;
+  const myGold=parseInt(document.getElementById('trade-my-gold').value)||0;
+  const theirGold=parseInt(document.getElementById('trade-their-gold').value)||0;
+  const wantStr=document.getElementById('trade-want-cards').value.trim();
+  if(!opp){showToast('Pick a player to trade with');return;}
+  if(myGold>(currentUser.money||0)){showToast("You don't have that much gold");return;}
+  if(tradeSelectedCards.length===0&&myGold===0&&theirGold===0&&!wantStr){showToast('Add something to the trade');return;}
+  const wantCards=wantStr?wantStr.split(',').map(s=>s.trim()).filter(Boolean):[];
+  await sb.from('trades').insert({sender:currentUser.id,receiver:opp,sender_cards:tradeSelectedCards,receiver_cards:wantCards,sender_gold:myGold,receiver_gold:theirGold,status:'pending'});
+  showToast('Trade offer sent!');tradeSelectedCards=[];renderTrade();
+}
+
+async function respondTrade(id,status){
+  if(status==='accepted'){
+    const{data:trade}=await sb.from('trades').select('*').eq('id',id).single();
+    if(!trade){showToast('Trade not found');return;}
+    // Transfer sender cards to receiver
+    for(const uid of trade.sender_cards){await sb.from('player_cards').update({owner:trade.receiver}).eq('uid',uid);}
+    // Transfer receiver cards to sender — find by name (simplified)
+    for(const name of trade.receiver_cards){
+      const{data:card}=await sb.from('player_cards').select('*').eq('owner',trade.receiver).eq('name',name).limit(1).single();
+      if(card)await sb.from('player_cards').update({owner:trade.sender}).eq('uid',card.uid);
+    }
+    // Transfer gold
+    if(trade.sender_gold>0){
+      const sender=allUsers.find(u=>u.id===trade.sender);const recv=allUsers.find(u=>u.id===trade.receiver);
+      await sb.from('users').update({money:(sender?.money||0)-trade.sender_gold}).eq('id',trade.sender);
+      await sb.from('users').update({money:(recv?.money||0)+trade.sender_gold}).eq('id',trade.receiver);
+    }
+    if(trade.receiver_gold>0){
+      const recv=allUsers.find(u=>u.id===trade.receiver);const sender=allUsers.find(u=>u.id===trade.sender);
+      await sb.from('users').update({money:(recv?.money||0)-trade.receiver_gold}).eq('id',trade.receiver);
+      await sb.from('users').update({money:(sender?.money||0)+trade.receiver_gold}).eq('id',trade.sender);
+      currentUser.money=Math.max(0,(currentUser.money||0)-trade.receiver_gold);updateHUD();
+    }
+    showToast('Trade accepted!');
+  } else showToast('Trade declined.');
+  await sb.from('trades').update({status}).eq('id',id);
+  await loadUsers();renderTrade();
+}
+
+async function cancelTrade(id){
+  await sb.from('trades').update({status:'cancelled'}).eq('id',id);
+  showToast('Trade cancelled.');renderTrade();
+}
+
+// ── BATTLE LOBBY ───────────────────────────────────────
+async function renderBattleLobby(){
+  document.getElementById('battle-active').style.display='none';
+  document.getElementById('battle-lobby').style.display='block';
+  selectedTeam=[];
+  // Only auto-enter active battles (not waiting ones — those show as incoming challenges)
+  const{data:existing}=await sb.from('live_battles').select('*').or(`player1.eq.${currentUser.id},player2.eq.${currentUser.id}`).eq('status','active').order('created_at',{ascending:false}).limit(1);
+  // Don't rejoin if it was abandoned
+  if(existing&&existing.length&&existing[0].status!=='abandoned'){currentBattle=existing[0];enterBattle(currentBattle);return;}
+  const opponents=allUsers.filter(u=>u.id!==currentUser.id);
+  const el=document.getElementById('battle-lobby');
+  el.innerHTML=`
+    <div class="box">
+      <h3>⚔️ Challenge a Player</h3>
+      <div class="field-row" style="margin-bottom:12px;">
+        <div class="field"><label>Queue</label>
+          <select id="queue-select" onchange="selectedQueue=parseInt(this.value)">
+            <option value="0">1v1</option><option value="1" selected>3v3</option><option value="2">5v5</option>
+          </select>
+        </div>
+        <div class="field"><label>Opponent</label>
+          <select id="opp-select">${opponents.length?opponents.map(u=>`<option value="${u.id}">${u.id}</option>`).join(''):'<option value="">No opponents yet</option>'}</select>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="showTeamPicker()">Next → Pick Cards</button>
+    </div>
+    <div id="team-picker-section" style="display:none;">
+      <div class="box">
+        <div id="team-picker-title" style="font-size:14px;font-weight:600;margin-bottom:8px;"></div>
+        <div id="team-select-grid" class="card-grid"></div>
+        <button class="btn btn-green" onclick="challengePlayer()">⚔️ Send Challenge</button>
+        <div id="challenge-err" style="font-size:12px;color:#dc2626;margin-top:8px;display:none;"></div>
+      </div>
+    </div>
+    <div class="box">
+      <h3>📥 Incoming Challenges</h3>
+      <div id="incoming-list"><div class="empty">No challenges</div></div>
+      <div id="incoming-debug" style="font-size:11px;color:var(--text3);margin-top:6px;padding:6px;background:var(--bg3);border-radius:6px;">Waiting for first check...</div>
+      <button class="btn btn-sm" style="margin-top:8px;" onclick="loadIncoming()">🔄 Refresh</button>
+      <button class="btn btn-sm" style="margin-top:8px;margin-left:6px;" onclick="debugAllBattles()">🔍 Debug</button>
+      <button class="btn btn-sm" style="margin-top:8px;margin-left:6px;color:#dc2626;" onclick="clearStaleBattles()">🗑️ Clear Stale</button>
+    </div>`;
+  loadIncoming();
+
+  // Poll every 4 seconds for incoming challenges
+  if(incomingPoll)clearInterval(incomingPoll);
+  incomingPoll=setInterval(loadIncoming, 4000);
+}
+
+async function showTeamPicker(){
+  const opp=document.getElementById('opp-select').value;
+  if(!opp){showToast('No opponents available');return;}
+  selectedQueue=parseInt(document.getElementById('queue-select').value);
+  const size=QUEUE_SIZES[selectedQueue];
+  const{data:myCards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
+  document.getElementById('team-picker-title').innerHTML=`Select ${size} card${size>1?'s':''} for your team: <span id="team-count-label" style="font-weight:400;color:var(--text3);">Selected: 0 / ${size}</span>`;
+  document.getElementById('team-select-grid').innerHTML=(myCards||[]).length?myCards.map(c=>cardTileHTML(c,true)).join(''):`<div class="empty" style="grid-column:1/-1">No battle cards yet!</div>`;
+  document.getElementById('team-picker-section').style.display='block';
+  selectedTeam=[];
+}
+
+function toggleTeam(uid){
+  const qSel=document.getElementById('queue-select');
+  if(qSel)selectedQueue=parseInt(qSel.value);
+  const size=QUEUE_SIZES[selectedQueue]||3;
+  const safeUid=btoa(encodeURIComponent(uid)).replace(/=/g,'');
+  const el=document.querySelector(`[data-safeuid="${safeUid}"]`);
+  if(selectedTeam.includes(uid)){
+    selectedTeam=selectedTeam.filter(x=>x!==uid);
+    if(el)el.classList.remove('selected');
+  } else {
+    if(selectedTeam.length>=size){showToast(`Max ${size} card${size>1?'s':''} for this queue`);return;}
+    selectedTeam.push(uid);
+    if(el)el.classList.add('selected');
+  }
+  // Update count label if present
+  const lbl=document.getElementById('team-count-label');
+  if(lbl)lbl.textContent=`Selected: ${selectedTeam.length} / ${size}`;
+}
+
+async function challengePlayer(){
+  const opp=document.getElementById('opp-select').value;
+  const size=QUEUE_SIZES[selectedQueue];
+  const errEl=document.getElementById('challenge-err');
+  if(selectedTeam.length!==size){errEl.textContent=`Select exactly ${size} card${size>1?'s':''}`;errEl.style.display='block';return;}
+  errEl.style.display='none';
+  const bid=`b-${Date.now()}-${currentUser.id}`;
+  console.log('Sending challenge:',{bid,player1:currentUser.id,player2:opp,team:selectedTeam});
+  const{error:cErr}=await sb.from('live_battles').insert({id:bid,player1:currentUser.id,player2:opp,team1:selectedTeam,team2:[],state:JSON.stringify({log:[`⚔️ ${currentUser.id} challenged ${opp}!`],phase:'waiting',turn:null,winner:null,queue:selectedQueue}),status:'waiting'});
+  console.log('Challenge insert result:',cErr||'success');
+  if(cErr){showToast('Error sending challenge: '+cErr.message);return;}
+  showToast(`Challenge sent to ${opp}! Waiting for them to accept...`);
+  selectedTeam=[];
+  // Poll every 3 seconds waiting for opponent to accept
+  if(incomingPoll)clearInterval(incomingPoll);
+  let _waitingBattleId=bid;
+  incomingPoll=setInterval(async()=>{
+    const{data:b}=await sb.from('live_battles').select('*').eq('id',_waitingBattleId).single();
+    if(b&&b.status==='active'){
+      clearInterval(incomingPoll);incomingPoll=null;
+      currentBattle=b;
+      enterBattle(b);
+    } else if(!b||b.status==='abandoned'){
+      clearInterval(incomingPoll);incomingPoll=null;
+    }
+  },3000);
+  renderBattleLobby();
+}
+
+async function clearStaleBattles(){
+  // Delete all waiting/active battles involving current user
+  await sb.from('live_battles').delete().eq('player1',currentUser.id).eq('status','waiting');
+  await sb.from('live_battles').delete().eq('player2',currentUser.id).eq('status','waiting');
+  showToast('Stale battles cleared!');
+  renderBattleLobby();
+}
+
+async function debugAllBattles(){
+  const{data,error}=await sb.from('live_battles').select('id,player1,player2,status').order('created_at',{ascending:false}).limit(10);
+  const el=document.getElementById('incoming-debug');
+  if(!el)return;
+  if(error){el.textContent='DB Error: '+error.message;return;}
+  if(!data||!data.length){el.textContent='No battles in DB at all.';return;}
+  el.innerHTML='<strong>Last 10 battles in DB:</strong><br>'+data.map(b=>
+    `${b.player1} → ${b.player2} [${b.status}] ${b.player2===currentUser.id?'✅ FOR YOU':''}`
+  ).join('<br>');
+}
+
+async function loadIncoming(){
+  const el=document.getElementById('incoming-list');if(!el)return;
+  const{data,error}=await sb.from('live_battles').select('*').eq('player2',currentUser.id).eq('status','waiting');
+  const debugEl=document.getElementById('incoming-debug');
+  if(debugEl){
+    if(error)debugEl.textContent=`Error: ${error.message}`;
+    else debugEl.textContent=`Checking as "${currentUser.id}" — ${data?data.length:0} challenge(s). ${new Date().toLocaleTimeString()}`;
+  }
+  if(error)return;
+  if(!data||!data.length){
+    el.innerHTML='<div class="empty">No challenges</div>';
+    updateBattleBadge(0);_lastIncomingCount=0;return;
+  }
+  if(data.length>_lastIncomingCount&&_lastIncomingCount>=0)showToast('⚔️ New battle challenge!');
+  _lastIncomingCount=data.length;
+  updateBattleBadge(data.length);
+  el.innerHTML=data.map((b)=>{
+    const st=typeof b.state==='string'?JSON.parse(b.state):b.state;
+    const size=QUEUE_SIZES[st.queue!==undefined?st.queue:1];
+    const safeId=btoa(encodeURIComponent(b.id)).replace(/=/g,'');
+    return `<div class="row-item" style="gap:8px;">
+      <div>
+        <div style="font-size:14px;font-weight:600;">⚔️ ${b.player1}</div>
+        <div style="font-size:12px;color:var(--text3);">${size}v${size} battle challenge</div>
+      </div>
+      <button class="btn btn-green btn-sm" data-battleid="${safeId}" data-queue="${st.queue!==undefined?st.queue:1}" onclick="acceptFromBtn(this)">Accept</button>
+    </div>`;
+  }).join('');
+}
+
+function acceptFromBtn(btn){
+  const safeId=btn.dataset.battleid;
+  const q=btn.dataset.queue!==undefined?parseInt(btn.dataset.queue):1;
+  let battleId;
+  try{battleId=decodeURIComponent(atob(safeId));}catch(e){showToast('Error reading challenge');return;}
+  acceptChallenge(battleId,q);
+}
+
+function updateBattleBadge(count){
+  let badge=document.getElementById('battle-nav-badge');
+  const battleBtn=document.querySelector('.main-sidebar button:nth-child(3)');
+  if(!battleBtn)return;
+  if(count>0){
+    if(!badge){badge=document.createElement('span');badge.id='battle-nav-badge';badge.style.cssText='background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;margin-left:4px;font-weight:700;';battleBtn.appendChild(badge);}
+    badge.textContent=count;
+  } else {
+    if(badge)badge.remove();
+  }
+}
+
+// Store pending battle ID safely outside HTML
+let _pendingAcceptBattleId=null;
+
+async function acceptChallenge(battleId,q){
+  selectedQueue=q!==undefined?q:1;const size=QUEUE_SIZES[selectedQueue];
+  _pendingAcceptBattleId=battleId;
+  selectedTeam=[];
+  const{data:myCards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
+  if(incomingPoll)clearInterval(incomingPoll);
+  document.getElementById('battle-lobby').innerHTML=`
+    <div class="box">
+      <h3>Pick your ${size} card${size>1?'s':''}</h3>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:10px;">Tap cards to select them, then confirm.</p>
+      <div class="card-grid">${(myCards||[]).map(c=>cardTileHTML(c,true)).join('')}</div>
+      <div style="margin-top:4px;font-size:13px;color:var(--text3);" id="team-count-label">Selected: 0 / ${size}</div>
+      <button class="btn btn-primary" style="margin-top:12px;" onclick="confirmAccept()">Confirm Team</button>
+      <button class="btn btn-sm" style="margin-left:8px;margin-top:12px;" onclick="renderBattleLobby()">Cancel</button>
+    </div>`;
+}
+
+async function confirmAccept(){
+  const battleId=_pendingAcceptBattleId;
+  if(!battleId){showToast('No pending battle');return;}
+  const size=QUEUE_SIZES[selectedQueue];
+  if(selectedTeam.length!==size){showToast(`Select exactly ${size} card${size>1?'s':''}`);return;}
+  const{data:b}=await sb.from('live_battles').select('*').eq('id',battleId).single();
+  if(!b){showToast('Battle not found');return;}
+  const{data:t1}=await sb.from('player_cards').select('*').in('uid',b.team1);
+  const{data:t2}=await sb.from('player_cards').select('*').in('uid',selectedTeam);
+  const poolIds=[...new Set([...(t1||[]),...(t2||[])].map(c=>c.pool_card_id).filter(Boolean))];
+  const poolMovesMap={};
+  if(poolIds.length){const{data:pcs}=await sb.from('pool_cards').select('id,moves').in('id',poolIds);(pcs||[]).forEach(pc=>{poolMovesMap[pc.id]=pc.moves||[];});}
+  const buildF=c=>({uid:c.uid,name:c.name,class_name:c.class_name,rarity:c.rarity,element:c.element||'neutral',atk:c.atk,def:c.def,hp:c.max_hp||c.hp,maxHp:c.max_hp||c.hp,stamina:c.stamina||50,maxStamina:c.max_stamina||100,staminaRegen:c.stamina_regen||25,crit:c.crit_chance||0.1,dodge:c.dodge_chance||0.05,unlockedMoves:c.unlocked_moves||[],level:c.level,pool_card_id:c.pool_card_id||null,image_url:c.image_url||null,dot:0,dotTurns:0,shielded:false,shieldPct:0,speedBuff:false,defeated:false});
+  const st=typeof b.state==='string'?JSON.parse(b.state):b.state;
+  // Challenged player (player2) goes first
+  const state={fighters1:(t1||[]).map(buildF),fighters2:(t2||[]).map(buildF),turn:b.player2,phase:'action2',log:[`🏟️ Battle! ${b.player1} vs ${b.player2}`,`${b.player2} goes first!`],winner:null,usedUids:[],poolMoves:poolMovesMap,queue:st.queue!==undefined?st.queue:1};
+  await sb.from('live_battles').update({team2:selectedTeam,state:JSON.stringify(state),status:'active'}).eq('id',battleId);
+  selectedTeam=[];_pendingAcceptBattleId=null;
+  const{data:updated}=await sb.from('live_battles').select('*').eq('id',battleId).single();
+  currentBattle=updated;enterBattle(updated);
+}
+
+// ── BATTLE UI ──────────────────────────────────────────
+function enterBattle(battle){
+  document.getElementById('battle-lobby').style.display='none';
+  document.getElementById('battle-active').style.display='block';
+  // Stop polling for incoming challenges once in a battle
+  if(incomingSub)sb.removeChannel(incomingSub);
+  if(incomingPoll)clearInterval(incomingPoll);
+  currentBattle=battle;renderBattleUI();
+  if(battleSub)sb.removeChannel(battleSub);
+  battleSub=sb.channel('battle-'+battle.id)
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'live_battles',filter:`id=eq.${battle.id}`},
+      p=>{currentBattle=p.new;pendingTargetMode=false;pendingMove=null;pendingFighterUid=null;selectedAttackerUid=null;renderBattleUI();})
+    .subscribe();
+}
+
+function renderBattleUI(){
+  const el=document.getElementById('battle-active');if(!currentBattle||!el)return;
+  const state=typeof currentBattle.state==='string'?JSON.parse(currentBattle.state):currentBattle.state;
+  if(!state){el.innerHTML='<p style="color:var(--text3);padding:16px;">Loading battle...</p>';return;}
+  if(state.winner){renderBattleOver(state);return;}
+
+  const isP1=currentBattle.player1===currentUser.id;
+  const myF=isP1?state.fighters1:state.fighters2;
+  const oppF=isP1?state.fighters2:state.fighters1;
+  const myLabel=isP1?currentBattle.player1:currentBattle.player2;
+  const oppLabel=isP1?currentBattle.player2:currentBattle.player1;
+  const isMyTurn=(state.turn||'')===currentUser.id;
+  const phase=state.phase||'';
+  const isActionPhase=(phase==='action1'&&isP1)||(phase==='action2'&&!isP1);
+  const canAct=isMyTurn&&isActionPhase;
+
+  const hpColor=p=>p>50?'#22c55e':p>25?'#f59e0b':'#ef4444';
+  const typeEmoji=el2=>({fire:'🔥',ice:'❄️',lightning:'⚡',earth:'🌿',dark:'🌑',light:'☀️',water:'💧',wind:'🌪️',void:'🌀'}[el2]||'');
+
+  // ── Opponent cards (top) — HP bar, ATK/DEF only ──────────────────────
+  const buildOppCard=f=>{
+    const hpPct=Math.max(0,Math.round((f.hp/f.maxHp)*100));
+    const isTarget=!f.defeated&&canAct&&pendingTargetMode;
+    const safeUid=btoa(encodeURIComponent(f.uid)).replace(/=/g,'');
+    const col=classColor(f.class_name);
+    let cls='battle-card';
+    if(f.defeated)cls+=' defeated-card';
+    else if(isTarget)cls+=' targetable-card';
+    if(f.dot>0&&!f.defeated)cls+=' dot-card';
+    return `<div class="${cls}" data-safeuid="${safeUid}"${isTarget?' data-target="1"':''} id="fc-${f.uid}">
+      ${f.image_url?`<img class="battle-card-img" src="${f.image_url}">`:`<div class="battle-card-img-ph">${classEmoji(f.class_name)}</div>`}
+      <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.name}</div>
+      <span class="cat-badge" style="background:${col.bg};color:${col.fg};font-size:9px;">${f.class_name}${typeEmoji(f.element)?' '+typeEmoji(f.element):''}</span>
+      <div style="font-size:10px;color:var(--text3);">⚔️${f.atk} 🛡️${f.def}</div>
+      <div class="bc-bar-wrap"><div class="bc-hp-fill" style="width:${hpPct}%;background:${hpColor(hpPct)};"></div></div>
+      <div style="font-size:10px;color:var(--text2);">❤️ ${f.hp}/${f.maxHp}${f.dot>0?' 🔥'+f.dotTurns+'t':''}</div>
+      ${f.defeated?'<div style="font-size:11px;color:#ef4444;text-align:center;margin-top:2px;">💀 Defeated</div>':''}
+    </div>`;
+  };
+
+  // ── My cards (bottom) — full info like "my cards" tab ────────────────
+  const buildMyCard=f=>{
+    const hpPct=Math.max(0,Math.round((f.hp/f.maxHp)*100));
+    const stPct=Math.max(0,Math.round((f.stamina/f.maxStamina)*100));
+    const isSelected=f.uid===selectedAttackerUid;
+    const isSelectable=!f.defeated&&canAct&&!pendingTargetMode&&!selectedAttackerUid;
+    const safeUid=btoa(encodeURIComponent(f.uid)).replace(/=/g,'');
+    const col=classColor(f.class_name);
+    const moves=getMoves(f,state);
+    let cls='battle-card';
+    if(f.defeated)cls+=' defeated-card';
+    else if(isSelected)cls+=' selected-attacker';
+    else if(isSelectable)cls+=' selectable-fighter';
+    if(f.dot>0&&!f.defeated)cls+=' dot-card';
+    return `<div class="${cls}" data-safeuid="${safeUid}"${isSelectable?' data-pickfighter="1"':''} id="fc-${f.uid}">
+      ${isSelected?`<div style="position:absolute;top:4px;right:4px;background:#4f8ef7;color:#fff;font-size:9px;padding:1px 6px;border-radius:4px;font-weight:700;z-index:2;">USING</div>`:''}
+      ${f.image_url?`<img class="battle-card-img" src="${f.image_url}">`:`<div class="battle-card-img-ph">${classEmoji(f.class_name)}</div>`}
+      <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.name}</div>
+      <span class="cat-badge" style="background:${col.bg};color:${col.fg};font-size:9px;">${f.class_name}${typeEmoji(f.element)?' '+typeEmoji(f.element):''}</span>
+      <div style="font-size:10px;color:var(--text3);">⚔️${f.atk} 🛡️${f.def}${f.shielded?' 🛡️shielded':''}</div>
+      <div class="bc-bar-wrap"><div class="bc-hp-fill" style="width:${hpPct}%;background:${hpColor(hpPct)};"></div></div>
+      <div style="font-size:10px;color:var(--text2);">❤️ ${f.hp}/${f.maxHp}${f.dot>0?' 🔥'+f.dotTurns+'t':''}</div>
+      <div class="bc-bar-wrap"><div class="bc-st-fill" style="width:${stPct}%;"></div></div>
+      <div style="font-size:10px;color:var(--text3);">⚡ ${f.stamina}/${f.maxStamina}</div>
+      ${moves.map(m=>{
+        const ok=f.stamina>=(m.stamina_cost||0);
+        return `<div class="bc-move-row" style="color:${ok?'var(--text2)':'var(--text4)'};">${MOVE_ICONS[m.type]||'⚔️'} ${m.name}<span>⚡${m.stamina_cost||0}</span></div>`;
+      }).join('')}
+      ${f.defeated?'<div style="font-size:11px;color:#ef4444;text-align:center;margin-top:2px;">💀 Defeated</div>':''}
+    </div>`;
+  };
+
+  // ── Action panel ──────────────────────────────────────────────────────
+  let actionHTML='';
+  if(canAct){
+    if(pendingTargetMode){
+      actionHTML=`<div class="action-panel">
+        <div class="phase-label">⚔️ Select a target</div>
+        <p style="font-size:13px;color:var(--text3);margin:0;">Tap an enemy card above to attack.</p>
+        <button class="btn btn-sm" onclick="cancelTarget()">← Cancel</button>
+      </div>`;
+    } else if(selectedAttackerUid){
+      const fighter=myF.find(f=>f.uid===selectedAttackerUid);
+      if(fighter){
+        const moves=getMoves(fighter,state);
+        const typeColor={attack:'#3b82f6',heavy:'#ef4444',heal:'#22c55e',shield:'#f59e0b',dot:'#f97316',multi:'#8b5cf6',power:'#ec4899',combo:'#06b6d4',speed:'#84cc16',aoe:'#dc2626',lifesteal:'#e11d48',stamina_steal:'#7c3aed',taunt:'#92400e',curse:'#6b21a8',counter:'#065f46',execute:'#1c1917',scatter:'#0369a1'};
+        actionHTML=`<div class="action-panel">
+          <div class="phase-label">🃏 ${fighter.name} — choose an ability</div>
+          <button class="btn btn-sm" style="align-self:flex-start;" onclick="cancelAttacker()">← Back</button>
+          ${moves.length?moves.map(m=>{
+            const ok=fighter.stamina>=(m.stamina_cost||0);
+            const tc=typeColor[m.type]||'#6b7280';
+            const dmgLabel=m.type==='heal'?`+${m.value}HP`:m.type==='shield'?`${m.value}% block`:m.type==='speed'?'Dodge×2':m.type==='dot'?`${Math.round(m.value/3)}/t×${m.dot_turns||3}`:m.type==='multi'?`${m.value}×${m.hits_min||2}-${m.hits_max||4}`:m.type==='aoe'?`${m.value} all`:m.type==='scatter'?`${m.value}×${m.scatter_targets||2}`:m.value?`${m.value}dmg`:'';
+            return `<button class="ability-btn${!ok?' no-stamina':''}" ${!ok?'disabled':''} data-uid="${fighter.uid}" data-move="${encodeURIComponent(m.name)}" style="border-left:3px solid ${tc};">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span>${MOVE_ICONS[m.type]||'⚔️'} <strong>${m.name}</strong> <span style="font-size:11px;color:${tc};">${MOVE_LABELS[m.type]||m.type}</span></span>
+                <span style="font-size:12px;color:var(--text3);">⚡${m.stamina_cost||0} · ${dmgLabel}</span>
+              </div>
+              ${m.desc?`<div style="font-size:11px;color:var(--text3);margin-top:3px;">${m.desc}</div>`:''}
+            </button>`;
+          }).join(''):`<p style="font-size:13px;color:var(--text3);margin:0;">No moves available.</p>`}
+        </div>`;
+      }
+    } else {
+      actionHTML=`<div class="action-panel">
+        <div class="phase-label">⚡ Your turn</div>
+        <p style="font-size:13px;color:var(--text3);margin:0;">Tap one of your cards below to pick who attacks.</p>
+      </div>`;
+    }
+  } else {
+    actionHTML=`<div class="action-panel" style="text-align:center;">
+      <div style="font-size:13px;color:var(--text3);">⏳ Waiting for <strong>${state.turn||'opponent'}</strong>...</div>
+    </div>`;
+  }
+
+  // ── Log ───────────────────────────────────────────────────────────────
+  const logHTML=[...(state.log||[])].reverse().slice(0,20).map(l=>{
+    let cls='log-entry';
+    if(l.includes('CRIT')||l.includes('EXECUTE'))cls+=' crit';
+    else if(l.includes('damage')||l.includes('defeated')||l.includes('dmg'))cls+=' dmg';
+    else if(l.includes('healed')||l.includes('restored')||l.includes('HP!'))cls+=' heal-log';
+    else if(l.includes('wins')||l.includes('🏆'))cls+=' highlight';
+    return `<div class="${cls}">${l}</div>`;
+  }).join('');
+
+  const turnMsg=canAct
+    ?(pendingTargetMode?'⚡ Your Turn — Tap an enemy':selectedAttackerUid?`⚡ Your Turn — Pick a move for ${myF.find(f=>f.uid===selectedAttackerUid)?.name||''}`:'⚡ Your Turn — Pick a card')
+    :`⏳ ${state.turn||'Opponent'}'s turn...`;
+
+  el.innerHTML=`
+    <div class="battle-arena-wrap">
+      <div class="turn-bar ${canAct?'turn-yours':'turn-opp'}">${turnMsg}</div>
+
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#fca5a5;margin-bottom:6px;padding:3px 8px;background:#2d0a0a;border-radius:6px;display:inline-block;">🔴 ${oppLabel}</div>
+        <div class="battle-field-opp">${oppF.map(f=>buildOppCard(f)).join('')}</div>
+      </div>
+
+      <div class="battle-log-box">${logHTML||'<div class="log-entry">Battle started!</div>'}</div>
+
+      ${actionHTML}
+
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#93c5fd;margin-bottom:6px;padding:3px 8px;background:#0c2340;border-radius:6px;display:inline-block;">🟢 ${myLabel} (You)</div>
+        <div class="battle-field-mine">${myF.map(f=>buildMyCard(f)).join('')}</div>
+      </div>
+
+      <button class="btn btn-sm" style="color:var(--text3);align-self:flex-start;margin-top:4px;" onclick="leaveBattle()">← Leave Battle</button>
+    </div>`;
+
+  // Wire ability buttons
+  el.querySelectorAll('.ability-btn[data-uid]').forEach(btn=>{
+    btn.addEventListener('click',e=>{
+      e.stopPropagation();
+      const fuid=btn.dataset.uid;
+      const mname=decodeURIComponent(btn.dataset.move||'');
+      if(fuid&&mname)selectMove(fuid,mname);
+    });
+  });
+}
+
+function getMoves(fighter,state){
+  const pm=(state.poolMoves&&state.poolMoves[fighter.pool_card_id])||[];
+  return pm.filter(m=>(fighter.unlockedMoves||[]).includes(m.name));
+}
+
+function showDmgPopup(targetUid,amount,isHeal){
+  // Show floating damage number on the target card
+  const el=document.getElementById('fc-'+targetUid);
+  if(!el)return;
+  const pop=document.createElement('div');
+  pop.className=isHeal?'heal-popup':'dmg-popup';
+  pop.textContent=isHeal?`+${amount} HP`:`-${amount}`;
+  el.style.position='relative';
+  el.appendChild(pop);
+  setTimeout(()=>pop.remove(),1500);
+}
+
+function selectAttacker(uid){
+  selectedAttackerUid=uid;
+  renderBattleUI();
+}
+function cancelAttacker(){selectedAttackerUid=null;renderBattleUI();}
+
+function selectMove(fighterUid,moveName){
+  const state=typeof currentBattle.state==='string'?JSON.parse(currentBattle.state):currentBattle.state;
+  const isP1=currentBattle.player1===currentUser.id;
+  const fighter=(isP1?state.fighters1:state.fighters2).find(f=>f.uid===fighterUid);
+  const move=((state.poolMoves&&state.poolMoves[fighter.pool_card_id])||[]).find(m=>m.name===moveName);
+  if(!move)return;
+  // Self-targeted moves fire immediately; everything else requires picking a target
+  const selfTargeted=['heal','shield','speed','aoe','scatter','taunt','counter'];
+  if(selfTargeted.includes(move.type)){useMove(fighterUid,moveName,null);}
+  else{pendingTargetMode=true;pendingMove=moveName;pendingFighterUid=fighterUid;renderBattleUI();}
+}
+
+function selectTarget(uid){if(!pendingTargetMode)return;useMove(pendingFighterUid,pendingMove,uid);pendingTargetMode=false;pendingMove=null;pendingFighterUid=null;selectedAttackerUid=null;}
+function cancelTarget(){pendingTargetMode=false;pendingMove=null;pendingFighterUid=null;renderBattleUI();}
+
+async function useMove(fighterUid,moveName,targetUid){
+  selectedAttackerUid=null;
+  const state=typeof currentBattle.state==='string'?JSON.parse(currentBattle.state):currentBattle.state;
+  const isP1=currentBattle.player1===currentUser.id;
+  const myKey=isP1?'fighters1':'fighters2';
+  const oppKey=isP1?'fighters2':'fighters1';
+  const attacker=state[myKey].find(f=>f.uid===fighterUid);
+  const move=((state.poolMoves&&state.poolMoves[attacker.pool_card_id])||[]).find(m=>m.name===moveName);
+  if(!move||attacker.stamina<(move.stamina_cost||0)){showToast('Not enough stamina!');return;}
+  const log=[];
+  [...state.fighters1,...state.fighters2].forEach(f=>{
+    if(f.dot>0&&f.dotTurns>0&&!f.defeated){f.hp=Math.max(0,f.hp-f.dot);log.push(`🔥 ${f.name} takes ${f.dot} damage-over-time (${f.dotTurns-1} turns left)`);f.dotTurns--;if(f.dotTurns<=0)f.dot=0;if(f.hp<=0){f.hp=0;f.defeated=true;log.push(`💀 ${f.name} was defeated!`);}}
+  });
+  [...state.fighters1,...state.fighters2].forEach(f=>{if(!f.defeated)f.stamina=Math.min(f.maxStamina,(f.stamina||0)+f.staminaRegen);});
+  attacker.stamina=Math.max(0,attacker.stamina-(move.stamina_cost||0));
+  if(!state.usedUids)state.usedUids=[];
+  if(!state.usedUids.includes(attacker.uid))state.usedUids.push(attacker.uid);
+  const defender=targetUid?state[oppKey].find(f=>f.uid===targetUid):null;
+  const typeMult=defender?getTypeMult(attacker.element,defender.element||'neutral'):1;
+  const crit=Math.random()<(attacker.crit||0.1);
+  const critMult=crit?1.5+Math.random()*0.5:1;
+
+  if(move.type==='heal'){
+    const h=move.value||30;attacker.hp=Math.min(attacker.maxHp,attacker.hp+h);
+    log.push(`💚 ${attacker.name} used ${moveName} and restored ${h} HP!`);
+    setTimeout(()=>showDmgPopup(attacker.uid,h,true),100);
+  } else if(move.type==='shield'){
+    attacker.shielded=true;attacker.shieldPct=(move.value||75)/100;
+    log.push(`🛡️ ${attacker.name} used ${moveName} — shields ${move.value||75}% of the next hit!`);
+  } else if(move.type==='speed'){
+    attacker.speedBuff=true;log.push(`💨 ${attacker.name} used ${moveName} — dodge chance doubled next turn!`);
+  } else if(defender){
+    const dodged=Math.random()<(attacker.speedBuff?defender.dodge*2:defender.dodge||0.05);
+    if(dodged){log.push(`💨 ${defender.name} dodged ${attacker.name}'s ${moveName}!`);}
+    else{
+      let dmg=0;
+      if(move.type==='dot'){
+        const dpt=Math.max(1,Math.round(((move.value||30)+(attacker.atk*0.15))/3));defender.dot=dpt;defender.dotTurns=move.dot_turns||3;
+        log.push(`🔥 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${defender.name} burns for ${dpt} dmg/turn × ${defender.dotTurns} turns!`);
+      } else if(move.type==='multi'){
+        const hits=rand(move.hits_min||2,move.hits_max||3);let tot=0;
+        for(let i=0;i<hits;i++){const d=Math.max(1,Math.round(((move.value||30)/hits+(attacker.atk*0.2)-defender.def*0.3)*typeMult*critMult));tot+=d;}
+        if(defender.shielded){const bl=Math.round(tot*defender.shieldPct);tot=Math.max(1,tot-bl);log.push(`🛡️ Shield absorbed ${bl} damage!`);defender.shielded=false;}
+        defender.hp=Math.max(0,defender.hp-tot);
+        log.push(`🌀 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${hits} hits for ${tot} total!${typeMult>1?' ⚡ Super effective!':''}`);
+        if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
+      } else if(move.type==='combo'){
+        setTimeout(()=>showDmgPopup(defender.uid,tot,false),100);
+        const triggered=Math.random()<0.4;
+        dmg=Math.max(1,Math.round((move.value-defender.def*0.4)*typeMult*critMult*(triggered?1.5:1)));
+        if(defender.shielded){const bl=Math.round(dmg*defender.shieldPct);dmg=Math.max(1,dmg-bl);log.push(`🛡️ Shield absorbed ${bl} damage!`);defender.shielded=false;}
+        defender.hp=Math.max(0,defender.hp-dmg);
+        log.push(`🎯 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''}${triggered?' COMBO!':''} — ${dmg} damage!`);
+        if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
+      } else {
+        dmg=Math.max(1,Math.round((move.value+(attacker.atk*0.3)-defender.def*0.5)*typeMult*critMult));
+        if(defender.shielded){const bl=Math.round(dmg*defender.shieldPct);dmg=Math.max(1,dmg-bl);log.push(`🛡️ Shield absorbed ${bl} damage!`);defender.shielded=false;}
+        defender.hp=Math.max(0,defender.hp-dmg);
+        log.push(`${MOVE_ICONS[move.type]||'⚔️'} ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${dmg} damage!${typeMult>1?' ⚡ Super effective!':''}`);
+        if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
+        setTimeout(()=>showDmgPopup(defender.uid,dmg,false),100);
+      }
+    }
+    attacker.speedBuff=false;
+  } else if(move.type==='aoe'){
+    // Hits ALL opponents not just one
+    const targets=state[oppKey].filter(f=>!f.defeated);
+    let totalDealt=0;
+    targets.forEach(t=>{
+      const tm=getTypeMult(attacker.element,t.element||'neutral');
+      const crit2=Math.random()<(attacker.crit||0.1);
+      const dmg=Math.max(1,Math.round((move.value-t.def*0.4)*tm*(crit2?1.5:1)));
+      if(t.shielded){const bl=Math.round(dmg*t.shieldPct);t.hp=Math.max(0,t.hp-(dmg-bl));t.shielded=false;log.push(`🛡️ ${t.name} shield absorbed ${bl}!`);}
+      else t.hp=Math.max(0,t.hp-dmg);
+      totalDealt+=dmg;
+      if(t.hp<=0){t.hp=0;t.defeated=true;log.push(`💀 ${t.name} was defeated!`);}
+    });
+    log.push(`💣 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — hit ${targets.length} enemies for ${totalDealt} total damage!`);
+  } else if(move.type==='scatter'){
+    // Pick up to scatter_targets enemies, deal damage to each
+    const targets=state[oppKey].filter(f=>!f.defeated);
+    const numTargets=Math.min(move.scatter_targets||2,targets.length);
+    // Shuffle and pick
+    const picked=[...targets].sort(()=>Math.random()-0.5).slice(0,numTargets);
+    let totalDealt=0;
+    picked.forEach(t=>{
+      const tm=getTypeMult(attacker.element,t.element||'neutral');
+      const crit2=Math.random()<(attacker.crit||0.1);
+      const dmg=Math.max(1,Math.round((move.value+(attacker.atk*0.3)-t.def*0.5)*tm*(crit2?1.5:1)));
+      if(t.shielded){const bl=Math.round(dmg*t.shieldPct);t.hp=Math.max(0,t.hp-(dmg-bl));t.shielded=false;}
+      else t.hp=Math.max(0,t.hp-dmg);
+      totalDealt+=dmg;
+      if(t.hp<=0){t.hp=0;t.defeated=true;log.push(`💀 ${t.name} was defeated!`);}
+    });
+    log.push(`🎯💥 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — hit ${picked.map(t=>t.name).join(' & ')} for ${totalDealt} total damage!`);
+  } else if(move.type==='lifesteal'){
+    if(defender){
+      const tm=getTypeMult(attacker.element,defender.element||'neutral');
+      const dmg=Math.max(1,Math.round((move.value+(attacker.atk*0.3)-defender.def*0.5)*tm*critMult));
+      const stolen=Math.round(dmg*(move.steal_pct||0.5));
+      if(defender.shielded){const bl=Math.round(dmg*defender.shieldPct);defender.hp=Math.max(0,defender.hp-(dmg-bl));defender.shielded=false;}
+      else defender.hp=Math.max(0,defender.hp-dmg);
+      attacker.hp=Math.min(attacker.maxHp,attacker.hp+stolen);
+      log.push(`🩸 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${dmg} dmg, stole ${stolen} HP!`);
+      if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
+    }
+  } else if(move.type==='stamina_steal'){
+    if(defender){
+      const tm=getTypeMult(attacker.element,defender.element||'neutral');
+      const dmg=Math.max(1,Math.round((move.value-defender.def*0.5)*tm*critMult));
+      const stealAmt=Math.round(move.steal_stamina||25);
+      defender.hp=Math.max(0,defender.hp-dmg);
+      const actualSteal=Math.min(stealAmt,defender.stamina);
+      defender.stamina=Math.max(0,defender.stamina-actualSteal);
+      attacker.stamina=Math.min(attacker.maxStamina,attacker.stamina+actualSteal);
+      log.push(`⚡🔻 ${attacker.name} used ${moveName} — ${dmg} dmg + stole ${actualSteal} stamina from ${defender.name}!`);
+      if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
+    }
+  } else if(move.type==='taunt'){
+    attacker.taunting=move.taunt_turns||2;
+    log.push(`😤 ${attacker.name} used ${moveName} — all enemies must target them for ${move.taunt_turns||2} turns!`);
+  } else if(move.type==='curse'){
+    if(defender){
+      const pct=(move.value||20)/100;
+      defender.cursed=true;defender.curse_atk_mult=1-pct;defender.curseTurns=move.curse_turns||3;
+      log.push(`🌀 ${attacker.name} used ${moveName} — ${defender.name}'s ATK reduced by ${move.value||20}% for ${move.curse_turns||3} turns!`);
+    }
+  } else if(move.type==='counter'){
+    attacker.countering=true;attacker.counter_mult=(move.value||150)/100;
+    log.push(`🔄 ${attacker.name} used ${moveName} — will counter the next attack for ${move.value||150}% damage!`);
+  } else if(move.type==='execute'){
+    if(defender){
+      const tm=getTypeMult(attacker.element,defender.element||'neutral');
+      const threshold=(move.execute_threshold||20)/100;
+      const hpPct=defender.hp/defender.maxHp;
+      let dmg=Math.max(1,Math.round((move.value-defender.def*0.5)*tm*critMult));
+      if(hpPct<=threshold){
+        dmg=defender.hp; // instant kill below threshold
+        log.push(`💀 EXECUTE! ${defender.name} is below ${move.execute_threshold||20}% HP!`);
+      }
+      defender.hp=Math.max(0,defender.hp-dmg);
+      log.push(`💀 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${dmg} damage!`);
+      if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
+    }
+  }
+  state.log.push(...log);
+  const a1=state.fighters1.filter(f=>!f.defeated).length;const a2=state.fighters2.filter(f=>!f.defeated).length;
+  if(a1===0||a2===0){
+    state.winner=a1>0?currentBattle.player1:currentBattle.player2;state.phase='over';
+    state.log.push(`🏆 ${state.winner} wins!`);
+    await sb.from('live_battles').update({state:JSON.stringify(state),status:'complete'}).eq('id',currentBattle.id);
+    await awardRewards(state,currentBattle);return;
+  }
+  state.turn=isP1?currentBattle.player2:currentBattle.player1;
+  state.phase=isP1?'action2':'action1';
+  state.log.push(`── ${state.turn}'s turn ──`);
+  await sb.from('live_battles').update({state:JSON.stringify(state)}).eq('id',currentBattle.id);
+}
+
+async function awardRewards(state,battle){
+  const winner=state.winner;const loser=winner===battle.player1?battle.player2:battle.player1;
+  const winF=winner===battle.player1?state.fighters1:state.fighters2;
+  const loseF=winner===battle.player1?state.fighters2:state.fighters1;
+  const used=[...new Set([...(state.usedUids||[]),...winF.map(f=>f.uid),...loseF.map(f=>f.uid)])];
+  for(const uid of used){
+    const{data:c}=await sb.from('player_cards').select('*').eq('uid',uid).single();if(!c)continue;
+    const onWin=!!winF.find(f=>f.uid===uid);const surv=onWin&&!winF.find(f=>f.uid===uid)?.defeated;
+    let xp=onWin?30:10;if(surv)xp+=20;xp=Math.round(xp*RARITY_XP_MULT[c.rarity]);
+    let{xp:cx,level,atk,def,max_hp,unlocked_moves}={...c,unlocked_moves:c.unlocked_moves||[]};
+    cx+=xp;
+    while(cx>=xpForCard(level)){cx-=xpForCard(level);level++;atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);def=Math.round(def*RARITY_STAT_MULT[c.rarity]);max_hp=Math.round((max_hp||c.hp||100)*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
+      if(c.pool_card_id){const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',c.pool_card_id).single();if(pc&&pc.moves)pc.moves.forEach(m=>{if(m.unlock_level===level&&!unlocked_moves.includes(m.name))unlocked_moves.push(m.name);});}
+    }
+    await sb.from('player_cards').update({xp:cx,level,atk,def,max_hp,unlocked_moves}).eq('uid',uid);
+  }
+  const wu=allUsers.find(u=>u.id===winner);const lu=allUsers.find(u=>u.id===loser);
+  let wpx=(wu?.player_xp||0)+80;let wlv=wu?.level||1;while(wpx>=xpForPlayer(wlv)){wpx-=xpForPlayer(wlv);wlv++;}
+  let lpx=(lu?.player_xp||0)+20;let llv=lu?.level||1;while(lpx>=xpForPlayer(llv)){lpx-=xpForPlayer(llv);llv++;}
+  await sb.from('users').update({wins:(wu?.wins||0)+1,money:(wu?.money||0)+150,player_xp:wpx,level:wlv}).eq('id',winner);
+  await sb.from('users').update({losses:(lu?.losses||0)+1,money:Math.max(0,(lu?.money||0)+50),player_xp:lpx,level:llv}).eq('id',loser);
+  const prevWinnerLevel=allUsers.find(u=>u.id===winner)?.level||1;
+  const prevLoserLevel=allUsers.find(u=>u.id===loser)?.level||1;
+  if(currentUser.id===winner){
+    currentUser={...currentUser,money:(currentUser.money||0)+150,player_xp:wpx,level:wlv};
+    showXpGain('Victory!',150,80,wlv>prevWinnerLevel?wlv:null);
+    await checkMilestones(wlv);
+    await updateQuestProgress('wins',currentUser.wins||0);
+    await updateQuestProgress('win_mode',1,selectedQueue);
+  } else {
+    currentUser={...currentUser,money:Math.max(0,(currentUser.money||0)+50),player_xp:lpx,level:llv};
+    showXpGain('Defeat',50,20,llv>prevLoserLevel?llv:null);
+    await checkMilestones(llv);
+  }
+  updateHUD();
+}
+
+function renderBattleOver(state){
+  const iWon=state.winner===currentUser.id;
+  document.getElementById('battle-active').innerHTML=`
+    <div class="box" style="text-align:center;padding:2rem;">
+      <div style="font-size:56px;margin-bottom:1rem;">${iWon?'🏆':'💀'}</div>
+      <h2>${iWon?'Victory!':'Defeat'}</h2>
+      <p style="color:var(--text3);margin:0.5rem 0 1.5rem;">${iWon?'+$150 earned + card XP!':'+$50 consolation + card XP.'}</p>
+      <button class="btn btn-primary" onclick="leaveBattle()">Back to Lobby</button>
+    </div>
+    <div class="box"><h3>Battle Log</h3>
+      <div style="max-height:280px;overflow-y:auto;">${(state.log||[]).map(l=>`<div class="log-entry">${l}</div>`).join('')}</div>
+    </div>`;
+}
+
+async function leaveBattle(){
+  // Stop all subscriptions
+  if(battleSub){sb.removeChannel(battleSub);battleSub=null;}
+  if(incomingSub){sb.removeChannel(incomingSub);incomingSub=null;}
+  // Mark battle as abandoned so we don't auto-rejoin
+  if(currentBattle&&currentBattle.id){
+    try{await sb.from('live_battles').update({status:'abandoned'}).eq('id',currentBattle.id);}catch(e){}
+  }
+  currentBattle=null;selectedTeam=[];pendingTargetMode=false;pendingMove=null;pendingFighterUid=null;_pendingAcceptBattleId=null;
+  // Force show lobby, hide battle
+  const ba=document.getElementById('battle-active');
+  const bl=document.getElementById('battle-lobby');
+  if(ba)ba.style.display='none';
+  if(bl)bl.style.display='block';
+  await loadUsers();
+  renderBattleLobby();
+}
+
+// ── LEADERBOARD ────────────────────────────────────────
+async function renderLB(){
+  const el=document.getElementById('lb-content');
+  el.innerHTML='<div class="empty">Loading...</div>';
+  const{data:users}=await sb.from('users').select('*');
+  const{data:cards}=await sb.from('player_cards').select('*');
+  if(!users||!users.length){el.innerHTML='<div class="empty">No players yet</div>';return;}
+  const sorted=[...users].sort((a,b)=>(b.wins||0)-(a.wins||0)||(a.losses||0)-(b.losses||0));
+  const medals=['🥇','🥈','🥉'];
+  el.innerHTML='<h3 style="margin-bottom:1rem;">🏆 Leaderboard</h3>'+sorted.map((p,i)=>{
+    const pc=(cards||[]).filter(c=>c.owner===p.id&&!c.is_income_card);
+    const top=[...pc].sort((a,b)=>b.level-a.level)[0];
+    return `<div class="row-item">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="font-size:22px;width:28px;text-align:center;">${medals[i]||i+1}</div>
+        <div>
+          <div style="font-size:14px;font-weight:700;">${p.title?`<span style="color:${p.title_color||'var(--text)'};">[${p.title}]</span> `:''}${p.id} <span style="font-size:12px;color:var(--text3);">Lv ${p.level||1}</span></div>
+          <div style="font-size:12px;color:var(--text3);">${pc.length} cards${top?` · Best: <span style="color:${RARITY_COLORS[top.rarity]}">${top.name}</span> Lv${top.level}`:''}</div>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:16px;font-weight:700;color:#fbbf24;">${p.wins||0}W</div>
+        <div style="font-size:12px;color:var(--text3);">${p.losses||0}L · 💰$${p.money||0}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── ADMIN ──────────────────────────────────────────────
+function toggleIncomeFields(){
+  const v=document.getElementById('ac-is-income').checked;
+  document.getElementById('income-fields').style.display=v?'block':'none';
+  document.getElementById('battle-fields').style.display=v?'none':'block';
+}
+
+function previewAdminImage(previewId,inputId){
+  const file=document.getElementById(inputId).files[0];if(!file)return;
+  const r=new FileReader();r.onload=e=>{const img=document.getElementById(previewId);img.src=e.target.result;img.style.display='block';};r.readAsDataURL(file);
+}
+
+async function addPoolCard(){
+  const name=document.getElementById('ac-name').value.trim();
+  if(!name){showToast('Enter a card name');return;}
+  const isIncome=document.getElementById('ac-is-income').checked;
+  spin('pool-spin',true);
+  let imageUrl=null;
+  if(!isIncome){
+    const f=document.getElementById('ac-image').files[0];
+    if(f){
+      const ext=f.name.split('.').pop();const path=`cards/${Date.now()}.${ext}`;
+      const{data:upData,error:ue}=await sb.storage.from('card-images').upload(path,f,{upsert:true});
+      if(ue){console.error('Image upload error:',ue);showToast('Warning: image upload failed — '+ue.message);}
+      else{const{data:ud}=sb.storage.from('card-images').getPublicUrl(path);imageUrl=ud.publicUrl;console.log('Image URL:',imageUrl);}
+    }
+  }
+  const baseMoves=getMoveBlocks('base-moves-container').map(m=>({...m,unlock_level:1}));
+  const lvlMoves=getMoveBlocks('levelup-moves-container');
+  const card={
+    name,
+    cat:document.getElementById('ac-class').value,
+    class_name:document.getElementById('ac-class').value,
+    rarity:parseInt(document.getElementById('ac-rarity').value),
+    element:document.getElementById('ac-element').value,
+    is_income_card:isIncome,
+    income_amount:isIncome?parseInt(document.getElementById('ac-income-amt').value)||50:0,
+    income_interval_hours:isIncome?parseInt(document.getElementById('ac-income-hrs').value)||24:24,
+    atk:isIncome?0:parseInt(document.getElementById('ac-atk').value)||30,
+    def:isIncome?0:parseInt(document.getElementById('ac-def').value)||20,
+    hp:isIncome?0:parseInt(document.getElementById('ac-hp').value)||150,
+    stamina_max:isIncome?0:parseInt(document.getElementById('ac-stamina-max').value)||100,
+    stamina_start:isIncome?0:parseInt(document.getElementById('ac-stamina-start').value)||50,
+    stamina_regen:isIncome?0:parseInt(document.getElementById('ac-stamina-regen').value)||25,
+    crit_chance:isIncome?0:parseFloat(document.getElementById('ac-crit').value)||0.1,
+    dodge_chance:isIncome?0:parseFloat(document.getElementById('ac-dodge').value)||0.05,
+    moves:[...baseMoves,...lvlMoves],image_url:imageUrl
+  };
+  const{error}=await sb.from('pool_cards').insert(card);
+  spin('pool-spin',false);
+  if(error){showToast('Error: '+error.message);console.error(error);return;}
+  document.getElementById('ac-name').value='';
+  document.getElementById('ac-img-preview').style.display='none';
+  document.getElementById('ac-image').value='';
+  document.getElementById('base-moves-container').innerHTML='';
+  document.getElementById('levelup-moves-container').innerHTML='';
+  document.getElementById('ac-is-income').checked=false;toggleIncomeFields();
+  ['ac-hp','ac-atk','ac-def','ac-stamina-max','ac-stamina-start','ac-stamina-regen','ac-crit','ac-dodge'].forEach(id=>{
+    const el=document.getElementById(id);if(el)delete el.dataset.userEdited;
+  });
+  updateSuggestedStats();
+  showToast(`${name} added to pool!`);
+}
+
+// ── ADMIN MANAGEMENT ──────────────────────────────────
+async function loadAdminPlayers(){
+  const{data:users}=await sb.from('users').select('*').order('id');
+  const{data:cards}=await sb.from('player_cards').select('uid,owner').eq('is_income_card',false);
+  const el=document.getElementById('admin-player-list');
+  if(el){
+    el.innerHTML=(users||[]).map(u=>{
+      const cc=(cards||[]).filter(c=>c.owner===u.id).length;
+      return `<div class="row-item">
+        <div>
+          <div style="font-size:14px;font-weight:600;">${u.id}${u.is_admin?' 👑':''}</div>
+          <div style="font-size:12px;color:var(--text3);">Lv${u.level||1} · $${u.money||0} · ${cc} cards · ${u.wins||0}W/${u.losses||0}L</div>
+        </div>
+        <div style="font-size:12px;color:var(--text3);">${u.title||'No title'}</div>
+      </div>`;
+    }).join('');
+  }
+  // Populate all player selects
+  const opts=(users||[]).filter(u=>!u.is_admin).map(u=>`<option value="${u.id}">${u.id}</option>`).join('');
+  const allOpts=(users||[]).map(u=>`<option value="${u.id}">${u.id}</option>`).join('');
+  ['admin-give-player','admin-xp-player','admin-cardxp-player'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.innerHTML=opts||allOpts;
+  });
+  const delEl=document.getElementById('admin-del-player');
+  if(delEl)delEl.innerHTML=opts||allOpts;
+}
+
+async function adminGiveGold(){
+  const pid=document.getElementById('admin-give-player').value;
+  const amt=parseInt(document.getElementById('admin-give-amount').value)||0;
+  if(!pid||!amt){showToast('Select player and amount');return;}
+  const u=allUsers.find(x=>x.id===pid);
+  await sb.from('users').update({money:(u?.money||0)+amt}).eq('id',pid);
+  showToast(`Gave $${amt} to ${pid}`);
+  await loadUsers();loadAdminPlayers();
+}
+
+async function adminGiveXP(){
+  const pid=document.getElementById('admin-xp-player').value;
+  const amt=parseInt(document.getElementById('admin-give-xp').value)||0;
+  if(!pid||!amt){showToast('Select player and amount');return;}
+  const u=allUsers.find(x=>x.id===pid);
+  let player_xp=(u?.player_xp||0)+amt;
+  let level=u?.level||1;
+  while(player_xp>=xpForPlayer(level)){player_xp-=xpForPlayer(level);level++;}
+  await sb.from('users').update({player_xp,level}).eq('id',pid);
+  showToast(`Gave ${amt} player XP to ${pid}`);
+  await loadUsers();loadAdminPlayers();
+}
+
+async function adminGiveCardXP(){
+  const pid=document.getElementById('admin-cardxp-player').value;
+  const amt=parseInt(document.getElementById('admin-cardxp-amount').value)||0;
+  if(!pid||!amt){showToast('Select player and amount');return;}
+  const{data:cards}=await sb.from('player_cards').select('*').eq('owner',pid).eq('is_income_card',false);
+  if(!cards||!cards.length){showToast('Player has no cards');return;}
+  for(const c of cards){
+    let{xp,level,atk,def,max_hp,unlocked_moves}={...c,unlocked_moves:c.unlocked_moves||[]};
+    xp+=amt;
+    while(xp>=xpForCard(level)){
+      xp-=xpForCard(level);level++;
+      atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);
+      def=Math.round(def*RARITY_STAT_MULT[c.rarity]);
+      max_hp=Math.round((max_hp||c.hp||100)*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
+    }
+    await sb.from('player_cards').update({xp,level,atk,def,max_hp,unlocked_moves}).eq('uid',c.uid);
+  }
+  showToast(`Gave ${amt} XP to all ${cards.length} cards of ${pid}`);
+}
+
+async function adminDeletePlayer(){
+  const pid=document.getElementById('admin-del-player').value;
+  if(!pid){showToast('Select a player');return;}
+  if(pid===currentUser.id){showToast("Can't delete yourself");return;}
+  if(!confirm(`Delete ${pid} and all their cards? This cannot be undone.`))return;
+  await sb.from('player_cards').delete().eq('owner',pid);
+  await sb.from('users').delete().eq('id',pid);
+  showToast(`${pid} deleted`);
+  await loadUsers();loadAdminPlayers();
+}
+
+async function loadPoolForEdit(){
+  const{data}=await sb.from('pool_cards').select('*').order('name');
+  const sel=document.getElementById('edit-card-select');if(!sel)return;
+  sel.innerHTML='<option value="">— Select a card —</option>'+(data||[]).map(c=>`<option value="${c.id}">${c.name} (${RARITIES[c.rarity]})</option>`).join('');
+}
+
+async function loadCardForEdit(){
+  const id=document.getElementById('edit-card-select').value;
+  const form=document.getElementById('edit-card-form');
+  if(!id){form.style.display='none';return;}
+  const{data:c}=await sb.from('pool_cards').select('*').eq('id',id).single();
+  if(!c)return;
+  form.style.display='block';
+  form.innerHTML=`
+    <hr class="divider">
+    <h4 style="margin-bottom:10px;">Editing: ${c.name}</h4>
+    <div class="field-row">
+      <div class="field"><label>Base HP</label><input type="number" id="ec-hp" value="${c.hp||0}"></div>
+      <div class="field"><label>Base ATK</label><input type="number" id="ec-atk" value="${c.atk||0}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Base DEF</label><input type="number" id="ec-def" value="${c.def||0}"></div>
+      <div class="field"><label>Stamina/turn</label><input type="number" id="ec-sregen" value="${c.stamina_regen||25}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Crit chance</label><input type="number" id="ec-crit" value="${c.crit_chance||0.1}" step="0.01"></div>
+      <div class="field"><label>Dodge chance</label><input type="number" id="ec-dodge" value="${c.dodge_chance||0.05}" step="0.01"></div>
+    </div>
+    <hr class="divider">
+    <h4 style="margin-bottom:8px;">Moves</h4>
+    <div id="ec-moves-container"></div>
+    <button class="btn btn-sm" onclick="addMoveBlock('ec-moves-container',1)" style="margin-bottom:12px;">+ Add Move</button>`;
+  // Add existing moves dynamically so fields render correctly
+  (c.moves||[]).forEach(m=>{
+    addMoveBlock('ec-moves-container', m.unlock_level||1, m);
+  });
+  form.innerHTML+=`
+    <hr class="divider">
+    <div class="field" style="margin-bottom:12px;">
+      <label>Replace Image (optional)</label>
+      <input type="file" id="ec-image" accept="image/*" onchange="previewAdminImage('ec-img-preview','ec-image')" style="padding:6px;">
+      <img id="ec-img-preview" class="img-preview">
+      ${c.image_url?`<img src="${c.image_url}" style="width:100%;max-height:100px;object-fit:cover;border-radius:8px;margin-top:6px;">`:''}</div>
+    <button class="btn btn-primary" onclick="saveCardEdit(${c.id})"><span id="ec-spin" class="spinner" style="display:none;"></span>Save Changes</button>`;
+}
+
+async function saveCardEdit(id){
+  spin('ec-spin',true);
+  let imageUrl=null;
+  const f=document.getElementById('ec-image').files[0];
+  if(f){
+    const ext=f.name.split('.').pop();const path=`cards/${Date.now()}.${ext}`;
+    const{error:ue}=await sb.storage.from('card-images').upload(path,f,{upsert:true});
+    if(!ue){const{data:ud}=sb.storage.from('card-images').getPublicUrl(path);imageUrl=ud.publicUrl;}
+  }
+  const moves=getMoveBlocks('ec-moves-container');
+  const updates={
+    hp:parseInt(document.getElementById('ec-hp').value)||0,
+    atk:parseInt(document.getElementById('ec-atk').value)||0,
+    def:parseInt(document.getElementById('ec-def').value)||0,
+    stamina_regen:parseInt(document.getElementById('ec-sregen').value)||25,
+    crit_chance:parseFloat(document.getElementById('ec-crit').value)||0.1,
+    dodge_chance:parseFloat(document.getElementById('ec-dodge').value)||0.05,
+    moves
+  };
+  if(imageUrl)updates.image_url=imageUrl;
+  const{error}=await sb.from('pool_cards').update(updates).eq('id',id);
+  spin('ec-spin',false);
+  if(error){showToast('Error: '+error.message);return;}
+  showToast('Card updated!');
+}
+
+async function renderPool(){
+  const el=document.getElementById('pool-grid');
+  el.innerHTML='<div class="empty" style="grid-column:1/-1">Loading...</div>';
+  const{data}=await sb.from('pool_cards').select('*').order('rarity',{ascending:false});
+  document.getElementById('pool-count').textContent=(data||[]).length;
+  if(!data||!data.length){el.innerHTML='<div class="empty" style="grid-column:1/-1">No cards yet</div>';return;}
+  el.innerHTML=data.map(c=>poolTileHTML(c)).join('');
+}
+
+// ── CARD MODAL + COMBINE ───────────────────────────────
+async function openModal(uid){
+  const{data:c}=await sb.from('player_cards').select('*').eq('uid',uid).single();
+  if(!c)return;currentModalCard=c;
+  const needed=xpForCard(c.level);const pct=Math.min(100,Math.round((c.xp/needed)*100));
+  const col=classColor(c.class_name);
+  document.getElementById('m-img-wrap').innerHTML=c.image_url?`<img src="${c.image_url}" style="width:100%;height:180px;object-fit:contain;border-radius:8px;background:var(--bg3);">`:`<div style="width:100%;height:180px;display:flex;align-items:center;justify-content:center;font-size:48px;background:var(--bg3);border-radius:8px;">${classEmoji(c.class_name)}</div>`;
+  document.getElementById('m-name').textContent=c.name;
+  document.getElementById('m-meta').innerHTML=`<span class="cat-badge" style="background:${col.bg};color:${col.fg};">${c.class_name}</span> <span style="color:${RARITY_COLORS[c.rarity]};font-weight:600;margin-left:6px;">${RARITIES[c.rarity]}</span>`;
+  document.getElementById('m-atk').textContent=c.atk||'—';
+  document.getElementById('m-def').textContent=c.def||'—';
+  document.getElementById('m-hp').textContent=c.max_hp||c.hp||'—';
+  document.getElementById('m-level').textContent=c.level;
+  document.getElementById('m-xpbar').style.width=pct+'%';
+  document.getElementById('m-xptext').textContent=`${c.xp} / ${needed} XP`;
+
+  // Moves — Pokémon card style
+  let movesHTML='';
+  if(c.pool_card_id){
+    const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',c.pool_card_id).single();
+    if(pc&&pc.moves){
+      const ul=c.unlocked_moves||[];
+      const unlocked=pc.moves.filter(m=>ul.includes(m.name));
+      const locked=pc.moves.filter(m=>!ul.includes(m.name)&&(m.unlock_level||1)>1);
+      movesHTML=unlocked.map(m=>{
+        const typeColor={attack:'#3b82f6',heavy:'#ef4444',heal:'#22c55e',shield:'#f59e0b',dot:'#f97316',multi:'#8b5cf6',power:'#ec4899',combo:'#06b6d4',speed:'#84cc16'}[m.type]||'#6b7280';
+        const dmgLabel=m.type==='heal'?`+${m.value} HP`
+          :m.type==='shield'?`${m.value}% block`
+          :m.type==='speed'?`Dodge ×${m.dodge_mult||2}`
+          :m.type==='dot'?`${Math.round(m.value/3)}/turn ×${m.dot_turns||3}t`
+          :m.type==='multi'?`${m.value} dmg ×${m.hits_min||2}–${m.hits_max||4} hits`
+          :m.type==='aoe'?`${m.value} dmg (all enemies)`
+          :m.type==='lifesteal'?`${m.value} dmg + ${Math.round((m.steal_pct||0.5)*100)}% steal`
+          :m.type==='stamina_steal'?`${m.value} dmg + ${m.steal_stamina||25} stamina`
+          :m.type==='taunt'?`${m.taunt_turns||2} turns`
+          :m.type==='curse'?`-${m.value||20}% ATK ×${m.curse_turns||3}t`
+          :m.type==='counter'?`${m.value||150}% counter`
+          :m.type==='execute'?`${m.value} dmg (kill <${m.execute_threshold||20}%)`
+          :m.type==='scatter'?`${m.value} dmg × ${m.scatter_targets||2} targets`
+          :m.value?`${m.value} dmg`:'—';
+        return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:16px;">${MOVE_ICONS[m.type]||'⚔️'}</span>
+              <span style="font-size:14px;font-weight:700;">${m.name}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600;background:${typeColor}22;color:${typeColor};border:1px solid ${typeColor}44;">${MOVE_LABELS[m.type]||m.type}</span>
+              <span style="font-size:14px;font-weight:700;color:${typeColor};">${dmgLabel}</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-size:12px;color:var(--text3);line-height:1.4;">${m.desc||''}</div>
+            <div style="font-size:11px;color:#f59e0b;white-space:nowrap;margin-left:8px;">⚡ ${m.stamina_cost||0} stamina</div>
+          </div>
+        </div>`;
+      }).join('');
+      if(locked.length){
+        movesHTML+=`<div style="margin-top:4px;">
+          ${locked.map(m=>`<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;opacity:0.5;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:16px;">🔒</span>
+                <span style="font-size:14px;font-weight:700;">${m.name}</span>
+              </div>
+              <span style="font-size:11px;color:var(--text3);">Unlocks at Lv ${m.unlock_level}</span>
+            </div>
+          </div>`).join('')}
+        </div>`;
+      }
+    }
+  }
+  document.getElementById('m-moves').innerHTML=movesHTML||'<span style="color:var(--text4);">No moves</span>';
+
+  // Duplicates
+  const{data:dupes}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('name',c.name).neq('uid',c.uid);
+  const dupSec=document.getElementById('m-duplicate-section');
+  const dupList=document.getElementById('m-duplicate-list');
+  if(dupes&&dupes.length){
+    dupSec.style.display='block';
+    const cost=COMBINE_COSTS[c.rarity]+(c.level*10);
+    dupList.innerHTML=`<p style="font-size:12px;color:var(--text3);margin-bottom:8px;">You have ${dupes.length} duplicate${dupes.length>1?'s':''} of ${c.name}. Combine one to boost XP fast.</p>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:10px;">Cost: <strong style="color:#fbbf24;">$${cost}</strong> (based on rarity + level)</p>
+      <button class="btn btn-yellow btn-sm" onclick="combineDuplicate('${c.uid}','${dupes[0].uid}',${cost})">🔗 Combine duplicate — $${cost}</button>`;
+  } else dupSec.style.display='none';
+
+  document.getElementById('card-modal').classList.add('open');
+}
+
+async function combineDuplicate(keepUid,sacrificeUid,cost){
+  if((currentUser.money||0)<cost){showToast(`Need $${cost} to combine`);return;}
+  // Load both cards fresh from DB
+  const{data:keepCard}=await sb.from('player_cards').select('*').eq('uid',keepUid).single();
+  const{data:sacrificeCard}=await sb.from('player_cards').select('*').eq('uid',sacrificeUid).single();
+  if(!keepCard||!sacrificeCard){showToast('Error loading cards');return;}
+
+  // XP bonus scales with sacrifice card's level and rarity
+  const xpBonus=Math.round((200+(50*keepCard.rarity))*(1+sacrificeCard.level*0.1));
+
+  // Keep the BETTER stats between the two cards
+  let level=Math.max(keepCard.level,sacrificeCard.level);
+  let atk=Math.max(keepCard.atk,sacrificeCard.atk);
+  let def=Math.max(keepCard.def,sacrificeCard.def);
+  let max_hp=Math.max(keepCard.max_hp||keepCard.hp,sacrificeCard.max_hp||sacrificeCard.hp);
+
+  // Merge unlocked moves — union of both
+  const unlocked_moves=[...new Set([...(keepCard.unlocked_moves||[]),...(sacrificeCard.unlocked_moves||[])])];
+
+  // Apply XP on top of the merged stats
+  let xp=(keepCard.xp||0)+xpBonus;
+  const oldLevel=level;
+  while(xp>=xpForCard(level)){
+    xp-=xpForCard(level);level++;
+    atk=Math.round(atk*RARITY_STAT_MULT[keepCard.rarity]);
+    def=Math.round(def*RARITY_STAT_MULT[keepCard.rarity]);
+    max_hp=Math.round(max_hp*(1+(RARITY_STAT_MULT[keepCard.rarity]-1)*0.7));
+    if(keepCard.pool_card_id){
+      const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',keepCard.pool_card_id).single();
+      if(pc&&pc.moves)pc.moves.forEach(m=>{if(m.unlock_level===level&&!unlocked_moves.includes(m.name))unlocked_moves.push(m.name);});
+    }
+  }
+
+  await sb.from('player_cards').update({xp,level,atk,def,max_hp,unlocked_moves}).eq('uid',keepUid);
+  await sb.from('player_cards').delete().eq('uid',sacrificeUid);
+  const nm=(currentUser.money||0)-cost;
+  await sb.from('users').update({money:nm}).eq('id',currentUser.id);
+  currentUser.money=nm;updateHUD();
+  showToast(`Combined! +${xpBonus} XP · Best stats kept${level>oldLevel?` · Level ${level}!`:''}`);
+  await updateQuestProgress('combine',1);
+  closeModal();
+  await renderMyCards();
+  openModal(keepUid);
+}
+
+function closeModal(){document.getElementById('card-modal').classList.remove('open');currentModalCard=null;}
+document.getElementById('card-modal').addEventListener('click',function(e){if(e.target===this)closeModal();});
+
+// ── NEWS ───────────────────────────────────────────────
+const NEWS_TAG_LABELS={'new-cards':'🃏 New Cards','new-pack':'📦 New Pack','event':'🎉 Event','update':'🔧 Update','announcement':'📣 Announcement'};
+const NEWS_TAG_COLORS={'new-cards':'#1e3a5f','new-pack':'#92400e','event':'#14532d','update':'#1e1b4b','announcement':'#450a0a'};
+const NEWS_TAG_TEXT={'new-cards':'#93c5fd','new-pack':'#fbbf24','event':'#4ade80','update':'#a5b4fc','announcement':'#fca5a5'};
+
+async function renderNews(){
+  const el=document.getElementById('news-content');
+  el.innerHTML='<div class="empty">Loading...</div>';
+  const{data,error}=await sb.from('news').select('*').order('pinned',{ascending:false}).order('created_at',{ascending:false});
+  if(error||!data||!data.length){
+    el.innerHTML=`<div class="box" style="text-align:center;padding:2rem;">
+      <div style="font-size:40px;margin-bottom:1rem;">📰</div>
+      <h3>No news yet</h3>
+      <p style="color:var(--text3);margin-top:0.5rem;">Check back soon for announcements!</p>
+    </div>`;return;
+  }
+  el.innerHTML='<h3 style="margin-bottom:1rem;">📰 News & Announcements</h3>'+data.map(n=>{
+    const tag=n.tag&&NEWS_TAG_LABELS[n.tag]?`<span style="font-size:11px;padding:2px 8px;border-radius:6px;background:${NEWS_TAG_COLORS[n.tag]};color:${NEWS_TAG_TEXT[n.tag]};margin-left:8px;">${NEWS_TAG_LABELS[n.tag]}</span>`:'';
+    const pin=n.pinned?'<span style="font-size:11px;color:#fbbf24;margin-right:6px;">📌 Pinned</span>':'';
+    const date=new Date(n.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    return `<div class="box" style="margin-bottom:12px;${n.pinned?'border-color:#d97706;':''}" >
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:8px;">
+        ${pin}<span style="font-size:16px;font-weight:700;">${n.title}</span>${tag}
+      </div>
+      <p style="font-size:14px;color:var(--text2);line-height:1.7;white-space:pre-wrap;margin-bottom:10px;">${n.body}</p>
+      <div style="font-size:11px;color:var(--text4);">Posted by ${n.author} · ${date}</div>
+    </div>`;
+  }).join('');
+}
+
+async function postNews(){
+  const title=document.getElementById('news-title').value.trim();
+  const body=document.getElementById('news-body').value.trim();
+  if(!title||!body){showToast('Enter a title and body');return;}
+  const tag=document.getElementById('news-tag').value;
+  const pinned=document.getElementById('news-pin').value==='true';
+  spin('news-spin',true);
+  const{error}=await sb.from('news').insert({title,body,tag,pinned,author:currentUser.id});
+  spin('news-spin',false);
+  if(error){showToast('Error: '+error.message);return;}
+  document.getElementById('news-title').value='';
+  document.getElementById('news-body').value='';
+  showToast('News posted!');
+  renderAdminNews();
+}
+
+async function renderAdminNews(){
+  const el=document.getElementById('admin-news-list');if(!el)return;
+  const{data}=await sb.from('news').select('*').order('created_at',{ascending:false});
+  if(!data||!data.length){el.innerHTML='<div class="empty">No posts yet</div>';return;}
+  el.innerHTML=data.map(n=>`
+    <div class="box" style="margin-bottom:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div>
+          <div style="font-size:14px;font-weight:700;">${n.pinned?'📌 ':''}${n.title}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px;">${new Date(n.created_at).toLocaleDateString()}</div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-sm" onclick="togglePin(${n.id},${n.pinned})">${n.pinned?'Unpin':'📌 Pin'}</button>
+          <button class="btn btn-sm" style="color:#dc2626;border-color:#7f1d1d;" onclick="deleteNews(${n.id})">Delete</button>
+        </div>
+      </div>
+      <p style="font-size:13px;color:var(--text2);margin-top:8px;white-space:pre-wrap;">${n.body}</p>
+    </div>`).join('');
+}
+
+async function togglePin(id,currentlyPinned){
+  await sb.from('news').update({pinned:!currentlyPinned}).eq('id',id);
+  showToast(currentlyPinned?'Unpinned':'📌 Pinned!');renderAdminNews();
+}
+
+async function deleteNews(id){
+  await sb.from('news').delete().eq('id',id);
+  showToast('Post deleted.');renderAdminNews();
+}
+
+// ── CARD CLICK DELEGATION ──────────────────────────────
+document.addEventListener('click',function(e){
+  // Battle cards — new layout uses .battle-card
+  const battleCard=e.target.closest('.battle-card');
+  if(battleCard){
+    const safeUid=battleCard.dataset.safeuid;
+    if(!safeUid)return;
+    let uid;try{uid=decodeURIComponent(atob(safeUid));}catch(err){return;}
+    if(!uid)return;
+    if(battleCard.dataset.target)selectTarget(uid);
+    else if(battleCard.dataset.pickfighter)selectAttacker(uid);
+    return;
+  }
+  // Legacy fighter-card class
+  const fighter=e.target.closest('.fighter-card');
+  if(fighter){
+    const safeUid=fighter.dataset.safeuid||fighter.dataset.uid;
+    if(!safeUid)return;
+    let uid;try{uid=decodeURIComponent(atob(safeUid));}catch(err){uid=safeUid;}
+    if(!uid)return;
+    if(fighter.dataset.target)selectTarget(uid);
+    else if(fighter.dataset.pickfighter)selectAttacker(uid);
+    return;
+  }
+  // Card tiles (my cards page, team picker) — decode safeuid
+  const tile=e.target.closest('.card-tile');
+  if(!tile)return;
+  const safeUid=tile.dataset.safeuid;
+  if(!safeUid)return;
+  let uid;
+  try{uid=decodeURIComponent(atob(safeUid));}catch(err){return;}
+  if(!uid)return;
+  if(tile.dataset.selectable)toggleTeam(uid);
+  else if(tile.dataset.openmodal)openModal(uid);
+});
+
+
+// ── MILESTONES ────────────────────────────────────────
+async function checkMilestones(level){
+  const claimed=currentUser.claimed_milestones||[];
+  const newMilestones=Object.keys(MILESTONES).map(Number).filter(lv=>lv<=level&&!claimed.includes(lv));
+  if(!newMilestones.length)return;
+  for(const lv of newMilestones){
+    await claimMilestone(lv);
+  }
+}
+
+async function claimMilestone(lv){
+  const m=MILESTONES[lv];if(!m)return;
+  const claimed=[...(currentUser.claimed_milestones||[]),lv];
+  let money=currentUser.money||0;
+  let updates={claimed_milestones:claimed};
+
+  if(m.reward==='gold')money+=m.amount;
+  if(m.extraGold)money+=m.extraGold;
+  if(m.reward==='pack'){
+    // Give a free pack open
+    const{data:pool}=await sb.from('pool_cards').select('*');
+    if(pool&&pool.length){
+      const drawn=[];
+      for(let i=0;i<3;i++){
+        const rarity=rollRarity(m.packType||1);
+        const byR=pool.filter(c=>c.rarity===rarity);
+        const src=byR.length?byR:pool;
+        const t=src[Math.floor(Math.random()*src.length)];
+        const startMoves=(t.moves||[]).filter(mv=>!mv.unlock_level||mv.unlock_level<=1).map(mv=>mv.name);
+        drawn.push({uid:`${currentUser.id}-ms${Date.now()}-${i}`,owner:currentUser.id,name:t.name,cat:t.class_name||t.cat||'Warrior',class_name:t.class_name||t.cat||'Warrior',rarity:t.rarity,element:t.element||'neutral',atk:t.atk||10,def:t.def||10,hp:t.hp||100,max_hp:t.hp||100,stamina:t.stamina_start||50,max_stamina:t.stamina_max||100,stamina_regen:t.stamina_regen||25,crit_chance:t.crit_chance||0.1,dodge_chance:t.dodge_chance||0.05,level:1,xp:0,unlocked_moves:startMoves,image_url:t.image_url||null,pool_card_id:t.id,is_income_card:t.is_income_card||false,income_amount:t.income_amount||0,income_interval_hours:t.income_interval_hours||24});
+      }
+      await sb.from('player_cards').insert(drawn);
+    }
+  }
+  if(m.reward==='title'||m.title){
+    updates.title=m.title;
+    updates.title_color=TITLE_COLORS[m.title]||null;
+  }
+  if(m.cardXp){
+    const{data:cards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id);
+    for(const c of (cards||[])){
+      let{xp,level,atk,def,max_hp,unlocked_moves}={...c,unlocked_moves:c.unlocked_moves||[]};
+      xp+=m.cardXp;
+      while(xp>=xpForCard(level)){xp-=xpForCard(level);level++;atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);def=Math.round(def*RARITY_STAT_MULT[c.rarity]);max_hp=Math.round((max_hp||c.hp||100)*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));}
+      await sb.from('player_cards').update({xp,level,atk,def,max_hp,unlocked_moves}).eq('uid',c.uid);
+    }
+  }
+
+  updates.money=money;
+  await sb.from('users').update(updates).eq('id',currentUser.id);
+  currentUser={...currentUser,...updates};
+  updateHUD();
+  showMilestonePopup(lv,m);
+}
+
+function showMilestonePopup(lv,m){
+  const old=document.getElementById('milestone-popup');if(old)old.remove();
+  const div=document.createElement('div');
+  div.id='milestone-popup';
+  div.style.cssText=`position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:500;background:var(--bg2);border:2px solid ${m.color};border-radius:16px;padding:2rem;text-align:center;min-width:280px;max-width:90vw;box-shadow:0 0 40px ${m.color}44;`;
+  div.innerHTML=`
+    <div style="font-size:48px;margin-bottom:12px;">${m.icon}</div>
+    <div style="font-size:11px;color:${m.color};font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Level ${lv} Milestone!</div>
+    <div style="font-size:22px;font-weight:800;color:${m.color};margin-bottom:8px;">${m.title}</div>
+    <div style="font-size:14px;color:var(--text2);margin-bottom:20px;">${m.desc}</div>
+    <button class="btn btn-primary" onclick="document.getElementById('milestone-popup').remove()">Claim! 🎉</button>`;
+  document.body.appendChild(div);
+  // Auto-dismiss after 8 seconds
+  setTimeout(()=>{const el=document.getElementById('milestone-popup');if(el)el.remove();},8000);
+}
+
+async function renderMilestonesPanel(){
+  const level=currentUser.level||1;
+  const claimed=currentUser.claimed_milestones||[];
+  const milestoneList=Object.entries(MILESTONES).map(([lv,m])=>{
+    const lvNum=parseInt(lv);
+    const done=claimed.includes(lvNum);
+    const current=lvNum===Object.keys(MILESTONES).map(Number).find(l=>l>level);
+    const pct=done?100:Math.min(100,Math.round((level/lvNum)*100));
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);opacity:${done?0.6:1}">
+      <div style="font-size:24px;width:36px;text-align:center;">${done?'✅':m.icon}</div>
+      <div style="flex:1;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+          <span style="font-size:14px;font-weight:700;color:${m.color};">${m.title}</span>
+          <span style="font-size:11px;color:var(--text3);">Level ${lv}</span>
+          ${done?`<span style="font-size:10px;background:#16a34a22;color:#16a34a;padding:1px 6px;border-radius:4px;">CLAIMED</span>`:''}
+        </div>
+        <div style="font-size:12px;color:var(--text3);">${m.desc}</div>
+        ${!done?`<div style="background:var(--bg3);border-radius:4px;height:4px;margin-top:5px;"><div style="background:${m.color};height:4px;border-radius:4px;width:${pct}%;transition:width 0.3s;"></div></div>`:''}
+      </div>
+      <div style="font-size:12px;color:var(--text3);white-space:nowrap;">Lv ${lv}</div>
+    </div>`;
+  }).join('');
+
+  return `<div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+      <h3 style="margin:0;">🏆 Milestones</h3>
+      <span style="font-size:13px;color:var(--text3);">${claimed.length}/${Object.keys(MILESTONES).length} claimed</span>
+    </div>
+    ${milestoneList}
+  </div>`;
+}
+
+// ── QUESTS ────────────────────────────────────────────
+async function renderQuestsPanel(){
+  const quests=currentUser.active_quests||[];
+  const completed=currentUser.completed_quests||[];
+
+  // Assign quests if none active
+  if(quests.length===0){
+    await assignQuests();
+    return renderQuestsPanel();
+  }
+
+  const{data:cards}=await sb.from('player_cards').select('uid').eq('owner',currentUser.id);
+  const cardCount=(cards||[]).length;
+
+  const questHTML=quests.map(q=>{
+    const template=QUEST_TEMPLATES.find(t=>t.id===q.id);
+    if(!template)return'';
+    let progress=0;
+    if(template.type==='wins')progress=currentUser.wins||0;
+    else if(template.type==='level')progress=currentUser.level||1;
+    else if(template.type==='cards')progress=cardCount;
+    else if(template.type==='packs')progress=q.progress||0;
+    else if(template.type==='combine')progress=q.progress||0;
+    else if(template.type==='win_mode')progress=q.progress||0;
+    else if(template.type==='login_streak')progress=q.progress||0;
+    const pct=Math.min(100,Math.round((progress/template.target)*100));
+    const done=progress>=template.target;
+    return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:18px;">${template.icon}</span>
+          <span style="font-size:14px;font-weight:600;">${template.desc}</span>
+        </div>
+        <span style="font-size:13px;font-weight:700;color:#fbbf24;">+$${template.reward}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="flex:1;background:var(--bg2);border-radius:4px;height:6px;">
+          <div style="background:${done?'#16a34a':'#4f8ef7'};height:6px;border-radius:4px;width:${pct}%;"></div>
+        </div>
+        <span style="font-size:12px;color:var(--text3);">${progress}/${template.target}</span>
+        ${done?`<button class="btn btn-green btn-sm" onclick="claimQuest('${q.id}',${template.reward})">Claim!</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+      <h3 style="margin:0;">📋 Quests</h3>
+      <button class="btn btn-sm" onclick="refreshQuestPanel()">🔄 Refresh</button>
+    </div>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:12px;">Complete quests to earn gold. New quests assigned when you finish all 3.</p>
+    ${questHTML}
+    ${completed.length?`<div style="font-size:12px;color:var(--text3);margin-top:8px;">Completed: ${completed.length} quest${completed.length!==1?'s':''}</div>`:''}
+  </div>`;
+}
+
+async function assignQuests(){
+  const completed=currentUser.completed_quests||[];
+  const available=QUEST_TEMPLATES.filter(t=>!completed.includes(t.id));
+  if(!available.length)return;
+  const shuffled=[...available].sort(()=>Math.random()-0.5).slice(0,3);
+  const quests=shuffled.map(t=>({id:t.id,progress:0}));
+  await sb.from('users').update({active_quests:quests}).eq('id',currentUser.id);
+  currentUser.active_quests=quests;
+}
+
+async function claimQuest(questId,reward){
+  const quests=(currentUser.active_quests||[]).filter(q=>q.id!==questId);
+  const completed=[...(currentUser.completed_quests||[]),questId];
+  const money=(currentUser.money||0)+reward;
+  await sb.from('users').update({active_quests:quests,completed_quests:completed,money}).eq('id',currentUser.id);
+  currentUser={...currentUser,active_quests:quests,completed_quests:completed,money};
+  if(quests.length===0)await assignQuests();
+  updateHUD();
+  showToast(`Quest complete! +$${reward} 💰`);
+  refreshQuestPanel();
+}
+
+async function refreshQuestPanel(){
+  const modal=document.getElementById('level-modal');
+  if(!modal)return;
+  const tab=modal.querySelector('[data-tab="quests"]');
+  if(tab)showLevelTab('quests');
+}
+
+// ── LEVEL MODAL ───────────────────────────────────────
+async function openLevelModal(){
+  const old=document.getElementById('level-modal');if(old)old.remove();
+  const div=document.createElement('div');
+  div.id='level-modal';
+  div.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;display:flex;align-items:center;justify-content:center;';
+  const level=currentUser.level||1;
+  const needed=xpForPlayer(level);
+  const xp=currentUser.player_xp||0;
+  const pct=Math.min(100,Math.round((xp/needed)*100));
+  const title=currentUser.title||null;
+  const titleColor=currentUser.title_color||'var(--text)';
+  div.innerHTML=`
+    <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:1.5rem;width:500px;max-width:95vw;max-height:88vh;overflow-y:auto;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;">
+        <div>
+          <div style="font-size:24px;font-weight:800;">${title?`<span style="color:${titleColor};">[${title}]</span> `:''}Level ${level}</div>
+          <div style="font-size:13px;color:var(--text3);margin-top:3px;">${xp} / ${needed} XP to next level</div>
+          <div style="background:var(--bg3);border-radius:6px;height:8px;margin-top:6px;width:200px;">
+            <div style="background:linear-gradient(90deg,#4f8ef7,#a78bfa);height:8px;border-radius:6px;width:${pct}%;"></div>
+          </div>
+        </div>
+        <button class="btn btn-sm" onclick="document.getElementById('level-modal').remove()">✕ Close</button>
+      </div>
+      <div style="display:flex;gap:4px;margin-bottom:1rem;border-bottom:1px solid var(--border);">
+        <button class="tab-btn active" data-tab="milestones" onclick="showLevelTab('milestones')">🏆 Milestones</button>
+        <button class="tab-btn" data-tab="quests" onclick="showLevelTab('quests')">📋 Quests</button>
+      </div>
+      <div id="level-tab-content"><div class="empty">Loading...</div></div>
+    </div>`;
+  document.body.appendChild(div);
+  div.addEventListener('click',function(e){if(e.target===this)this.remove();});
+  showLevelTab('milestones');
+}
+
+async function showLevelTab(tab){
+  const modal=document.getElementById('level-modal');if(!modal)return;
+  modal.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+  const content=document.getElementById('level-tab-content');
+  content.innerHTML='<div class="empty">Loading...</div>';
+  if(tab==='milestones')content.innerHTML=await renderMilestonesPanel();
+  else if(tab==='quests')content.innerHTML=await renderQuestsPanel();
+}
+
+async function updateQuestProgress(type, amount, mode){
+  const quests=currentUser.active_quests||[];
+  if(!quests.length)return;
+  let updated=false;
+  const newQuests=quests.map(q=>{
+    const template=QUEST_TEMPLATES.find(t=>t.id===q.id);
+    if(!template||template.type!==type)return q;
+    if(type==='win_mode'&&template.mode!==mode)return q;
+    if(type==='wins'||type==='level'||type==='cards'){
+      // Absolute value — just set to current amount
+      return{...q,progress:Math.max(q.progress||0,amount)};
+    }
+    // Incremental
+    const newProgress=(q.progress||0)+amount;
+    updated=true;
+    return{...q,progress:newProgress};
+  });
+  if(!updated&&(type==='wins'||type==='level'||type==='cards')){
+    // Check if any changed
+    const changed=newQuests.some((q,i)=>q.progress!==quests[i].progress);
+    if(!changed)return;
+  }
+  await sb.from('users').update({active_quests:newQuests}).eq('id',currentUser.id);
+  currentUser.active_quests=newQuests;
+}
+
+// ── TRAINING ──────────────────────────────────────────
+// Cost formula: base cost × rarity multiplier × level
+const TRAINING_BASE_COST=[50,100,200,400,800,1500,3000,6000]; // per rarity
+const TRAINING_DURATION_HOURS=[1,2,3,4,6,8,12,24]; // per rarity — longer = better XP
+const TRAINING_XP_PER_HOUR=[30,60,100,160,250,400,650,1000]; // per rarity
+
+function trainingCost(card){
+  const base=TRAINING_BASE_COST[card.rarity]||50;
+  return Math.round(base*(1+card.level*0.1));
+}
+function trainingDuration(card){return TRAINING_DURATION_HOURS[card.rarity]||1;}
+function trainingXpTotal(card){return Math.round(TRAINING_XP_PER_HOUR[card.rarity]*trainingDuration(card));}
+
+async function renderTraining(){
+  const el=document.getElementById('training-content');
+  el.innerHTML='<div class="empty">Loading...</div>';
+  const{data:cards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
+  if(!cards||!cards.length){el.innerHTML='<div class="empty">No cards yet — open a pack first!</div>';return;}
+
+  const now=Date.now();
+  const trainingCards=cards.filter(c=>c.training_until&&now<new Date(c.training_until).getTime());
+  const idleCards=cards.filter(c=>!c.training_until||now>=new Date(c.training_until).getTime());
+  const readyCards=cards.filter(c=>c.training_until&&now>=new Date(c.training_until).getTime()&&c.training_xp_pending>0);
+
+  el.innerHTML=`
+    <h3 style="margin-bottom:0.5rem;">🏋️ Training</h3>
+    <p style="font-size:13px;color:var(--text3);margin-bottom:1rem;">Send cards to train while you're away. They earn XP over time. Cost scales with rarity and level.</p>
+
+    ${readyCards.length?`<div class="box" style="border-color:#16a34a;">
+      <h4 style="margin-bottom:8px;color:#16a34a;">✅ Ready to collect (${readyCards.length})</h4>
+      ${readyCards.map(c=>`<div class="row-item">
+        <div style="display:flex;align-items:center;gap:10px;">
+          ${c.image_url?`<img src="${c.image_url}" style="width:36px;height:36px;object-fit:contain;border-radius:6px;background:var(--bg3);">`:`<span style="font-size:22px;">${classEmoji(c.class_name)}</span>`}
+          <div>
+            <div style="font-size:14px;font-weight:600;">${c.name}</div>
+            <div style="font-size:12px;color:#16a34a;">+${c.training_xp_pending||0} XP ready!</div>
+          </div>
+        </div>
+        <button class="btn btn-green btn-sm" onclick="collectTraining('${c.uid}')">Collect</button>
+      </div>`).join('')}
+    </div>`:''}
+
+    ${trainingCards.length?`<div class="box">
+      <h4 style="margin-bottom:8px;">⏳ In Training (${trainingCards.length})</h4>
+      ${trainingCards.map(c=>{
+        const remaining=Math.max(0,Math.ceil((new Date(c.training_until).getTime()-now)/60000));
+        const hrs=Math.floor(remaining/60);const mins=remaining%60;
+        return `<div class="row-item">
+          <div style="display:flex;align-items:center;gap:10px;">
+            ${c.image_url?`<img src="${c.image_url}" style="width:36px;height:36px;object-fit:contain;border-radius:6px;background:var(--bg3);">`:`<span style="font-size:22px;">${classEmoji(c.class_name)}</span>`}
+            <div>
+              <div style="font-size:14px;font-weight:600;">${c.name}</div>
+              <div style="font-size:12px;color:var(--text3);">Returns in ${hrs>0?hrs+'h ':''}${mins}m · +${c.training_xp_pending||0} XP</div>
+            </div>
+          </div>
+          <span style="font-size:11px;color:var(--text3);">Training...</span>
+        </div>`;
+      }).join('')}
+    </div>`:''}
+
+    <div class="box">
+      <h4 style="margin-bottom:8px;">🃏 Available to Train (${idleCards.length})</h4>
+      ${idleCards.length?idleCards.map(c=>{
+        const cost=trainingCost(c);
+        const dur=trainingDuration(c);
+        const xp=trainingXpTotal(c);
+        return `<div class="row-item">
+          <div style="display:flex;align-items:center;gap:10px;">
+            ${c.image_url?`<img src="${c.image_url}" style="width:36px;height:36px;object-fit:contain;border-radius:6px;background:var(--bg3);">`:`<span style="font-size:22px;">${classEmoji(c.class_name)}</span>`}
+            <div>
+              <div style="font-size:14px;font-weight:600;">${c.name} <span style="font-size:11px;color:var(--text3);">Lv${c.level} ${RARITIES[c.rarity]}</span></div>
+              <div style="font-size:12px;color:var(--text3);">+${xp} XP over ${dur}h · Cost: <span style="color:#fbbf24;">$${cost}</span></div>
+            </div>
+          </div>
+          <button class="btn btn-sm${(currentUser.money||0)<cost?' disabled':''}" onclick="startTraining('${c.uid}',${cost},${xp},${dur})" ${(currentUser.money||0)<cost?'disabled':''}>Train</button>
+        </div>`;
+      }).join(''):`<div class="empty">All cards are training!</div>`}
+    </div>`;
+}
+</script>
+</body>
+</html>
