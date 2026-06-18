@@ -25,14 +25,14 @@ body.light{
   --arena-bg:#ffffff;--arena-card:#f5f5f3;--arena-card-border:#e0e0dc;
   --log-bg:#f5f5f3;--log-border:#e8e8e6;--move-block:#f5f5f3;--divider:#e0e0dc;
 }
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;transition:background 0.2s,color 0.2s;}
-.app{max-width:760px;margin:0 auto;padding:1rem;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;transition:background 0.2s,color 0.2s;}
+.app{width:100vw;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
 .screen{display:none;}.screen.active{display:block;}
 h2{font-size:20px;font-weight:700;}
 h3{font-size:16px;font-weight:600;margin-bottom:0.75rem;}
 h4{font-size:14px;font-weight:600;margin-bottom:0.5rem;}
-.nav{display:flex;gap:6px;margin-bottom:1.5rem;flex-wrap:wrap;}
-.nav button{font-size:13px;padding:6px 12px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;}
+.nav{display:flex;flex-direction:column;gap:4px;}
+.nav button{font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;text-align:left;width:100%;}
 .nav button.active{background:var(--text);color:var(--bg);border-color:var(--text);font-weight:600;}
 .nav button:hover:not(.active){border-color:var(--text2);color:var(--text);}
 .box{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem;}
@@ -98,29 +98,46 @@ body.light .ability-btn{color:#1a1a1a;}
 .err{font-size:12px;color:#dc2626;margin-top:8px;display:none;}
 .money-badge{background:#92400e;border:1px solid #d97706;color:#fbbf24;border-radius:8px;padding:4px 10px;font-size:13px;font-weight:700;}
 .level-badge{background:#1e3a5f;border:1px solid #2563eb;color:#93c5fd;border-radius:8px;padding:4px 10px;font-size:13px;font-weight:700;}
+
+/* ── FULLSCREEN LAYOUT ── */
+#main-screen{display:flex;flex-direction:column;width:100%;flex:1;min-height:0;overflow:hidden;}
+.main-topbar{padding:10px 16px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;gap:6px;}
+.main-topbar-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;}
+.main-body{display:flex;flex:1;overflow:hidden;min-height:0;}
+.main-sidebar{display:flex;flex-direction:column;width:160px;flex-shrink:0;border-right:2px solid #4f8ef7;padding:10px 8px;overflow-y:auto;gap:4px;background:var(--bg2);}
+.main-content{flex:1;overflow-y:auto;padding:16px;min-width:0;}
+
 /* ── BATTLE ARENA ── */
-.battle-arena-wrap{display:flex;flex-direction:column;gap:8px;min-height:100vh;padding-bottom:1rem;}
-.battle-field-opp{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:8px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;}
-.battle-field-mine{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:8px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;}
-.battle-card{background:var(--card-bg);border:2px solid var(--border);border-radius:12px;padding:8px;width:155px;flex-shrink:0;transition:all 0.2s;cursor:default;position:relative;}
-.battle-card.active-fighter{border-color:#4f8ef7;box-shadow:0 0 12px #4f8ef744;}
-.battle-card.selectable-fighter{cursor:pointer;border-color:#f59e0b;}
-.battle-card.selectable-fighter:hover{border-color:#fbbf24;box-shadow:0 0 10px #fbbf2444;transform:translateY(-3px);}
-.battle-card.targetable-card{cursor:pointer;border-color:#dc2626;}
-.battle-card.targetable-card:hover{border-color:#ef4444;box-shadow:0 0 10px #dc262644;transform:translateY(-3px);}
-.battle-card.defeated-card{opacity:0.2;filter:grayscale(1);}
+.battle-arena-wrap{display:flex;flex-direction:column;gap:10px;min-height:100vh;padding-bottom:1rem;}
+.battle-field-opp{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:10px;background:#1a0a0a;border:1px solid #5c1a1a;border-radius:14px;}
+.battle-field-mine{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:10px;background:#0a1a2a;border:1px solid #1a3a5a;border-radius:14px;}
+/* Battle card — same dimensions as card-tile, slightly wider */
+.battle-card{background:var(--card-bg);border:2px solid var(--border);border-radius:12px;padding:10px;width:160px;flex-shrink:0;transition:all 0.2s;cursor:default;position:relative;display:flex;flex-direction:column;gap:3px;}
+.battle-card.selectable-fighter{cursor:pointer;border-color:#f59e0b;box-shadow:0 0 8px #f59e0b44;}
+.battle-card.selectable-fighter:hover{border-color:#fbbf24;box-shadow:0 0 14px #fbbf2466;transform:translateY(-4px);}
+.battle-card.selected-attacker{cursor:pointer;border-color:#4f8ef7;box-shadow:0 0 16px #4f8ef788;}
+.battle-card.targetable-card{cursor:pointer;border-color:#dc2626;box-shadow:0 0 8px #dc262644;}
+.battle-card.targetable-card:hover{border-color:#ef4444;box-shadow:0 0 14px #ef444466;transform:translateY(-4px);}
+.battle-card.defeated-card{opacity:0.2;filter:grayscale(1);pointer-events:none;}
 .battle-card.dot-card{border-color:#f97316;}
-.battle-card-img{width:100%;height:100px;object-fit:contain;border-radius:8px;margin-bottom:6px;background:var(--bg3);}
-.battle-card-img-ph{width:100%;height:100px;display:flex;align-items:center;justify-content:center;font-size:30px;background:var(--bg3);border-radius:8px;margin-bottom:6px;}
+.battle-card-img{width:100%;height:110px;object-fit:contain;border-radius:8px;background:var(--bg3);}
+.battle-card-img-ph{width:100%;height:110px;display:flex;align-items:center;justify-content:center;font-size:36px;background:var(--bg3);border-radius:8px;}
+.bc-bar-wrap{background:var(--bg3);border-radius:3px;height:5px;margin:1px 0;}
+.bc-hp-fill{height:5px;border-radius:3px;transition:width 0.4s;}
+.bc-st-fill{height:5px;border-radius:3px;background:linear-gradient(90deg,#facc15,#f59e0b);transition:width 0.4s;}
+.bc-move-row{font-size:10px;color:var(--text3);padding:2px 0;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
 .battle-log-box{background:var(--log-bg);border:1px solid var(--border);border-radius:10px;padding:10px;max-height:140px;overflow-y:auto;}
-.turn-bar{text-align:center;padding:8px;font-size:14px;font-weight:700;border-radius:8px;}
+.turn-bar{text-align:center;padding:8px 12px;font-size:14px;font-weight:700;border-radius:8px;}
 .turn-yours{background:#0c2340;color:#93c5fd;border:1px solid #1e40af;}
 .turn-opp{background:#2d0a0a;color:#fca5a5;border:1px solid #7f1d1d;}
-.action-panel{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px;}
-.phase-label{font-size:11px;color:var(--text3);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;}
-.dmg-popup{position:absolute;top:-20px;left:50%;transform:translateX(-50%);font-size:18px;font-weight:800;color:#ef4444;text-shadow:0 2px 4px rgba(0,0,0,0.5);pointer-events:none;animation:dmgFloat 1.5s ease forwards;z-index:100;}
-.heal-popup{position:absolute;top:-20px;left:50%;transform:translateX(-50%);font-size:18px;font-weight:800;color:#22c55e;text-shadow:0 2px 4px rgba(0,0,0,0.5);pointer-events:none;animation:dmgFloat 1.5s ease forwards;z-index:100;}
-@keyframes dmgFloat{0%{opacity:1;transform:translateX(-50%) translateY(0);}100%{opacity:0;transform:translateX(-50%) translateY(-50px);}}
+.action-panel{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px;}
+.phase-label{font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;}
+.ability-btn{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;cursor:pointer;text-align:left;color:var(--text);transition:background 0.15s;font-size:13px;}
+.ability-btn:hover:not(:disabled){background:var(--bg2);border-color:var(--text3);}
+.ability-btn.no-stamina{opacity:0.4;cursor:not-allowed;}
+.dmg-popup{position:absolute;top:-24px;left:50%;transform:translateX(-50%);font-size:20px;font-weight:800;color:#ef4444;text-shadow:0 2px 6px rgba(0,0,0,0.7);pointer-events:none;animation:dmgFloat 1.5s ease forwards;z-index:100;}
+.heal-popup{position:absolute;top:-24px;left:50%;transform:translateX(-50%);font-size:20px;font-weight:800;color:#22c55e;text-shadow:0 2px 6px rgba(0,0,0,0.7);pointer-events:none;animation:dmgFloat 1.5s ease forwards;z-index:100;}
+@keyframes dmgFloat{0%{opacity:1;transform:translateX(-50%) translateY(0);}100%{opacity:0;transform:translateX(-50%) translateY(-56px);}}
 /* old compat */
 .yours{background:#0c2340;color:#93c5fd;}
 .theirs{background:#2d0a0a;color:#fca5a5;}
@@ -163,8 +180,8 @@ document.addEventListener("DOMContentLoaded",function(){
 </script>
 
 <!-- LOGIN -->
-<div id="login-screen">
-  <div class="login-wrap">
+<div id="login-screen" style="height:100%;overflow-y:auto;">
+  <div class="login-wrap" style="max-width:340px;margin:5vh auto;padding:1rem;">
     <h2 style="margin-bottom:0.25rem;">⚔️ Battle Card Game</h2>
     <p style="font-size:13px;color:var(--text3);margin-bottom:1.5rem;">Sign in or create your account</p>
     <div class="box">
@@ -181,34 +198,42 @@ document.addEventListener("DOMContentLoaded",function(){
 
 <!-- MAIN -->
 <div id="main-screen" style="display:none;">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.4rem;flex-wrap:wrap;gap:6px;">
-    <h2>⚔️ Battle Card Game</h2>
-    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-      <span class="level-badge" id="level-badge" onclick="openLevelModal()" style="cursor:pointer;" title="Click to see milestones & quests">Lv 1</span>
-      <span class="money-badge" id="money-badge">💰 $0</span>
-      <button class="theme-btn" id="theme-btn" onclick="toggleTheme()">🌙</button>
-      <span style="font-size:13px;color:var(--text3);" id="user-label"></span>
-      <button class="btn btn-sm" onclick="logout()">Sign out</button>
+  <!-- Top bar: title, badges, XP -->
+  <div class="main-topbar">
+    <div class="main-topbar-row">
+      <h2 style="font-size:18px;">⚔️ Battle Card Game</h2>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <span class="level-badge" id="level-badge" onclick="openLevelModal()" style="cursor:pointer;" title="Click to see milestones &amp; quests">Lv 1</span>
+        <span class="money-badge" id="money-badge">💰 $0</span>
+        <p id="admin-label" style="font-size:12px;color:var(--text3);margin:0;"></p>
+        <div id="daily-reward-btn-wrap" style="display:none;">
+          <button class="btn btn-green btn-sm" onclick="forceDailyLogin()">🎁 Daily</button>
+        </div>
+        <button class="theme-btn" id="theme-btn" onclick="toggleTheme()">🌙</button>
+        <span style="font-size:13px;color:var(--text3);" id="user-label"></span>
+        <button class="btn btn-sm" onclick="logout()">Sign out</button>
+      </div>
+    </div>
+    <div>
+      <div class="player-xp-bar"><div class="player-xp-fill" id="player-xp-fill" style="width:0%"></div></div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;" id="player-xp-text"></div>
     </div>
   </div>
-  <div style="margin-bottom:1rem;">
-    <div class="player-xp-bar"><div class="player-xp-fill" id="player-xp-fill" style="width:0%"></div></div>
-    <div style="font-size:11px;color:var(--text3);margin-top:2px;" id="player-xp-text"></div>
-  </div>
-  <p id="admin-label" style="font-size:12px;color:var(--text3);margin-bottom:1rem;"></p>
-  <div id="daily-reward-btn-wrap" style="display:none;margin-bottom:1rem;">
-    <button class="btn btn-green btn-sm" onclick="forceDailyLogin()">🎁 Claim Daily Reward</button>
-  </div>
-  <div class="nav">
-    <button class="active" onclick="go('mycards')">🃏 My Cards</button>
-    <button onclick="go('packs')">📦 Shop</button>
-    <button onclick="go('battle')">⚔️ Battle</button>
-    <button onclick="go('trade')">🤝 Trade</button>
-    <button onclick="go('training')">🏋️ Training</button>
-    <button onclick="go('leaderboard')">🏆 Leaderboard</button>
-    <button onclick="go('news')">📰 News</button>
-    <button id="admin-tab" style="display:none;" onclick="go('admin')">⚙️ Admin</button>
-  </div>
+  <!-- Body: sidebar + content -->
+  <div class="main-body">
+    <!-- Vertical sidebar nav -->
+    <div class="main-sidebar">
+      <button class="active" onclick="go('mycards')">🃏 My Cards</button>
+      <button onclick="go('packs')">📦 Shop</button>
+      <button onclick="go('battle')">⚔️ Battle</button>
+      <button onclick="go('trade')">🤝 Trade</button>
+      <button onclick="go('training')">🏋️ Training</button>
+      <button onclick="go('leaderboard')">🏆 Leaderboard</button>
+      <button onclick="go('news')">📰 News</button>
+      <button id="admin-tab" style="display:none;" onclick="go('admin')">⚙️ Admin</button>
+    </div>
+    <!-- Scrollable content -->
+    <div class="main-content">
 
   <!-- MY CARDS -->
   <div id="screen-mycards" class="screen active">
@@ -564,7 +589,9 @@ document.addEventListener("DOMContentLoaded",function(){
       </div>
     </div>
   </div>
-</div>
+    </div><!-- /main-content -->
+  </div><!-- /main-body -->
+</div><!-- /main-screen -->
 
 <!-- CARD DETAIL MODAL -->
 <div class="modal-overlay" id="card-modal">
@@ -673,7 +700,7 @@ const MOVE_FIELDS={
 const QUEUE_SIZES={0:1,1:3,2:5};
 
 let currentUser=null,allUsers=[],battleSub=null,incomingSub=null,incomingPoll=null,currentBattle=null,selectedTeam=[],selectedQueue=1,_lastIncomingCount=0;
-let pendingTargetMode=false,pendingMove=null,pendingFighterUid=null;
+let pendingTargetMode=false,pendingMove=null,pendingFighterUid=null,selectedAttackerUid=null;
 let currentModalCard=null;
 
 // ── THEME ──────────────────────────────────────────────
@@ -781,7 +808,7 @@ async function handleDailyLogin(){
 
 async function enterApp(){
   document.getElementById('login-screen').style.display='none';
-  document.getElementById('main-screen').style.display='block';
+  document.getElementById('main-screen').style.display='flex';
   document.getElementById('user-label').textContent=currentUser.id;
   document.getElementById('admin-label').textContent=currentUser.is_admin?'⚙️ Admin account':'';
   document.getElementById('admin-tab').style.display=currentUser.is_admin?'':'none';
@@ -838,8 +865,9 @@ function go(name){
   if(name!=='battle'){if(incomingPoll){clearInterval(incomingPoll);incomingPoll=null;}_lastIncomingCount=0;}
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
+  const mc=document.querySelector('.main-content');if(mc)mc.scrollTop=0;
   const names=['mycards','packs','battle','trade','training','leaderboard','news','admin'];
-  document.querySelectorAll('.nav button').forEach((b,i)=>b.classList.toggle('active',names[i]===name));
+  document.querySelectorAll('.main-sidebar button').forEach((b,i)=>b.classList.toggle('active',names[i]===name));
   if(name==='mycards')renderMyCards();
   if(name==='battle')renderBattleLobby();
   if(name==='trade')renderTrade();
@@ -1433,7 +1461,7 @@ function acceptFromBtn(btn){
 
 function updateBattleBadge(count){
   let badge=document.getElementById('battle-nav-badge');
-  const battleBtn=document.querySelector('.nav button:nth-child(3)');
+  const battleBtn=document.querySelector('.main-sidebar button:nth-child(3)');
   if(!battleBtn)return;
   if(count>0){
     if(!badge){badge=document.createElement('span');badge.id='battle-nav-badge';badge.style.cssText='background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;margin-left:4px;font-weight:700;';battleBtn.appendChild(badge);}
@@ -1478,7 +1506,7 @@ async function confirmAccept(){
   const buildF=c=>({uid:c.uid,name:c.name,class_name:c.class_name,rarity:c.rarity,element:c.element||'neutral',atk:c.atk,def:c.def,hp:c.max_hp||c.hp,maxHp:c.max_hp||c.hp,stamina:c.stamina||50,maxStamina:c.max_stamina||100,staminaRegen:c.stamina_regen||25,crit:c.crit_chance||0.1,dodge:c.dodge_chance||0.05,unlockedMoves:c.unlocked_moves||[],level:c.level,pool_card_id:c.pool_card_id||null,image_url:c.image_url||null,dot:0,dotTurns:0,shielded:false,shieldPct:0,speedBuff:false,defeated:false});
   const st=typeof b.state==='string'?JSON.parse(b.state):b.state;
   // Challenged player (player2) goes first
-  const state={fighters1:(t1||[]).map(buildF),fighters2:(t2||[]).map(buildF),active1:null,active2:null,turn:b.player2,phase:'pick2',log:[`🏟️ Battle! ${b.player1} vs ${b.player2}`,`${b.player2} was challenged — they go first!`],winner:null,usedUids:[],poolMoves:poolMovesMap,queue:st.queue!==undefined?st.queue:1};
+  const state={fighters1:(t1||[]).map(buildF),fighters2:(t2||[]).map(buildF),turn:b.player2,phase:'action2',log:[`🏟️ Battle! ${b.player1} vs ${b.player2}`,`${b.player2} goes first!`],winner:null,usedUids:[],poolMoves:poolMovesMap,queue:st.queue!==undefined?st.queue:1};
   await sb.from('live_battles').update({team2:selectedTeam,state:JSON.stringify(state),status:'active'}).eq('id',battleId);
   selectedTeam=[];_pendingAcceptBattleId=null;
   const{data:updated}=await sb.from('live_battles').select('*').eq('id',battleId).single();
@@ -1496,13 +1524,14 @@ function enterBattle(battle){
   if(battleSub)sb.removeChannel(battleSub);
   battleSub=sb.channel('battle-'+battle.id)
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'live_battles',filter:`id=eq.${battle.id}`},
-      p=>{currentBattle=p.new;pendingTargetMode=false;pendingMove=null;pendingFighterUid=null;renderBattleUI();})
+      p=>{currentBattle=p.new;pendingTargetMode=false;pendingMove=null;pendingFighterUid=null;selectedAttackerUid=null;renderBattleUI();})
     .subscribe();
 }
 
 function renderBattleUI(){
-  const el=document.getElementById('battle-active');if(!currentBattle)return;
+  const el=document.getElementById('battle-active');if(!currentBattle||!el)return;
   const state=typeof currentBattle.state==='string'?JSON.parse(currentBattle.state):currentBattle.state;
+  if(!state){el.innerHTML='<p style="color:var(--text3);padding:16px;">Loading battle...</p>';return;}
   if(state.winner){renderBattleOver(state);return;}
 
   const isP1=currentBattle.player1===currentUser.id;
@@ -1510,113 +1539,111 @@ function renderBattleUI(){
   const oppF=isP1?state.fighters2:state.fighters1;
   const myLabel=isP1?currentBattle.player1:currentBattle.player2;
   const oppLabel=isP1?currentBattle.player2:currentBattle.player1;
-  const isMyTurn=state.turn===currentUser.id;
-  const myActiveUid=isP1?state.active1:state.active2;
-  const oppActiveUid=isP1?state.active2:state.active1;
-  const phase=state.phase;
-  const isPickPhase=(phase==='pick1'&&isP1)||(phase==='pick2'&&!isP1);
+  const isMyTurn=(state.turn||'')===currentUser.id;
+  const phase=state.phase||'';
   const isActionPhase=(phase==='action1'&&isP1)||(phase==='action2'&&!isP1);
+  const canAct=isMyTurn&&isActionPhase;
 
-  // Build opponent card (top) — limited info
-  const buildOppCard=(f)=>{
+  const hpColor=p=>p>50?'#22c55e':p>25?'#f59e0b':'#ef4444';
+  const typeEmoji=el2=>({fire:'🔥',ice:'❄️',lightning:'⚡',earth:'🌿',dark:'🌑',light:'☀️',water:'💧',wind:'🌪️',void:'🌀'}[el2]||'');
+
+  // ── Opponent cards (top) — HP bar, ATK/DEF only ──────────────────────
+  const buildOppCard=f=>{
     const hpPct=Math.max(0,Math.round((f.hp/f.maxHp)*100));
-    const isActive=f.uid===oppActiveUid;
-    const isTarget=!f.defeated&&isActionPhase&&isMyTurn&&pendingTargetMode;
+    const isTarget=!f.defeated&&canAct&&pendingTargetMode;
+    const safeUid=btoa(encodeURIComponent(f.uid)).replace(/=/g,'');
+    const col=classColor(f.class_name);
     let cls='battle-card';
     if(f.defeated)cls+=' defeated-card';
-    else if(isActive)cls+=' active-fighter';
-    if(isTarget)cls+=' targetable-card';
-    if(f.dot>0)cls+=' dot-card';
-    const safeUid=btoa(encodeURIComponent(f.uid)).replace(/=/g,"");
-    const attrs=`data-safeuid="${safeUid}"${isTarget?' data-target="1"':''}`; 
-    const col=classColor(f.class_name);
-    const typeEmoji={fire:'🔥',ice:'❄️',lightning:'⚡',earth:'🌿',dark:'🌑',light:'☀️',water:'💧',wind:'🌪️',void:'🌀',neutral:''}[f.element||'neutral']||'';
-    return `<div class="${cls}" ${attrs} id="fc-${f.uid}">
+    else if(isTarget)cls+=' targetable-card';
+    if(f.dot>0&&!f.defeated)cls+=' dot-card';
+    return `<div class="${cls}" data-safeuid="${safeUid}"${isTarget?' data-target="1"':''} id="fc-${f.uid}">
       ${f.image_url?`<img class="battle-card-img" src="${f.image_url}">`:`<div class="battle-card-img-ph">${classEmoji(f.class_name)}</div>`}
-      <div style="font-size:12px;font-weight:700;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.name}</div>
-      <span class="cat-badge" style="background:${col.bg};color:${col.fg};font-size:9px;">${f.class_name}${typeEmoji?' '+typeEmoji:''}</span>
-      <div class="hp-bar-wrap" style="margin:4px 0;"><div class="hp-bar" style="width:${hpPct}%;background:${hpColor(hpPct)};"></div></div>
-      <div style="font-size:10px;color:var(--text2);">❤️ ${f.hp}/${f.maxHp}${f.dot>0?` 🔥${f.dotTurns}t`:''}</div>
+      <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.name}</div>
+      <span class="cat-badge" style="background:${col.bg};color:${col.fg};font-size:9px;">${f.class_name}${typeEmoji(f.element)?' '+typeEmoji(f.element):''}</span>
       <div style="font-size:10px;color:var(--text3);">⚔️${f.atk} 🛡️${f.def}</div>
+      <div class="bc-bar-wrap"><div class="bc-hp-fill" style="width:${hpPct}%;background:${hpColor(hpPct)};"></div></div>
+      <div style="font-size:10px;color:var(--text2);">❤️ ${f.hp}/${f.maxHp}${f.dot>0?' 🔥'+f.dotTurns+'t':''}</div>
+      ${f.defeated?'<div style="font-size:11px;color:#ef4444;text-align:center;margin-top:2px;">💀 Defeated</div>':''}
     </div>`;
   };
 
-  // Build my card (bottom) — full info
-  const buildMyCard=(f)=>{
+  // ── My cards (bottom) — full info like "my cards" tab ────────────────
+  const buildMyCard=f=>{
     const hpPct=Math.max(0,Math.round((f.hp/f.maxHp)*100));
     const stPct=Math.max(0,Math.round((f.stamina/f.maxStamina)*100));
-    const isActive=f.uid===myActiveUid;
-    const isPickable=!f.defeated&&isPickPhase&&isMyTurn;
+    const isSelected=f.uid===selectedAttackerUid;
+    const isSelectable=!f.defeated&&canAct&&!pendingTargetMode&&!selectedAttackerUid;
+    const safeUid=btoa(encodeURIComponent(f.uid)).replace(/=/g,'');
+    const col=classColor(f.class_name);
+    const moves=getMoves(f,state);
     let cls='battle-card';
     if(f.defeated)cls+=' defeated-card';
-    else if(isActive)cls+=' active-fighter';
-    else if(isPickable)cls+=' selectable-fighter';
-    if(f.dot>0)cls+=' dot-card';
-    const safeUid2=btoa(encodeURIComponent(f.uid)).replace(/=/g,"");
-    const attrs=`data-safeuid="${safeUid2}"${isPickable?' data-pickfighter="1"':''}`; 
-    const col=classColor(f.class_name);
-    const typeEmoji={fire:'🔥',ice:'❄️',lightning:'⚡',earth:'🌿',dark:'🌑',light:'☀️',water:'💧',wind:'🌪️',void:'🌀',neutral:''}[f.element||'neutral']||'';
-    const moves=getMoves(f,state);
-    const movesHTML=isActive||isPickable?moves.slice(0,3).map(m=>{
-      const ok=f.stamina>=(m.stamina_cost||0);
-      return `<div style="font-size:10px;color:${ok?'var(--text2)':'var(--text4)'};padding:2px 0;border-top:1px solid var(--border);">${MOVE_ICONS[m.type]||'⚔️'} ${m.name} <span style="float:right;">⚡${m.stamina_cost||0}</span></div>`;
-    }).join(''):'';
-    return `<div class="${cls}" ${attrs} id="fc-${f.uid}">
-      ${isActive?`<div style="position:absolute;top:4px;right:4px;background:#4f8ef7;color:#fff;font-size:9px;padding:1px 5px;border-radius:4px;font-weight:700;">ACTIVE</div>`:''}
+    else if(isSelected)cls+=' selected-attacker';
+    else if(isSelectable)cls+=' selectable-fighter';
+    if(f.dot>0&&!f.defeated)cls+=' dot-card';
+    return `<div class="${cls}" data-safeuid="${safeUid}"${isSelectable?' data-pickfighter="1"':''} id="fc-${f.uid}">
+      ${isSelected?`<div style="position:absolute;top:4px;right:4px;background:#4f8ef7;color:#fff;font-size:9px;padding:1px 6px;border-radius:4px;font-weight:700;z-index:2;">USING</div>`:''}
       ${f.image_url?`<img class="battle-card-img" src="${f.image_url}">`:`<div class="battle-card-img-ph">${classEmoji(f.class_name)}</div>`}
-      <div style="font-size:12px;font-weight:700;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.name}</div>
-      <span class="cat-badge" style="background:${col.bg};color:${col.fg};font-size:9px;">${f.class_name}${typeEmoji?' '+typeEmoji:''}</span>
-      <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">⚔️${f.atk} 🛡️${f.def}</div>
-      <div class="hp-bar-wrap"><div class="hp-bar" style="width:${hpPct}%;background:${hpColor(hpPct)};"></div></div>
-      <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">❤️ ${f.hp}/${f.maxHp}</div>
-      <div class="stamina-bar-wrap"><div class="stamina-bar" style="width:${stPct}%;"></div></div>
-      <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">⚡ ${f.stamina}/${f.maxStamina}${f.shielded?' 🛡️':''}</div>
-      ${movesHTML}
+      <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.name}</div>
+      <span class="cat-badge" style="background:${col.bg};color:${col.fg};font-size:9px;">${f.class_name}${typeEmoji(f.element)?' '+typeEmoji(f.element):''}</span>
+      <div style="font-size:10px;color:var(--text3);">⚔️${f.atk} 🛡️${f.def}${f.shielded?' 🛡️shielded':''}</div>
+      <div class="bc-bar-wrap"><div class="bc-hp-fill" style="width:${hpPct}%;background:${hpColor(hpPct)};"></div></div>
+      <div style="font-size:10px;color:var(--text2);">❤️ ${f.hp}/${f.maxHp}${f.dot>0?' 🔥'+f.dotTurns+'t':''}</div>
+      <div class="bc-bar-wrap"><div class="bc-st-fill" style="width:${stPct}%;"></div></div>
+      <div style="font-size:10px;color:var(--text3);">⚡ ${f.stamina}/${f.maxStamina}</div>
+      ${moves.map(m=>{
+        const ok=f.stamina>=(m.stamina_cost||0);
+        return `<div class="bc-move-row" style="color:${ok?'var(--text2)':'var(--text4)'};">${MOVE_ICONS[m.type]||'⚔️'} ${m.name}<span>⚡${m.stamina_cost||0}</span></div>`;
+      }).join('')}
+      ${f.defeated?'<div style="font-size:11px;color:#ef4444;text-align:center;margin-top:2px;">💀 Defeated</div>':''}
     </div>`;
   };
 
-  // Action panel
+  // ── Action panel ──────────────────────────────────────────────────────
   let actionHTML='';
-  if(isMyTurn){
-    if(isPickPhase){
-      actionHTML=`<div class="action-panel"><div class="phase-label">Your turn — pick a fighter</div>
-        <p style="font-size:13px;color:var(--text3);">Tap a card below to select it.</p></div>`;
-    } else if(isActionPhase&&!pendingTargetMode){
-      const fighter=myF.find(f=>f.uid===myActiveUid);
+  if(canAct){
+    if(pendingTargetMode){
+      actionHTML=`<div class="action-panel">
+        <div class="phase-label">⚔️ Select a target</div>
+        <p style="font-size:13px;color:var(--text3);margin:0;">Tap an enemy card above to attack.</p>
+        <button class="btn btn-sm" onclick="cancelTarget()">← Cancel</button>
+      </div>`;
+    } else if(selectedAttackerUid){
+      const fighter=myF.find(f=>f.uid===selectedAttackerUid);
       if(fighter){
         const moves=getMoves(fighter,state);
+        const typeColor={attack:'#3b82f6',heavy:'#ef4444',heal:'#22c55e',shield:'#f59e0b',dot:'#f97316',multi:'#8b5cf6',power:'#ec4899',combo:'#06b6d4',speed:'#84cc16',aoe:'#dc2626',lifesteal:'#e11d48',stamina_steal:'#7c3aed',taunt:'#92400e',curse:'#6b21a8',counter:'#065f46',execute:'#1c1917',scatter:'#0369a1'};
         actionHTML=`<div class="action-panel">
-          <div class="phase-label">${fighter.name}'s turn — pick a move</div>
-          <div style="display:flex;flex-direction:column;gap:6px;">
+          <div class="phase-label">🃏 ${fighter.name} — choose an ability</div>
+          <button class="btn btn-sm" style="align-self:flex-start;" onclick="cancelAttacker()">← Back</button>
           ${moves.length?moves.map(m=>{
             const ok=fighter.stamina>=(m.stamina_cost||0);
-            const typeColor={attack:'#3b82f6',heavy:'#ef4444',heal:'#22c55e',shield:'#f59e0b',dot:'#f97316',multi:'#8b5cf6',power:'#ec4899',combo:'#06b6d4',speed:'#84cc16',aoe:'#dc2626',lifesteal:'#e11d48',stamina_steal:'#7c3aed',taunt:'#92400e',curse:'#6b21a8',counter:'#065f46',execute:'#1c1917',scatter:'#0369a1'}[m.type]||'#6b7280';
+            const tc=typeColor[m.type]||'#6b7280';
             const dmgLabel=m.type==='heal'?`+${m.value}HP`:m.type==='shield'?`${m.value}% block`:m.type==='speed'?'Dodge×2':m.type==='dot'?`${Math.round(m.value/3)}/t×${m.dot_turns||3}`:m.type==='multi'?`${m.value}×${m.hits_min||2}-${m.hits_max||4}`:m.type==='aoe'?`${m.value} all`:m.type==='scatter'?`${m.value}×${m.scatter_targets||2}`:m.value?`${m.value}dmg`:'';
-            return `<button class="ability-btn${!ok?' no-stamina':''}" ${!ok?'disabled':''} data-uid="${fighter.uid}" data-move="${encodeURIComponent(m.name)}" style="border-left:3px solid ${typeColor};">
+            return `<button class="ability-btn${!ok?' no-stamina':''}" ${!ok?'disabled':''} data-uid="${fighter.uid}" data-move="${encodeURIComponent(m.name)}" style="border-left:3px solid ${tc};">
               <div style="display:flex;justify-content:space-between;align-items:center;">
-                <div><span style="font-size:15px;">${MOVE_ICONS[m.type]||'⚔️'}</span> <strong>${m.name}</strong> <span style="font-size:11px;color:${typeColor};">${MOVE_LABELS[m.type]||m.type}</span></div>
-                <div style="font-size:12px;color:var(--text3);">⚡${m.stamina_cost||0} · ${dmgLabel}</div>
+                <span>${MOVE_ICONS[m.type]||'⚔️'} <strong>${m.name}</strong> <span style="font-size:11px;color:${tc};">${MOVE_LABELS[m.type]||m.type}</span></span>
+                <span style="font-size:12px;color:var(--text3);">⚡${m.stamina_cost||0} · ${dmgLabel}</span>
               </div>
-              ${m.desc?`<div style="font-size:11px;color:var(--text3);margin-top:2px;">${m.desc}</div>`:''}
+              ${m.desc?`<div style="font-size:11px;color:var(--text3);margin-top:3px;">${m.desc}</div>`:''}
             </button>`;
-          }).join(''):`<p style="font-size:13px;color:var(--text3);">No moves available.</p>`}
-          </div>
+          }).join(''):`<p style="font-size:13px;color:var(--text3);margin:0;">No moves available.</p>`}
         </div>`;
       }
-    } else if(isActionPhase&&pendingTargetMode){
+    } else {
       actionHTML=`<div class="action-panel">
-        <div class="phase-label">Select a target</div>
-        <p style="font-size:13px;color:var(--text3);">Tap an enemy card above to attack.</p>
-        <button class="btn btn-sm" style="margin-top:8px;" onclick="cancelTarget()">← Cancel</button>
+        <div class="phase-label">⚡ Your turn</div>
+        <p style="font-size:13px;color:var(--text3);margin:0;">Tap one of your cards below to pick who attacks.</p>
       </div>`;
     }
   } else {
-    actionHTML=`<div class="action-panel turn-wait" style="text-align:center;padding:12px;border-radius:12px;background:var(--bg3);">
-      <div style="font-size:13px;color:var(--text3);">⏳ Waiting for ${state.turn}...</div>
+    actionHTML=`<div class="action-panel" style="text-align:center;">
+      <div style="font-size:13px;color:var(--text3);">⏳ Waiting for <strong>${state.turn||'opponent'}</strong>...</div>
     </div>`;
   }
 
-  // Log
+  // ── Log ───────────────────────────────────────────────────────────────
   const logHTML=[...(state.log||[])].reverse().slice(0,20).map(l=>{
     let cls='log-entry';
     if(l.includes('CRIT')||l.includes('EXECUTE'))cls+=' crit';
@@ -1626,38 +1653,35 @@ function renderBattleUI(){
     return `<div class="${cls}">${l}</div>`;
   }).join('');
 
-  const turnMsg=isMyTurn
-    ?`⚡ Your Turn${isPickPhase?' — Pick a fighter':pendingTargetMode?' — Tap an enemy':' — Pick a move'}`
-    :`⏳ ${state.turn}'s turn...`;
+  const turnMsg=canAct
+    ?(pendingTargetMode?'⚡ Your Turn — Tap an enemy':selectedAttackerUid?`⚡ Your Turn — Pick a move for ${myF.find(f=>f.uid===selectedAttackerUid)?.name||''}`:'⚡ Your Turn — Pick a card')
+    :`⏳ ${state.turn||'Opponent'}'s turn...`;
 
   el.innerHTML=`
     <div class="battle-arena-wrap">
-      <div class="turn-bar ${isMyTurn?'turn-yours':'turn-opp'}">${turnMsg}</div>
+      <div class="turn-bar ${canAct?'turn-yours':'turn-opp'}">${turnMsg}</div>
 
-      <!-- OPPONENT TOP -->
       <div>
-        <div style="font-size:11px;font-weight:700;color:#fca5a5;margin-bottom:4px;padding:3px 8px;background:#2d0a0a;border-radius:6px;display:inline-block;">🔴 ${oppLabel}</div>
+        <div style="font-size:11px;font-weight:700;color:#fca5a5;margin-bottom:6px;padding:3px 8px;background:#2d0a0a;border-radius:6px;display:inline-block;">🔴 ${oppLabel}</div>
         <div class="battle-field-opp">${oppF.map(f=>buildOppCard(f)).join('')}</div>
       </div>
 
-      <!-- LOG -->
-      <div class="battle-log-box">${logHTML}</div>
+      <div class="battle-log-box">${logHTML||'<div class="log-entry">Battle started!</div>'}</div>
 
-      <!-- ACTION -->
       ${actionHTML}
 
-      <!-- MY CARDS BOTTOM -->
       <div>
-        <div style="font-size:11px;font-weight:700;color:#93c5fd;margin-bottom:4px;padding:3px 8px;background:#0c2340;border-radius:6px;display:inline-block;">🟢 ${myLabel} (You)</div>
+        <div style="font-size:11px;font-weight:700;color:#93c5fd;margin-bottom:6px;padding:3px 8px;background:#0c2340;border-radius:6px;display:inline-block;">🟢 ${myLabel} (You)</div>
         <div class="battle-field-mine">${myF.map(f=>buildMyCard(f)).join('')}</div>
       </div>
 
-      <button class="btn btn-sm" style="color:var(--text3);align-self:flex-start;" onclick="leaveBattle()">← Leave Battle</button>
+      <button class="btn btn-sm" style="color:var(--text3);align-self:flex-start;margin-top:4px;" onclick="leaveBattle()">← Leave Battle</button>
     </div>`;
 
-  // Wire up ability buttons via delegation (moves use encoded names)
+  // Wire ability buttons
   el.querySelectorAll('.ability-btn[data-uid]').forEach(btn=>{
-    btn.addEventListener('click',()=>{
+    btn.addEventListener('click',e=>{
+      e.stopPropagation();
       const fuid=btn.dataset.uid;
       const mname=decodeURIComponent(btn.dataset.move||'');
       if(fuid&&mname)selectMove(fuid,mname);
@@ -1682,16 +1706,11 @@ function showDmgPopup(targetUid,amount,isHeal){
   setTimeout(()=>pop.remove(),1500);
 }
 
-async function pickFighter(uid){
-  pendingTargetMode=false;pendingMove=null;pendingFighterUid=null;
-  const state=typeof currentBattle.state==='string'?JSON.parse(currentBattle.state):currentBattle.state;
-  const isP1=currentBattle.player1===currentUser.id;
-  const fname=(isP1?state.fighters1:state.fighters2).find(f=>f.uid===uid)?.name;
-  if(isP1){state.active1=uid;state.phase='pick2';state.turn=currentBattle.player2;}
-  else{state.active2=uid;state.phase='action1';state.turn=currentBattle.player1;}
-  state.log.push(`${currentUser.id} sends out ${fname}!`);
-  await sb.from('live_battles').update({state:JSON.stringify(state)}).eq('id',currentBattle.id);
+function selectAttacker(uid){
+  selectedAttackerUid=uid;
+  renderBattleUI();
 }
+function cancelAttacker(){selectedAttackerUid=null;renderBattleUI();}
 
 function selectMove(fighterUid,moveName){
   const state=typeof currentBattle.state==='string'?JSON.parse(currentBattle.state):currentBattle.state;
@@ -1699,14 +1718,17 @@ function selectMove(fighterUid,moveName){
   const fighter=(isP1?state.fighters1:state.fighters2).find(f=>f.uid===fighterUid);
   const move=((state.poolMoves&&state.poolMoves[fighter.pool_card_id])||[]).find(m=>m.name===moveName);
   if(!move)return;
-  if(['heal','shield','speed'].includes(move.type)){useMove(fighterUid,moveName,null);}
+  // Self-targeted moves fire immediately; everything else requires picking a target
+  const selfTargeted=['heal','shield','speed','aoe','scatter','taunt','counter'];
+  if(selfTargeted.includes(move.type)){useMove(fighterUid,moveName,null);}
   else{pendingTargetMode=true;pendingMove=moveName;pendingFighterUid=fighterUid;renderBattleUI();}
 }
 
-function selectTarget(uid){if(!pendingTargetMode)return;useMove(pendingFighterUid,pendingMove,uid);pendingTargetMode=false;pendingMove=null;pendingFighterUid=null;}
+function selectTarget(uid){if(!pendingTargetMode)return;useMove(pendingFighterUid,pendingMove,uid);pendingTargetMode=false;pendingMove=null;pendingFighterUid=null;selectedAttackerUid=null;}
 function cancelTarget(){pendingTargetMode=false;pendingMove=null;pendingFighterUid=null;renderBattleUI();}
 
 async function useMove(fighterUid,moveName,targetUid){
+  selectedAttackerUid=null;
   const state=typeof currentBattle.state==='string'?JSON.parse(currentBattle.state):currentBattle.state;
   const isP1=currentBattle.player1===currentUser.id;
   const myKey=isP1?'fighters1':'fighters2';
@@ -1858,10 +1880,8 @@ async function useMove(fighterUid,moveName,targetUid){
     await sb.from('live_battles').update({state:JSON.stringify(state),status:'complete'}).eq('id',currentBattle.id);
     await awardRewards(state,currentBattle);return;
   }
-  const dd=defender&&defender.defeated;
-  if(dd){if(isP1)state.active2=null;else state.active1=null;}
   state.turn=isP1?currentBattle.player2:currentBattle.player1;
-  state.phase=dd?(isP1?'pick2':'pick1'):(isP1?'action2':'action1');
+  state.phase=isP1?'action2':'action1';
   state.log.push(`── ${state.turn}'s turn ──`);
   await sb.from('live_battles').update({state:JSON.stringify(state)}).eq('id',currentBattle.id);
 }
@@ -2412,7 +2432,7 @@ document.addEventListener('click',function(e){
     let uid;try{uid=decodeURIComponent(atob(safeUid));}catch(err){return;}
     if(!uid)return;
     if(battleCard.dataset.target)selectTarget(uid);
-    else if(battleCard.dataset.pickfighter)pickFighter(uid);
+    else if(battleCard.dataset.pickfighter)selectAttacker(uid);
     return;
   }
   // Legacy fighter-card class
@@ -2423,7 +2443,7 @@ document.addEventListener('click',function(e){
     let uid;try{uid=decodeURIComponent(atob(safeUid));}catch(err){uid=safeUid;}
     if(!uid)return;
     if(fighter.dataset.target)selectTarget(uid);
-    else if(fighter.dataset.pickfighter)pickFighter(uid);
+    else if(fighter.dataset.pickfighter)selectAttacker(uid);
     return;
   }
   // Card tiles (my cards page, team picker) — decode safeuid
@@ -2775,47 +2795,6 @@ async function renderTraining(){
         </div>`;
       }).join(''):`<div class="empty">All cards are training!</div>`}
     </div>`;
-}
-
-async function startTraining(uid,cost,xp,hours){
-  if((currentUser.money||0)<cost){showToast(`Need $${cost} to train this card`);return;}
-  const until=new Date(Date.now()+hours*3600000).toISOString();
-  await sb.from('player_cards').update({training_until:until,training_xp_pending:xp}).eq('uid',uid);
-  const nm=(currentUser.money||0)-cost;
-  await sb.from('users').update({money:nm}).eq('id',currentUser.id);
-  currentUser.money=nm;updateHUD();
-  showToast('Training started!');renderTraining();
-}
-
-async function collectTraining(uid){
-  const{data:c}=await sb.from('player_cards').select('*').eq('uid',uid).single();
-  if(!c||!c.training_xp_pending)return;
-  const xpGain=Math.round(c.training_xp_pending*RARITY_XP_MULT[c.rarity]);
-  let{xp,level,atk,def,max_hp,unlocked_moves}={...c,unlocked_moves:c.unlocked_moves||[]};
-  xp+=xpGain;
-  while(xp>=xpForCard(level)){
-    xp-=xpForCard(level);level++;
-    atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);
-    def=Math.round(def*RARITY_STAT_MULT[c.rarity]);
-    max_hp=Math.round((max_hp||c.hp||100)*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
-    if(c.pool_card_id){
-      const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',c.pool_card_id).single();
-      if(pc&&pc.moves)pc.moves.forEach(m=>{if(m.unlock_level===level&&!unlocked_moves.includes(m.name))unlocked_moves.push(m.name);});
-    }
-  }
-  await sb.from('player_cards').update({xp,level,atk,def,max_hp,unlocked_moves,training_until:null,training_xp_pending:0}).eq('uid',uid);
-  showToast(`+${xpGain} XP collected${level>c.level?` — Level ${level}!`:''}`);
-  renderTraining();
-}
-
-// ── HELPERS ────────────────────────────────────────────
-function classColor(cls){
-  const m={Warrior:{bg:'#1e1b4b',fg:'#a5b4fc'},Assassin:{bg:'#0f172a',fg:'#94a3b8'},Brawler:{bg:'#431407',fg:'#fdba74'},Ranger:{bg:'#052e16',fg:'#4ade80'},Mage:{bg:'#2e1065',fg:'#c084fc'},Knight:{bg:'#0c1a2e',fg:'#60a5fa'},Specter:{bg:'#1a1a1a',fg:'#e2e8f0'},Titan:{bg:'#1c1917',fg:'#d6d3d1'},Beast:{bg:'#14532d',fg:'#86efac'},Elemental:{bg:'#431407',fg:'#fdba74'},Necromancer:{bg:'#1a0a2e',fg:'#d8b4fe'},Paladin:{bg:'#422006',fg:'#fde68a'},Demon:{bg:'#450a0a',fg:'#fca5a5'},Angel:{bg:'#1e3a5f',fg:'#bae6fd'},Cosmic:{bg:'#030712',fg:'#a5f3fc'},Icon:{bg:'#1c1917',fg:'#fbbf24'},Mythborn:{bg:'#0c0a09',fg:'#fde68a'},Druid:{bg:'#052e16',fg:'#6ee7b7'},Sniper:{bg:'#1c1917',fg:'#a8a29e'},Machine:{bg:'#0f172a',fg:'#7dd3fc'}};
-  return m[cls]||{bg:'#1a1a1a',fg:'#aaa'};
-}
-function classEmoji(cls){
-  const m={Warrior:'⚔️',Assassin:'🗡️',Brawler:'🥊',Ranger:'🏹',Mage:'🔮',Knight:'🛡️',Specter:'👻',Titan:'🗿',Beast:'🐉',Elemental:'🌊',Necromancer:'💀',Paladin:'✝️',Demon:'😈',Angel:'👼',Cosmic:'🌌',Icon:'⭐',Mythborn:'🔱',Druid:'🌿',Sniper:'🎯',Machine:'🤖'};
-  return m[cls]||'⚡';
 }
 </script>
 </body>
