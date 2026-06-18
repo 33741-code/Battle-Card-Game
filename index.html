@@ -2820,6 +2820,15 @@ async function renderTraining(){
       }).join(''):`<div class="empty">All cards are training!</div>`}
     </div>`;
 }
+function classColor(cls){
+  const m={Warrior:{bg:'#1e3a5f',fg:'#93c5fd'},Mage:{bg:'#2d1b69',fg:'#c4b5fd'},Rogue:{bg:'#1a2e1a',fg:'#86efac'},Paladin:{bg:'#3b2000',fg:'#fde68a'},Necromancer:{bg:'#1a0a2e',fg:'#d8b4fe'},Druid:{bg:'#14290a',fg:'#a3e635'},Demon:{bg:'#2d0a0a',fg:'#fca5a5'},Angel:{bg:'#1e2a3b',fg:'#e0f2fe'},Beast:{bg:'#2a1500',fg:'#fdba74'},Elemental:{bg:'#0a2020',fg:'#5eead4'},Sniper:{bg:'#1a1a00',fg:'#fef08a'},Machine:{bg:'#1a1a1a',fg:'#d1d5db'},Titan:{bg:'#200a0a',fg:'#fda4af'},Cosmic:{bg:'#0a0a2d',fg:'#a5b4fc'},Icon:{bg:'#2d2000',fg:'#fcd34d'},Mythborn:{bg:'#1e0a2d',fg:'#e879f9'}};
+  return m[cls]||{bg:'#1a1a1a',fg:'#aaa'};
+}
+function classEmoji(cls){
+  const m={Warrior:'⚔️',Mage:'🔮',Rogue:'🗡️',Paladin:'⛨',Necromancer:'💀',Druid:'🌿',Demon:'😈',Angel:'👼',Beast:'🐉',Elemental:'🌊',Sniper:'🎯',Machine:'🤖',Titan:'🗿',Cosmic:'🌌',Icon:'⭐',Mythborn:'🔱'};
+  return m[cls]||'⚡';
+}
+
 </script>
 </body>
 </html>
