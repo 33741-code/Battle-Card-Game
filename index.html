@@ -647,6 +647,20 @@ document.addEventListener("DOMContentLoaded",function(){
   </div>
 </div>
 
+
+<!-- EMOJI PICKER MODAL -->
+<div class="modal-overlay" id="emoji-modal">
+  <div class="modal" style="max-width:360px;">
+    <h3 style="margin-bottom:12px;">Choose your avatar</h3>
+    <div id="emoji-grid" style="display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-bottom:16px;"></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+      <input type="text" id="emoji-custom" placeholder="Or type any emoji..." style="flex:1;" maxlength="4">
+      <button class="btn btn-primary btn-sm" onclick="setCustomEmoji()">Use</button>
+    </div>
+    <button class="btn btn-sm" onclick="closeEmojiModal()">Cancel</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -2847,7 +2861,7 @@ async function renderPlayers(){
         const tc=u.title_color||'var(--text3)';
         return `<div class="box" style="cursor:pointer;margin-bottom:0;transition:all var(--transition);" onclick="${isSelf?`go('profile')`:`openProfile('${u.id}')`}" onmouseover="this.style.borderColor='var(--border2)'" onmouseout="this.style.borderColor='var(--border)'">
           <div style="display:flex;align-items:center;gap:10px;">
-            <div style="width:40px;height:40px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">${u.title?'👑':'🧑'}</div>
+            <div style="width:40px;height:40px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">${u.avatar||'🧑'}</div>
             <div>
               <div style="font-weight:700;font-size:14px;">${isSelf?'<span style="color:var(--accent);">(You) </span>':''}${u.id}</div>
               ${u.title?`<div style="font-size:11px;font-weight:600;color:${tc};">[${u.title}]</div>`:''}
@@ -2902,8 +2916,9 @@ async function renderProfile(uid){
     <div style="max-width:680px;">
       <!-- Header -->
       <div class="box" style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:12px;">
-        <div style="width:72px;height:72px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:36px;flex-shrink:0;border:2px solid var(--border2);">
-          ${u.title?'👑':'🧑'}
+        <div style="position:relative;flex-shrink:0;">
+          <div id="profile-avatar" style="width:72px;height:72px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:36px;border:2px solid var(--border2);${isSelf?'cursor:pointer;':''}transition:all var(--transition);" ${isSelf?`onclick="openEmojiPicker()" title="Change avatar"`:''}>${u.avatar||'🧑'}</div>
+          ${isSelf?`<div style="position:absolute;bottom:0;right:0;background:var(--accent);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer;border:2px solid var(--bg2);" onclick="openEmojiPicker()">✏️</div>`:''}
         </div>
         <div style="flex:1;min-width:0;">
           <div style="font-size:22px;font-weight:800;letter-spacing:-0.5px;">${u.id}</div>
@@ -2988,7 +3003,7 @@ async function renderProfile(uid){
             const fu=allUsers.find(x=>x.id===fid);
             return `<div class="row-item" style="cursor:pointer;" onclick="openProfile('${fid}')">
               <div style="display:flex;align-items:center;gap:8px;">
-                <span style="font-size:16px;">🧑</span>
+                <span style="font-size:16px;">${fu?fu.avatar||'🧑':'🧑'}</span>
                 <div>
                   <div style="font-size:13px;font-weight:600;">${fid}</div>
                   ${fu?`<div style="font-size:11px;color:var(--text3);">Lv ${fu.level||1}</div>`:''}
@@ -3032,6 +3047,48 @@ async function declineFriendRequest(reqId){
   await sb.from('friend_requests').delete().eq('id',reqId);
   showToast('Request declined.');
   await renderProfile(currentUser.id);
+}
+
+// ── EMOJI AVATAR ────────────────────────────────────────────────────────
+const AVATAR_EMOJIS = [
+  '🧑','👤','😎','🤠','🧙','🧛','🧟','🧜','🧝','🧞',
+  '🧚','🦸','🦹','🧑‍🚀','🧑‍💻','🧑‍🎤','🧑‍🎨','🥷','🤖','👻',
+  '💀','👽','🦊','🐺','🐲','🦁','🐯','🦅','🦉','🐙',
+  '🌟','💫','⚡','🔥','❄️','🌊','🌪️','🌑','☀️','🌀',
+  '💎','👑','⚔️','🛡️','🔮','🎯','🏹','🗡️','🔱','✨'
+];
+
+function openEmojiPicker(){
+  const grid = document.getElementById('emoji-grid');
+  const current = currentUser.avatar || '🧑';
+  grid.innerHTML = AVATAR_EMOJIS.map(e =>
+    `<div onclick="selectAvatar('${e}')" style="font-size:24px;text-align:center;cursor:pointer;padding:6px;border-radius:8px;border:2px solid ${e===current?'var(--accent)':'transparent'};transition:all 0.15s;" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">${e}</div>`
+  ).join('');
+  document.getElementById('emoji-custom').value = '';
+  document.getElementById('emoji-modal').classList.add('open');
+}
+
+function closeEmojiModal(){
+  document.getElementById('emoji-modal').classList.remove('open');
+}
+
+async function selectAvatar(emoji){
+  await saveAvatar(emoji);
+}
+
+async function setCustomEmoji(){
+  const val = document.getElementById('emoji-custom').value.trim();
+  if(!val){showToast('Enter an emoji first');return;}
+  await saveAvatar(val);
+}
+
+async function saveAvatar(emoji){
+  const{error} = await sb.from('users').update({avatar:emoji}).eq('id',currentUser.id);
+  if(error){showToast('Error saving avatar');return;}
+  currentUser.avatar = emoji;
+  closeEmojiModal();
+  showToast('Avatar updated!');
+  renderProfile(currentUser.id);
 }
 
 function classColor(cls){
