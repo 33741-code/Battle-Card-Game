@@ -171,6 +171,7 @@ body.light .ability-btn{color:#1a1a1a;}
 .dmg-popup{position:absolute;top:-24px;left:50%;transform:translateX(-50%);font-size:20px;font-weight:800;color:#ef4444;text-shadow:0 2px 6px rgba(0,0,0,0.7);pointer-events:none;animation:dmgFloat 1.5s ease forwards;z-index:100;}
 .heal-popup{position:absolute;top:-24px;left:50%;transform:translateX(-50%);font-size:20px;font-weight:800;color:#22c55e;text-shadow:0 2px 6px rgba(0,0,0,0.7);pointer-events:none;animation:dmgFloat 1.5s ease forwards;z-index:100;}
 @keyframes dmgFloat{0%{opacity:1;transform:translateX(-50%) translateY(0);}100%{opacity:0;transform:translateX(-50%) translateY(-56px);}}
+@keyframes sparkleFly{0%{opacity:1;transform:translateY(0) scale(0.5);}100%{opacity:0;transform:translateY(-40px) scale(1.4);}}
 .yours{background:#0a1e3a;color:#93c5fd;}
 .theirs{background:#2a0a0a;color:#fca5a5;}
 .move-block{background:var(--move-block);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:10px;}
@@ -288,32 +289,7 @@ document.addEventListener("DOMContentLoaded",function(){
 
   <!-- SHOP -->
   <div id="screen-packs" class="screen">
-    <h3>Pack Shop</h3>
-    <p style="font-size:13px;color:var(--text3);margin-bottom:14px;">Open packs to collect cards. Better packs = better odds.</p>
-    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:1rem;">
-      <div class="pack-option">
-        <div style="font-size:32px;margin-bottom:6px;">📦</div>
-        <h4>Common Pack</h4>
-        <p style="font-size:12px;color:var(--text3);margin-bottom:8px;">Standard odds. Good for building your collection.</p>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Common 50% · Uncommon 25% · Rare 14% · Epic 8% · Legendary 3%</div>
-        <button class="btn btn-gold btn-sm" onclick="openPack(0)"><span class="spinner" id="spin-0" style="display:none;"></span>Open — $100</button>
-      </div>
-      <div class="pack-option">
-        <div style="font-size:32px;margin-bottom:6px;">💎</div>
-        <h4>Rare Pack</h4>
-        <p style="font-size:12px;color:var(--text3);margin-bottom:8px;">Higher chance of Rare+ cards.</p>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Rare 35% · Epic 25% · Legendary 20% · Mythic 12% · Ancient 6% · Celestial 2%</div>
-        <button class="btn btn-gold btn-sm" onclick="openPack(1)"><span class="spinner" id="spin-1" style="display:none;"></span>Open — $500</button>
-      </div>
-      <div class="pack-option">
-        <div style="font-size:32px;margin-bottom:6px;">👑</div>
-        <h4>Legendary Pack</h4>
-        <p style="font-size:12px;color:var(--text3);margin-bottom:8px;">Guaranteed Legendary or above.</p>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Legendary 40% · Mythic 28% · Ancient 20% · Celestial 12%</div>
-        <button class="btn btn-gold btn-sm" onclick="openPack(2)"><span class="spinner" id="spin-2" style="display:none;"></span>Open — $1,750</button>
-      </div>
-    </div>
-    <div id="pack-result"></div>
+    <div id="packs-content"></div>
   </div>
 
   <!-- BATTLE -->
@@ -674,14 +650,33 @@ try{sb=supabase.createClient(SB_URL,SB_KEY);}catch(e){console.error('Supabase in
 const RARITIES=['Common','Uncommon','Rare','Epic','Legendary','Mythic','Ancient','Celestial'];
 const RARITY_COLORS=['#9ca3af','#34d399','#60a5fa','#a78bfa','#f59e0b','#ec4899','#f97316','#c7d2fe'];
 const COMBINE_COSTS=[50,100,200,400,800,1500,3000,6000];
-const PACK_ODDS=[
-  [0.50,0.25,0.14,0.08,0.03,0,0,0],
-  [0,0,0.35,0.25,0.20,0.12,0.06,0.02],
-  [0,0,0,0,0.40,0.28,0.20,0.12]
-];
-const PACK_COSTS=[100,500,1750];
+// Normal pack — full rarity range, weighted toward common, available at lvl 1
+const NORMAL_PACK_ODDS=[0.42,0.26,0.16,0.09,0.045,0.02,0.01,0.005];
+// Rare pack — unlocks at level 15, better floor
+const RARE_PACK_ODDS=[0,0,0.35,0.25,0.20,0.12,0.06,0.02];
+// Legendary pack — unlocks at level 40, guaranteed Legendary+
+const LEGENDARY_PACK_ODDS=[0,0,0,0,0.40,0.28,0.20,0.12];
+const PACK_ODDS=[NORMAL_PACK_ODDS,RARE_PACK_ODDS,LEGENDARY_PACK_ODDS];
+const PACK_LEVEL_REQ=[1,15,40];
+const PACK_NAMES=['Normal Pack','Rare Pack','Legendary Pack'];
+const PACK_ICONS=['📦','💎','👑'];
+// Cost per single card draw, scales up with pack size (1,3,5)
+const PACK_SIZES=[1,3,5];
+const PACK_BASE_COST=[80,400,1500]; // per-card base cost for normal/rare/legendary
+const PACK_SIZE_MULT=[1,2.8,4.5]; // 3-pack and 5-pack cost slightly less than linear per-card
 const RARITY_XP_MULT=[1.0,1.15,1.35,1.6,1.9,2.2,2.6,3.0];
 const RARITY_STAT_MULT=[1.04,1.07,1.10,1.13,1.16,1.20,1.24,1.28];
+
+// ── UTILITY / ACTION CARDS ────────────────────────────────────────────
+const UTILITY_CARDS=[
+  {id:'stamina_boost_25',name:'Team Stamina Surge',icon:'⚡',desc:'+25% stamina to your whole team at battle start',cost:300,effect:'team_stamina_pct',value:25,color:'#facc15'},
+  {id:'stamina_boost_50',name:'Stamina Overload',icon:'🌩️',desc:'+50% stamina to your whole team at battle start',cost:700,effect:'team_stamina_pct',value:50,color:'#f59e0b'},
+  {id:'team_heal_15',name:'Field Medkit',icon:'💊',desc:'Heal your whole team for 15% max HP at battle start',cost:350,effect:'team_heal_pct',value:15,color:'#4ade80'},
+  {id:'team_heal_30',name:'Restoration Beacon',icon:'✨',desc:'Heal your whole team for 30% max HP at battle start',cost:800,effect:'team_heal_pct',value:30,color:'#22c55e'},
+  {id:'team_atk_10',name:'War Horn',icon:'📯',desc:'+10% ATK to your whole team for the battle',cost:500,effect:'team_atk_pct',value:10,color:'#ef4444'},
+  {id:'team_def_10',name:'Iron Banner',icon:'🛡️',desc:'+10% DEF to your whole team for the battle',cost:500,effect:'team_def_pct',value:10,color:'#60a5fa'},
+  {id:'first_strike',name:"Scout's Edge",icon:'🎯',desc:'Guarantees you go first regardless of who was challenged',cost:600,effect:'go_first',value:1,color:'#a78bfa'},
+];
 
 // ── MILESTONES & QUESTS ───────────────────────────────
 const MILESTONES={
@@ -744,7 +739,7 @@ const MOVE_FIELDS={
 const QUEUE_SIZES={0:1,1:3,2:5};
 
 let currentUser=null,allUsers=[],battleSub=null,incomingSub=null,incomingPoll=null,currentBattle=null,selectedTeam=[],selectedQueue=1,_lastIncomingCount=0;
-let pendingTargetMode=false,pendingMove=null,pendingFighterUid=null,selectedAttackerUid=null;
+let pendingTargetMode=false,pendingMove=null,pendingFighterUid=null,selectedAttackerUid=null,selectedUtilityCard=null;
 let currentModalCard=null;
 
 // ── THEME ──────────────────────────────────────────────
@@ -913,6 +908,7 @@ function go(name){
   const names=['mycards','packs','battle','trade','training','quests','leaderboard','news','players','profile','admin'];
   document.querySelectorAll('.main-sidebar button').forEach((b,i)=>b.classList.toggle('active',names[i]===name));
   if(name==='mycards')renderMyCards();
+  if(name==='packs')renderPacks();
   if(name==='battle')renderBattleLobby();
   if(name==='trade')renderTrade();
   if(name==='training')renderTraining();
@@ -1170,21 +1166,108 @@ function poolTileHTML(c){
   </div>`;
 }
 
-// ── PACKS ──────────────────────────────────────────────
+// ── PACKS / SHOP ───────────────────────────────────────
 function rollRarity(packType){
   const odds=PACK_ODDS[packType];const r=Math.random();let cum=0;
   for(let i=0;i<odds.length;i++){cum+=odds[i];if(r<cum)return i;}
   return odds.findIndex(o=>o>0);
 }
 
-async function openPack(pt){
-  const cost=PACK_COSTS[pt];
+function packCost(pt,sizeIdx){
+  return Math.round(PACK_BASE_COST[pt]*PACK_SIZE_MULT[sizeIdx]);
+}
+
+async function renderPacks(){
+  const el=document.getElementById('packs-content');
+  if(!el)return;
+  const lvl=currentUser.level||1;
+  const myUtility=currentUser.utility_cards||{};
+
+  el.innerHTML=`
+    <h3>🛒 Shop</h3>
+    <p style="font-size:13px;color:var(--text3);margin-bottom:14px;">Open packs to collect cards, or buy action cards to use before battle.</p>
+
+    <h4 style="margin-bottom:10px;">📦 Card Packs</h4>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:1.5rem;" id="pack-options-wrap">
+      ${[0,1,2].map(pt=>{
+        const locked=lvl<PACK_LEVEL_REQ[pt];
+        const oddsStr=PACK_ODDS[pt].map((o,i)=>o>0?`${RARITIES[i]} ${Math.round(o*100)}%`:null).filter(Boolean).join(' · ');
+        return `<div class="pack-option" style="${locked?'opacity:0.5;':''}">
+          <div style="font-size:32px;margin-bottom:6px;">${PACK_ICONS[pt]}</div>
+          <h4>${PACK_NAMES[pt]}</h4>
+          ${locked?`<p style="font-size:12px;color:#ef4444;margin-bottom:8px;">🔒 Unlocks at Level ${PACK_LEVEL_REQ[pt]}</p>`:
+          `<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">${oddsStr}</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            ${[0,1,2].map(sz=>{
+              const cost=Math.round(PACK_BASE_COST[pt]*PACK_SIZE_MULT[sz]);
+              const n=PACK_SIZES[sz];
+              return `<button class="btn btn-gold btn-sm" onclick="openPack(${pt},${sz})"><span class="spinner" id="spin-${pt}-${sz}" style="display:none;"></span>Open ${n} Card${n>1?'s':''} — $${cost.toLocaleString()}</button>`;
+            }).join('')}
+          </div>`}
+        </div>`;
+      }).join('')}
+    </div>
+
+    <div id="pack-result" style="margin-bottom:1.5rem;"></div>
+
+    <h4 style="margin-bottom:10px;">⚡ Action Cards</h4>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:10px;">One-time use effects. Apply them right before starting a battle from the Battle tab.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">
+      ${UTILITY_CARDS.map(u=>{
+        const owned=myUtility[u.id]||0;
+        return `<div class="box" style="margin-bottom:0;border-color:${u.color}33;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <span style="font-size:22px;">${u.icon}</span>
+            <div style="font-weight:700;font-size:13px;">${u.name}</div>
+          </div>
+          <p style="font-size:11px;color:var(--text3);margin-bottom:10px;min-height:28px;">${u.desc}</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:11px;color:var(--text3);">${owned>0?`Owned: ${owned}`:''}</span>
+            <button class="btn btn-sm" style="border-color:${u.color};color:${u.color};" onclick="buyUtilityCard('${u.id}')">Buy — $${u.cost.toLocaleString()}</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+async function buyUtilityCard(id){
+  const u=UTILITY_CARDS.find(x=>x.id===id);
+  if(!u)return;
+  if((currentUser.money||0)<u.cost){showToast(`Need $${u.cost.toLocaleString()}`);return;}
+  const nm=(currentUser.money||0)-u.cost;
+  const myUtility={...(currentUser.utility_cards||{})};
+  myUtility[id]=(myUtility[id]||0)+1;
+  await sb.from('users').update({money:nm,utility_cards:myUtility}).eq('id',currentUser.id);
+  currentUser.money=nm;currentUser.utility_cards=myUtility;
+  updateHUD();
+  showToast(`Bought ${u.name}!`);
+  renderPacks();
+}
+
+// Rarity reveal tiers for pack-opening animation
+const RARITY_FX=[
+  {dur:600, shake:false, glow:'#9ca3af', burst:0},
+  {dur:700, shake:false, glow:'#34d399', burst:0},
+  {dur:850, shake:false, glow:'#60a5fa', burst:1},
+  {dur:1000,shake:true,  glow:'#a78bfa', burst:2},
+  {dur:1200,shake:true,  glow:'#f59e0b', burst:3},
+  {dur:1450,shake:true,  glow:'#ec4899', burst:4},
+  {dur:1700,shake:true,  glow:'#f97316', burst:5},
+  {dur:2000,shake:true,  glow:'#c7d2fe', burst:6}
+];
+
+async function openPack(pt,sizeIdx){
+  const cost=Math.round(PACK_BASE_COST[pt]*PACK_SIZE_MULT[sizeIdx]);
+  const count=PACK_SIZES[sizeIdx];
+  const lvl=currentUser.level||1;
+  if(lvl<PACK_LEVEL_REQ[pt]){showToast(`Unlocks at Level ${PACK_LEVEL_REQ[pt]}`);return;}
   if((currentUser.money||0)<cost){showToast(`Need $${cost.toLocaleString()} — win battles to earn money!`);return;}
-  spin('spin-'+pt,true);
+  const spinId=`spin-${pt}-${sizeIdx}`;
+  spin(spinId,true);
   const{data:pool}=await sb.from('pool_cards').select('*');
-  if(!pool||!pool.length){spin('spin-'+pt,false);showToast('No cards in pool yet!');return;}
+  if(!pool||!pool.length){spin(spinId,false);showToast('No cards in pool yet!');return;}
   const drawn=[];
-  for(let i=0;i<3;i++){
+  for(let i=0;i<count;i++){
     const rarity=rollRarity(pt);
     const byR=pool.filter(c=>c.rarity===rarity);
     const src=byR.length?byR:pool;
@@ -1205,24 +1288,62 @@ async function openPack(pt){
     });
   }
   const{error:insertErr}=await sb.from('player_cards').insert(drawn);
-  spin('spin-'+pt,false);
+  spin(spinId,false);
   if(insertErr){showToast('Error saving cards: '+insertErr.message);console.error(insertErr);return;}
   const nm=(currentUser.money||0)-cost;
   await sb.from('users').update({money:nm}).eq('id',currentUser.id);
   currentUser.money=nm;updateHUD();
-  const html=drawn.map(c=>{
-    const col=classColor(c.class_name);
-    return `<div style="flex:1;min-width:130px;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center;">
-      ${c.image_url?`<img style="width:100%;height:140px;object-fit:contain;border-radius:8px;margin-bottom:6px;background:var(--bg3);" src="${c.image_url}">`:`<div style="font-size:32px;margin-bottom:6px;">${classEmoji(c.class_name)}</div>`}
-      <div style="font-size:13px;font-weight:700;">${c.name}</div>
-      <div style="font-size:11px;font-weight:600;color:${RARITY_COLORS[c.rarity]};margin:3px 0;">${RARITIES[c.rarity]}</div>
-      <span class="cat-badge" style="background:${col.bg};color:${col.fg};">${c.class_name}</span>
-    </div>`;
-  }).join('');
-  document.getElementById('pack-result').innerHTML=`<div class="box"><div style="font-size:14px;font-weight:700;margin-bottom:10px;">🎉 You drew 3 cards!</div><div style="display:flex;gap:10px;flex-wrap:wrap;">${html}</div></div>`;
-  showToast('Pack opened!');
+  await revealPackCards(drawn);
   await updateQuestProgress('packs',1);
   await updateQuestProgress('cards',drawn.length);
+}
+
+// Sequential reveal with rarity-scaled animation
+async function revealPackCards(drawn){
+  const resultEl=document.getElementById('pack-result');
+  resultEl.innerHTML=`<div class="box"><div style="font-size:14px;font-weight:700;margin-bottom:10px;">🎉 Opening ${drawn.length} card${drawn.length>1?'s':''}...</div><div id="reveal-row" style="display:flex;gap:10px;flex-wrap:wrap;min-height:170px;"></div></div>`;
+  const row=document.getElementById('reveal-row');
+  const sorted=[...drawn]; // reveal in draw order
+  for(let i=0;i<sorted.length;i++){
+    const c=sorted[i];
+    const fx=RARITY_FX[c.rarity]||RARITY_FX[0];
+    const col=classColor(c.class_name);
+    const slot=document.createElement('div');
+    slot.style.cssText=`flex:1;min-width:130px;background:var(--bg3);border:2px solid ${fx.glow};border-radius:12px;padding:12px;text-align:center;opacity:0;transform:scale(0.5) rotateY(90deg);transition:all ${fx.dur}ms cubic-bezier(.2,1.4,.4,1);box-shadow:0 0 0px ${fx.glow};`;
+    slot.innerHTML=`<div style="font-size:32px;margin-bottom:6px;">❓</div><div style="font-size:11px;color:var(--text3);">...</div>`;
+    row.appendChild(slot);
+    await new Promise(r=>setTimeout(r,80));
+    slot.style.opacity='1';
+    slot.style.transform='scale(1) rotateY(0deg)';
+    slot.style.boxShadow=`0 0 ${10+fx.burst*8}px ${fx.glow}`;
+    if(fx.shake){
+      slot.animate([
+        {transform:'scale(1) translateX(0)'},
+        {transform:'scale(1.05) translateX(-4px)'},
+        {transform:'scale(1.05) translateX(4px)'},
+        {transform:'scale(1) translateX(0)'}
+      ],{duration:300,iterations:fx.burst});
+    }
+    await new Promise(r=>setTimeout(r,fx.dur*0.5));
+    slot.innerHTML=`
+      ${c.image_url?`<img style="width:100%;height:140px;object-fit:contain;border-radius:8px;margin-bottom:6px;background:var(--bg3);" src="${c.image_url}">`:`<div style="font-size:32px;margin-bottom:6px;">${classEmoji(c.class_name)}</div>`}
+      <div style="font-size:13px;font-weight:700;">${c.name}</div>
+      <div style="font-size:11px;font-weight:800;color:${RARITY_COLORS[c.rarity]};margin:3px 0;${c.rarity>=5?'text-shadow:0 0 8px '+RARITY_COLORS[c.rarity]+';':''}">${RARITIES[c.rarity]}${c.rarity>=6?' ✨':''}</div>
+      <span class="cat-badge" style="background:${col.bg};color:${col.fg};">${c.class_name}</span>`;
+    if(c.rarity>=5){
+      // Extra sparkle burst for Mythic+
+      for(let s=0;s<fx.burst+2;s++){
+        const sparkle=document.createElement('div');
+        sparkle.textContent='✨';
+        sparkle.style.cssText=`position:absolute;font-size:${10+Math.random()*10}px;pointer-events:none;animation:sparkleFly 900ms ease-out forwards;left:${50+Math.random()*40-20}%;top:50%;`;
+        slot.style.position='relative';
+        slot.appendChild(sparkle);
+        setTimeout(()=>sparkle.remove(),900);
+      }
+    }
+    await new Promise(r=>setTimeout(r,200));
+  }
+  showToast('Pack opened!');
 }
 
 // ── TRADE ──────────────────────────────────────────────
@@ -1370,7 +1491,8 @@ async function renderBattleLobby(){
       <div class="box">
         <div id="team-picker-title" style="font-size:14px;font-weight:600;margin-bottom:8px;"></div>
         <div id="team-select-grid" class="card-grid"></div>
-        <button class="btn btn-green" onclick="challengePlayer()">⚔️ Send Challenge</button>
+        <div id="util-picker-wrap"></div>
+        <button class="btn btn-green" style="margin-top:12px;" onclick="challengePlayer()">⚔️ Send Challenge</button>
         <div id="challenge-err" style="font-size:12px;color:#dc2626;margin-top:8px;display:none;"></div>
       </div>
     </div>
@@ -1389,6 +1511,59 @@ async function renderBattleLobby(){
   incomingPoll=setInterval(loadIncoming, 4000);
 }
 
+function utilityPickerHTML(){
+  const owned=currentUser.utility_cards||{};
+  const ownedIds=Object.keys(owned).filter(id=>owned[id]>0);
+  if(!ownedIds.length)return '<p style="font-size:12px;color:var(--text3);margin-top:10px;">No action cards owned. Buy some from the Shop!</p>';
+  return `<div style="margin-top:10px;">
+    <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">⚡ Use an action card this battle (optional):</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <div onclick="pickUtilityCard(null)" id="util-none" style="cursor:pointer;padding:6px 12px;border-radius:8px;border:2px solid ${!selectedUtilityCard?'var(--accent)':'var(--border)'};font-size:12px;background:var(--bg3);">None</div>
+      ${ownedIds.map(id=>{
+        const u=UTILITY_CARDS.find(x=>x.id===id);if(!u)return'';
+        return `<div onclick="pickUtilityCard('${id}')" id="util-${id}" style="cursor:pointer;padding:6px 12px;border-radius:8px;border:2px solid ${selectedUtilityCard===id?u.color:'var(--border)'};font-size:12px;background:var(--bg3);">${u.icon} ${u.name} <span style="color:var(--text3);">(${owned[id]})</span></div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+function pickUtilityCard(id){
+  selectedUtilityCard=id;
+  document.querySelectorAll('[id^="util-"]').forEach(el=>el.style.borderColor='var(--border)');
+  const sel=document.getElementById(id?'util-'+id:'util-none');
+  if(sel){
+    if(id){const u=UTILITY_CARDS.find(x=>x.id===id);sel.style.borderColor=u?u.color:'var(--accent)';}
+    else sel.style.borderColor='var(--accent)';
+  }
+}
+
+// Apply a utility card's effect to a freshly-built fighter array (mutates in place)
+function applyUtilityEffect(fighters,utilId){
+  if(!utilId)return null;
+  const u=UTILITY_CARDS.find(x=>x.id===utilId);
+  if(!u)return null;
+  if(u.effect==='team_stamina_pct'){
+    fighters.forEach(f=>{f.stamina=Math.min(f.maxStamina,Math.round(f.stamina+f.maxStamina*(u.value/100)));});
+  } else if(u.effect==='team_heal_pct'){
+    fighters.forEach(f=>{f.hp=Math.min(f.maxHp,Math.round(f.hp+f.maxHp*(u.value/100)));});
+  } else if(u.effect==='team_atk_pct'){
+    fighters.forEach(f=>{f.atk=Math.round(f.atk*(1+u.value/100));});
+  } else if(u.effect==='team_def_pct'){
+    fighters.forEach(f=>{f.def=Math.round(f.def*(1+u.value/100));});
+  }
+  return u;
+}
+
+async function consumeUtilityCard(utilId){
+  if(!utilId)return;
+  const owned={...(currentUser.utility_cards||{})};
+  if(!owned[utilId])return;
+  owned[utilId]=Math.max(0,owned[utilId]-1);
+  if(owned[utilId]===0)delete owned[utilId];
+  await sb.from('users').update({utility_cards:owned}).eq('id',currentUser.id);
+  currentUser.utility_cards=owned;
+}
+
 async function showTeamPicker(){
   const opp=document.getElementById('opp-select').value;
   if(!opp){showToast('No opponents available');return;}
@@ -1397,6 +1572,8 @@ async function showTeamPicker(){
   const{data:myCards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
   document.getElementById('team-picker-title').innerHTML=`Select ${size} card${size>1?'s':''} for your team: <span id="team-count-label" style="font-weight:400;color:var(--text3);">Selected: 0 / ${size}</span>`;
   document.getElementById('team-select-grid').innerHTML=(myCards||[]).length?myCards.map(c=>cardTileHTML(c,true)).join(''):`<div class="empty" style="grid-column:1/-1">No battle cards yet!</div>`;
+  selectedUtilityCard=null;
+  document.getElementById('util-picker-wrap').innerHTML=utilityPickerHTML();
   document.getElementById('team-picker-section').style.display='block';
   selectedTeam=[];
 }
@@ -1428,7 +1605,8 @@ async function challengePlayer(){
   errEl.style.display='none';
   const bid=`b-${Date.now()}-${currentUser.id}`;
   console.log('Sending challenge:',{bid,player1:currentUser.id,player2:opp,team:selectedTeam});
-  const{error:cErr}=await sb.from('live_battles').insert({id:bid,player1:currentUser.id,player2:opp,team1:selectedTeam,team2:[],state:JSON.stringify({log:[`⚔️ ${currentUser.id} challenged ${opp}!`],phase:'waiting',turn:null,winner:null,queue:selectedQueue}),status:'waiting'});
+  const{error:cErr}=await sb.from('live_battles').insert({id:bid,player1:currentUser.id,player2:opp,team1:selectedTeam,team2:[],util1:selectedUtilityCard,util2:null,state:JSON.stringify({log:[`⚔️ ${currentUser.id} challenged ${opp}!`],phase:'waiting',turn:null,winner:null,queue:selectedQueue}),status:'waiting'});
+  if(!cErr&&selectedUtilityCard)await consumeUtilityCard(selectedUtilityCard);
   console.log('Challenge insert result:',cErr||'success');
   if(cErr){showToast('Error sending challenge: '+cErr.message);return;}
   showToast(`Challenge sent to ${opp}! Waiting for them to accept...`);
@@ -1527,12 +1705,14 @@ async function acceptChallenge(battleId,q){
   selectedTeam=[];
   const{data:myCards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
   if(incomingPoll)clearInterval(incomingPoll);
+  selectedUtilityCard=null;
   document.getElementById('battle-lobby').innerHTML=`
     <div class="box">
       <h3>Pick your ${size} card${size>1?'s':''}</h3>
       <p style="font-size:12px;color:var(--text3);margin-bottom:10px;">Tap cards to select them, then confirm.</p>
       <div class="card-grid">${(myCards||[]).map(c=>cardTileHTML(c,true)).join('')}</div>
       <div style="margin-top:4px;font-size:13px;color:var(--text3);" id="team-count-label">Selected: 0 / ${size}</div>
+      <div id="util-picker-wrap">${utilityPickerHTML()}</div>
       <button class="btn btn-primary" style="margin-top:12px;" onclick="confirmAccept()">Confirm Team</button>
       <button class="btn btn-sm" style="margin-left:8px;margin-top:12px;" onclick="renderBattleLobby()">Cancel</button>
     </div>`;
@@ -1552,10 +1732,20 @@ async function confirmAccept(){
   if(poolIds.length){const{data:pcs}=await sb.from('pool_cards').select('id,moves').in('id',poolIds);(pcs||[]).forEach(pc=>{poolMovesMap[pc.id]=pc.moves||[];});}
   const buildF=c=>({uid:c.uid,name:c.name,class_name:c.class_name,rarity:c.rarity,element:c.element||'neutral',atk:c.atk,def:c.def,hp:c.max_hp||c.hp,maxHp:c.max_hp||c.hp,stamina:c.stamina||50,maxStamina:c.max_stamina||100,staminaRegen:c.stamina_regen||25,crit:c.crit_chance||0.1,dodge:c.dodge_chance||0.05,unlockedMoves:c.unlocked_moves||[],level:c.level,pool_card_id:c.pool_card_id||null,image_url:c.image_url||null,dot:0,dotTurns:0,shielded:false,shieldPct:0,speedBuff:false,defeated:false});
   const st=typeof b.state==='string'?JSON.parse(b.state):b.state;
-  // Challenged player (player2) goes first
-  const state={fighters1:(t1||[]).map(buildF),fighters2:(t2||[]).map(buildF),turn:b.player2,phase:'action2',log:[`🏟️ Match: ${b.player1} vs ${b.player2}`,`${b.player2} goes first!`],winner:null,usedUids:[],poolMoves:poolMovesMap,queue:st.queue!==undefined?st.queue:1};
-  await sb.from('live_battles').update({team2:selectedTeam,state:JSON.stringify(state),status:'active'}).eq('id',battleId);
-  selectedTeam=[];_pendingAcceptBattleId=null;
+  const fighters1=(t1||[]).map(buildF);
+  const fighters2=(t2||[]).map(buildF);
+  // Apply each player's chosen utility card (if any) to their own team
+  const log=[`🏟️ Match: ${b.player1} vs ${b.player2}`];
+  let goFirst=b.player2; // default: challenged player goes first
+  const u1=applyUtilityEffect(fighters1,b.util1);
+  if(u1){log.push(`⚡ ${b.player1} used ${u1.name}!`);if(u1.effect==='go_first')goFirst=b.player1;}
+  const u2=applyUtilityEffect(fighters2,selectedUtilityCard);
+  if(u2){log.push(`⚡ ${b.player2} used ${u2.name}!`);if(u2.effect==='go_first')goFirst=b.player2;}
+  if(selectedUtilityCard)await consumeUtilityCard(selectedUtilityCard);
+  log.push(`${goFirst} goes first!`);
+  const state={fighters1,fighters2,turn:goFirst,phase:goFirst===b.player1?'action1':'action2',log,winner:null,usedUids:[],poolMoves:poolMovesMap,queue:st.queue!==undefined?st.queue:1};
+  await sb.from('live_battles').update({team2:selectedTeam,util2:selectedUtilityCard,state:JSON.stringify(state),status:'active'}).eq('id',battleId);
+  selectedTeam=[];_pendingAcceptBattleId=null;selectedUtilityCard=null;
   const{data:updated}=await sb.from('live_battles').select('*').eq('id',battleId).single();
   currentBattle=updated;enterBattle(updated);
 }
