@@ -718,28 +718,111 @@ const TITLE_COLORS={
 };
 
 const TYPE_CHART={fire:{ice:1.5,earth:1.3,wind:1.2,water:0.5,fire:0.7},ice:{earth:1.4,fire:0.5,lightning:0.8,ice:0.7,wind:1.2},lightning:{water:1.6,ice:1.2,earth:0.6,lightning:0.7},earth:{fire:1.3,lightning:1.4,ice:0.8,earth:0.7,wind:0.8},dark:{light:1.5,neutral:1.1,dark:0.5,void:0.8},light:{dark:1.5,void:1.3,light:0.6},water:{fire:1.5,earth:1.2,lightning:0.8,water:0.7},wind:{earth:1.3,lightning:1.2,wind:0.7},void:{light:1.4,neutral:1.2,void:0.5},neutral:{}};
-const MOVE_ICONS={attack:'⚔️',heavy:'💥',heal:'💚',shield:'🛡️',dot:'🔥',multi:'🌀',power:'⚡',combo:'🎯',speed:'💨',aoe:'💣',lifesteal:'🩸',stamina_steal:'⚡🔻',taunt:'😤',curse:'🌀',counter:'🔄',execute:'💀',scatter:'🎯💥'};
-const MOVE_LABELS={attack:'Attack',heavy:'Heavy Attack',heal:'Heal',shield:'Shield',dot:'Damage-over-Time',multi:'Multi-hit',power:'Power Move',combo:'Combo',speed:'Speed Boost',aoe:'AOE (hits all enemies)',lifesteal:'Life Steal',stamina_steal:'Stamina Steal',taunt:'Taunt',curse:'Curse',counter:'Counter',execute:'Execute',scatter:'Scatter (pick X targets)'};
+const MOVE_ICONS={attack:'⚔️',heavy:'💥',heal:'💚',shield:'🛡️',dot:'🔥',multi:'🌀',power:'⚡',combo:'🎯',speed:'💨',aoe:'💣',lifesteal:'🩸',stamina_steal:'⚡🔻',taunt:'😤',curse:'🌀',counter:'🔄',execute:'💀',scatter:'🎯💥',
+  // Offensive
+  piercing:'🗡️',chain:'⛓️',overcharge:'🔋',precision:'🎯',backstab:'🔪',crushing:'🔨',sunder:'💢',echo:'🔁',overwhelm:'📈',finisher:'☠️',
+  // Defensive / Sustain
+  barrier:'🧱',reflect:'🪞',fortify:'🏰',regenerate:'💚',cleanse:'🧼',absorb:'🌀',guard_stance:'🛡️',second_wind:'🌬️',iron_skin:'🦾',rebound:'↩️',
+  // Debuff / Control
+  silence:'🤐',blind:'🌫️',slow:'🐌',weaken:'📉',expose:'🎯',root:'🌳',disarm:'🚫',mana_burn:'🔥🔋',cripple:'🦵',fear:'😱',
+  // Buff / Enhancement
+  rage:'😡',focus:'🧘',haste:'💨',empower:'💪',blessing:'🙏',adrenaline:'💉',momentum:'🌊',overclock:'⚙️',battle_trance:'🌀⚡',guardian_aura:'👼',
+  // Special / Advanced
+  clone:'👥',time_skip:'⏭️',swap:'🔄',rewind:'⏪',sacrifice:'🩸',gamble:'🎲',mark:'🎯❌',phase:'👻',corrupt:'🌑',amplify:'📡'
+};
+const MOVE_LABELS={attack:'Attack',heavy:'Heavy Attack',heal:'Heal',shield:'Shield',dot:'Damage-over-Time',multi:'Multi-hit',power:'Power Move',combo:'Combo',speed:'Speed Boost',aoe:'AOE (hits all enemies)',lifesteal:'Life Steal',stamina_steal:'Stamina Steal',taunt:'Taunt',curse:'Curse',counter:'Counter',execute:'Execute',scatter:'Scatter (pick X targets)',
+  // Offensive
+  piercing:'Piercing Attack (ignores % DEF)',chain:'Chain Attack (jumps between enemies)',overcharge:'Overcharge Attack (bonus dmg at full stamina)',precision:'Precision Strike (guaranteed crit)',backstab:'Backstab (bonus dmg if dodged last turn)',crushing:'Crushing Blow (permanently reduces DEF)',sunder:'Sunder Attack (breaks shields first)',echo:'Echo Attack (repeats next turn, reduced power)',overwhelm:'Overwhelm (damage increases per hit)',finisher:'Finisher (more dmg the lower enemy HP)',
+  // Defensive / Sustain
+  barrier:'Barrier (absorbs dmg, explodes after)',reflect:'Reflect (returns % dmg taken)',fortify:'Fortify (raises DEF for turns)',regenerate:'Regenerate (heal over time)',cleanse:'Cleanse (removes debuffs)',absorb:'Absorb (converts dmg taken into stamina)',guard_stance:'Guard Stance (reduces all incoming dmg)',second_wind:'Second Wind (heal below HP threshold)',iron_skin:'Iron Skin (temp DoT immunity)',rebound:'Rebound (first hit each turn = 0 dmg)',
+  // Debuff / Control
+  silence:'Silence (prevents power moves)',blind:'Blind (reduces accuracy)',slow:'Slow (reduces stamina gain)',weaken:'Weaken (reduces ATK)',expose:'Expose (target takes increased dmg)',root:'Root (prevents dodge)',disarm:'Disarm (prevents heavy attacks)',mana_burn:'Mana Burn (removes stamina each turn)',cripple:'Cripple (reduces max stamina temporarily)',fear:'Fear (chance to skip turn)',
+  // Buff / Enhancement
+  rage:'Rage (ATK increases when hit)',focus:'Focus (crit chance increases each turn)',haste:'Haste (extra stamina per turn)',empower:'Empower (next attack deals bonus dmg)',blessing:'Blessing (boosts all stats slightly)',adrenaline:'Adrenaline (acts twice next turn)',momentum:'Momentum (dmg increases per consecutive attack)',overclock:'Overclock (huge speed boost, self-dmg)',battle_trance:'Battle Trance (crits restore stamina)',guardian_aura:'Guardian Aura (allies take reduced dmg)',
+  // Special / Advanced
+  clone:'Clone (decoy absorbs one hit)',time_skip:'Time Skip (gain an extra turn)',swap:'Swap (swap stamina/buffs with enemy)',rewind:'Rewind (restore stats to prior turn)',sacrifice:'Sacrifice (lose HP for huge buff)',gamble:'Gamble (random powerful effect)',mark:'Mark (next hit on target = double dmg)',phase:'Phase (untargetable for 1 turn)',corrupt:'Corrupt (converts enemy buffs to debuffs)',amplify:'Amplify (doubles DoT dmg on target)'
+};
 
 // Move type field definitions — what extra fields each type needs
+// Each field can optionally include `base` (Epic-tier reference value) used for rarity-scaled suggestions
 const MOVE_FIELDS={
-  attack:    [{key:'value',label:'Damage',type:'number',ph:'50'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'25'}],
-  heavy:     [{key:'value',label:'Damage',type:'number',ph:'100'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'60'}],
-  heal:      [{key:'value',label:'HP Restored',type:'number',ph:'50'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'20'}],
-  shield:    [{key:'value',label:'Block % (0-100)',type:'number',ph:'75'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'0'},{key:'shield_turns',label:'Lasts (turns)',type:'number',ph:'1'}],
-  dot:       [{key:'value',label:'Total Damage',type:'number',ph:'90'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'35'},{key:'dot_turns',label:'Turns',type:'number',ph:'3'}],
-  multi:     [{key:'value',label:'Damage per Hit',type:'number',ph:'25'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'45'},{key:'hits_min',label:'Min Hits',type:'number',ph:'2'},{key:'hits_max',label:'Max Hits',type:'number',ph:'4'}],
-  power:     [{key:'value',label:'Damage',type:'number',ph:'180'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'100'}],
-  combo:     [{key:'value',label:'Base Damage',type:'number',ph:'70'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'50'},{key:'combo_chance',label:'Combo Chance (0-1)',type:'number',ph:'0.4',step:'0.05'},{key:'combo_mult',label:'Combo Multiplier',type:'number',ph:'1.5',step:'0.1'}],
-  speed:     [{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'0'},{key:'dodge_mult',label:'Dodge Multiplier',type:'number',ph:'2',step:'0.1'}],
-  aoe:       [{key:'value',label:'Damage per Target',type:'number',ph:'40'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'80'}],
-  lifesteal: [{key:'value',label:'Damage Dealt',type:'number',ph:'60'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'45'},{key:'steal_pct',label:'% Stolen as HP (0-1)',type:'number',ph:'0.5',step:'0.05'}],
-  stamina_steal:[{key:'value',label:'Damage',type:'number',ph:'30'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'30'},{key:'steal_stamina',label:'Stamina Stolen',type:'number',ph:'25'}],
-  taunt:     [{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'0'},{key:'taunt_turns',label:'Lasts (turns)',type:'number',ph:'2'}],
-  curse:     [{key:'value',label:'Stat Reduction %',type:'number',ph:'20'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'40'},{key:'curse_turns',label:'Turns',type:'number',ph:'3'}],
-  counter:   [{key:'value',label:'Counter Damage %',type:'number',ph:'150'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'30'}],
-  execute:   [{key:'value',label:'Damage',type:'number',ph:'120'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'90'},{key:'execute_threshold',label:'Instakill below HP%',type:'number',ph:'20'}],
-  scatter:   [{key:'value',label:'Damage per Target',type:'number',ph:'60'},{key:'stamina_cost',label:'Stamina Cost',type:'number',ph:'70'},{key:'scatter_targets',label:'Number of Targets',type:'number',ph:'2'}]
+  attack:    [{key:'value',label:'Damage',ph:'50',base:50},{key:'stamina_cost',label:'Stamina Cost',ph:'25',base:25}],
+  heavy:     [{key:'value',label:'Damage',ph:'100',base:100},{key:'stamina_cost',label:'Stamina Cost',ph:'60',base:60}],
+  heal:      [{key:'value',label:'HP Restored',ph:'50',base:50},{key:'stamina_cost',label:'Stamina Cost',ph:'20',base:20}],
+  shield:    [{key:'value',label:'Block % (0-100)',ph:'75',base:75,noscale:true},{key:'stamina_cost',label:'Stamina Cost',ph:'0',base:0},{key:'shield_turns',label:'Lasts (turns)',ph:'1',base:1,noscale:true}],
+  dot:       [{key:'value',label:'Total Damage',ph:'90',base:90},{key:'stamina_cost',label:'Stamina Cost',ph:'35',base:35},{key:'dot_turns',label:'Turns',ph:'3',base:3,noscale:true}],
+  multi:     [{key:'value',label:'Damage per Hit',ph:'25',base:25},{key:'stamina_cost',label:'Stamina Cost',ph:'45',base:45},{key:'hits_min',label:'Min Hits',ph:'2',base:2,noscale:true},{key:'hits_max',label:'Max Hits',ph:'4',base:4,noscale:true}],
+  power:     [{key:'value',label:'Damage',ph:'180',base:180},{key:'stamina_cost',label:'Stamina Cost',ph:'100',base:100}],
+  combo:     [{key:'value',label:'Base Damage',ph:'70',base:70},{key:'stamina_cost',label:'Stamina Cost',ph:'50',base:50},{key:'combo_chance',label:'Combo Chance (0-1)',ph:'0.4',base:0.4,step:'0.05',noscale:true},{key:'combo_mult',label:'Combo Multiplier',ph:'1.5',base:1.5,step:'0.1',noscale:true}],
+  speed:     [{key:'stamina_cost',label:'Stamina Cost',ph:'0',base:0},{key:'dodge_mult',label:'Dodge Multiplier',ph:'2',base:2,step:'0.1',noscale:true}],
+  aoe:       [{key:'value',label:'Damage per Target',ph:'40',base:40},{key:'stamina_cost',label:'Stamina Cost',ph:'80',base:80}],
+  lifesteal: [{key:'value',label:'Damage Dealt',ph:'60',base:60},{key:'stamina_cost',label:'Stamina Cost',ph:'45',base:45},{key:'steal_pct',label:'% Stolen as HP (0-1)',ph:'0.5',base:0.5,step:'0.05',noscale:true}],
+  stamina_steal:[{key:'value',label:'Damage',ph:'30',base:30},{key:'stamina_cost',label:'Stamina Cost',ph:'30',base:30},{key:'steal_stamina',label:'Stamina Stolen',ph:'25',base:25,noscale:true}],
+  taunt:     [{key:'stamina_cost',label:'Stamina Cost',ph:'0',base:0},{key:'taunt_turns',label:'Lasts (turns)',ph:'2',base:2,noscale:true}],
+  curse:     [{key:'value',label:'Stat Reduction %',ph:'20',base:20,noscale:true},{key:'stamina_cost',label:'Stamina Cost',ph:'40',base:40},{key:'curse_turns',label:'Turns',ph:'3',base:3,noscale:true}],
+  counter:   [{key:'value',label:'Counter Damage %',ph:'150',base:150,noscale:true},{key:'stamina_cost',label:'Stamina Cost',ph:'30',base:30}],
+  execute:   [{key:'value',label:'Damage',ph:'120',base:120},{key:'stamina_cost',label:'Stamina Cost',ph:'90',base:90},{key:'execute_threshold',label:'Instakill below HP%',ph:'20',base:20,noscale:true}],
+  scatter:   [{key:'value',label:'Damage per Target',ph:'60',base:60},{key:'stamina_cost',label:'Stamina Cost',ph:'70',base:70},{key:'scatter_targets',label:'Number of Targets',ph:'2',base:2,noscale:true}],
+
+  // ── Offensive Ability Types ──────────────────────────────────────────
+  piercing:  [{key:'value',label:'Damage',ph:'70',base:70},{key:'stamina_cost',label:'Stamina Cost',ph:'45',base:45},{key:'pierce_pct',label:'DEF Ignored % (0-100)',ph:'40',base:40,noscale:true}],
+  chain:     [{key:'value',label:'Damage per Jump',ph:'45',base:45},{key:'stamina_cost',label:'Stamina Cost',ph:'55',base:55},{key:'chain_targets',label:'Number of Jumps',ph:'3',base:3,noscale:true},{key:'chain_falloff',label:'Damage Falloff % per Jump',ph:'20',base:20,noscale:true}],
+  overcharge:[{key:'value',label:'Base Damage',ph:'80',base:80},{key:'stamina_cost',label:'Stamina Cost',ph:'70',base:70},{key:'overcharge_bonus_pct',label:'Bonus Dmg % at Full Stamina',ph:'60',base:60,noscale:true}],
+  precision: [{key:'value',label:'Damage',ph:'65',base:65},{key:'stamina_cost',label:'Stamina Cost',ph:'50',base:50},{key:'crit_mult',label:'Crit Multiplier',ph:'2',base:2,step:'0.1',noscale:true}],
+  backstab:  [{key:'value',label:'Base Damage',ph:'55',base:55},{key:'stamina_cost',label:'Stamina Cost',ph:'40',base:40},{key:'backstab_bonus_pct',label:'Bonus Dmg % if Dodged Last Turn',ph:'75',base:75,noscale:true}],
+  crushing:  [{key:'value',label:'Damage',ph:'70',base:70},{key:'stamina_cost',label:'Stamina Cost',ph:'55',base:55},{key:'def_reduction_pct',label:'Permanent DEF Reduction %',ph:'15',base:15,noscale:true}],
+  sunder:    [{key:'value',label:'Damage',ph:'60',base:60},{key:'stamina_cost',label:'Stamina Cost',ph:'45',base:45},{key:'sunder_shield_mult',label:'Shield Damage Multiplier',ph:'2',base:2,step:'0.1',noscale:true}],
+  echo:      [{key:'value',label:'Damage',ph:'65',base:65},{key:'stamina_cost',label:'Stamina Cost',ph:'50',base:50},{key:'echo_pct',label:'Repeat Power % Next Turn',ph:'50',base:50,noscale:true}],
+  overwhelm: [{key:'value',label:'Starting Damage',ph:'40',base:40},{key:'stamina_cost',label:'Stamina Cost',ph:'45',base:45},{key:'overwhelm_growth_pct',label:'Damage Increase % per Hit',ph:'15',base:15,noscale:true}],
+  finisher:  [{key:'value',label:'Base Damage',ph:'50',base:50},{key:'stamina_cost',label:'Stamina Cost',ph:'45',base:45},{key:'finisher_max_bonus_pct',label:'Max Bonus Dmg % (at low HP)',ph:'120',base:120,noscale:true}],
+
+  // ── Defensive / Sustain Ability Types ────────────────────────────────
+  barrier:   [{key:'value',label:'Damage Absorbed',ph:'80',base:80},{key:'stamina_cost',label:'Stamina Cost',ph:'40',base:40},{key:'barrier_explode_pct',label:'Explosion Dmg % of Absorbed',ph:'60',base:60,noscale:true}],
+  reflect:   [{key:'stamina_cost',label:'Stamina Cost',ph:'30',base:30},{key:'reflect_pct',label:'% Damage Reflected',ph:'40',base:40,noscale:true},{key:'reflect_turns',label:'Lasts (turns)',ph:'2',base:2,noscale:true}],
+  fortify:   [{key:'stamina_cost',label:'Stamina Cost',ph:'25',base:25},{key:'def_boost_pct',label:'DEF Increase %',ph:'30',base:30,noscale:true},{key:'fortify_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}],
+  regenerate:[{key:'value',label:'Heal per Turn',ph:'25',base:25},{key:'stamina_cost',label:'Stamina Cost',ph:'30',base:30},{key:'regen_turns',label:'Turns',ph:'3',base:3,noscale:true}],
+  cleanse:   [{key:'stamina_cost',label:'Stamina Cost',ph:'25',base:25}],
+  absorb:    [{key:'stamina_cost',label:'Stamina Cost',ph:'0',base:0},{key:'absorb_stamina_pct',label:'% of Dmg Taken → Stamina',ph:'50',base:50,noscale:true},{key:'absorb_turns',label:'Lasts (turns)',ph:'2',base:2,noscale:true}],
+  guard_stance:[{key:'stamina_cost',label:'Stamina Cost',ph:'20',base:20},{key:'dmg_reduction_pct',label:'Incoming Dmg Reduction %',ph:'35',base:35,noscale:true},{key:'guard_turns',label:'Lasts (turns)',ph:'2',base:2,noscale:true}],
+  second_wind:[{key:'value',label:'Heal Amount',ph:'70',base:70},{key:'trigger_hp_pct',label:'Triggers Below HP %',ph:'25',base:25,noscale:true}],
+  iron_skin: [{key:'stamina_cost',label:'Stamina Cost',ph:'25',base:25},{key:'iron_skin_turns',label:'Lasts (turns)',ph:'2',base:2,noscale:true}],
+  rebound:   [{key:'stamina_cost',label:'Stamina Cost',ph:'20',base:20},{key:'rebound_turns',label:'Lasts (turns)',ph:'1',base:1,noscale:true}],
+
+  // ── Debuff / Control Ability Types ───────────────────────────────────
+  silence:   [{key:'stamina_cost',label:'Stamina Cost',ph:'40',base:40},{key:'silence_turns',label:'Lasts (turns)',ph:'2',base:2,noscale:true}],
+  blind:     [{key:'stamina_cost',label:'Stamina Cost',ph:'35',base:35},{key:'blind_accuracy_reduction_pct',label:'Accuracy Reduction %',ph:'40',base:40,noscale:true},{key:'blind_turns',label:'Lasts (turns)',ph:'2',base:2,noscale:true}],
+  slow:      [{key:'stamina_cost',label:'Stamina Cost',ph:'35',base:35},{key:'slow_pct',label:'Stamina Gain Reduction %',ph:'40',base:40,noscale:true},{key:'slow_turns',label:'Lasts (turns)',ph:'2',base:2,noscale:true}],
+  weaken:    [{key:'stamina_cost',label:'Stamina Cost',ph:'35',base:35},{key:'weaken_pct',label:'ATK Reduction %',ph:'25',base:25,noscale:true},{key:'weaken_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}],
+  expose:    [{key:'stamina_cost',label:'Stamina Cost',ph:'35',base:35},{key:'expose_pct',label:'Increased Dmg Taken %',ph:'25',base:25,noscale:true},{key:'expose_turns',label:'Lasts (turns)',ph:'2',base:2,noscale:true}],
+  root:      [{key:'stamina_cost',label:'Stamina Cost',ph:'30',base:30},{key:'root_turns',label:'Lasts (turns)',ph:'2',base:2,noscale:true}],
+  disarm:    [{key:'stamina_cost',label:'Stamina Cost',ph:'35',base:35},{key:'disarm_turns',label:'Lasts (turns)',ph:'2',base:2,noscale:true}],
+  mana_burn: [{key:'stamina_cost',label:'Stamina Cost',ph:'30',base:30},{key:'mana_burn_amount',label:'Stamina Removed per Turn',ph:'15',base:15,noscale:true},{key:'mana_burn_turns',label:'Turns',ph:'3',base:3,noscale:true}],
+  cripple:   [{key:'stamina_cost',label:'Stamina Cost',ph:'35',base:35},{key:'cripple_pct',label:'Max Stamina Reduction %',ph:'30',base:30,noscale:true},{key:'cripple_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}],
+  fear:      [{key:'stamina_cost',label:'Stamina Cost',ph:'40',base:40},{key:'fear_chance',label:'Skip-Turn Chance (0-1)',ph:'0.3',base:0.3,step:'0.05',noscale:true},{key:'fear_turns',label:'Lasts (turns)',ph:'2',base:2,noscale:true}],
+
+  // ── Buff / Enhancement Ability Types ─────────────────────────────────
+  rage:      [{key:'stamina_cost',label:'Stamina Cost',ph:'0',base:0},{key:'rage_atk_pct',label:'ATK Increase % per Hit Taken',ph:'10',base:10,noscale:true},{key:'rage_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}],
+  focus:     [{key:'stamina_cost',label:'Stamina Cost',ph:'20',base:20},{key:'focus_crit_pct_per_turn',label:'Crit Chance Increase % per Turn',ph:'8',base:8,noscale:true},{key:'focus_turns',label:'Lasts (turns)',ph:'4',base:4,noscale:true}],
+  haste:     [{key:'stamina_cost',label:'Stamina Cost',ph:'15',base:15},{key:'haste_stamina_bonus',label:'Extra Stamina per Turn',ph:'15',base:15,noscale:true},{key:'haste_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}],
+  empower:   [{key:'stamina_cost',label:'Stamina Cost',ph:'30',base:30},{key:'empower_bonus_pct',label:'Bonus Dmg % on Next Attack',ph:'50',base:50,noscale:true}],
+  blessing:  [{key:'stamina_cost',label:'Stamina Cost',ph:'40',base:40},{key:'blessing_pct',label:'All Stats Boost %',ph:'12',base:12,noscale:true},{key:'blessing_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}],
+  adrenaline:[{key:'stamina_cost',label:'Stamina Cost',ph:'60',base:60}],
+  momentum:  [{key:'value',label:'Starting Damage',ph:'45',base:45},{key:'stamina_cost',label:'Stamina Cost',ph:'40',base:40},{key:'momentum_growth_pct',label:'Damage Increase % per Consecutive Attack',ph:'12',base:12,noscale:true}],
+  overclock: [{key:'stamina_cost',label:'Stamina Cost',ph:'10',base:10},{key:'overclock_speed_mult',label:'Speed/Dodge Multiplier',ph:'3',base:3,step:'0.1',noscale:true},{key:'overclock_self_dmg_pct',label:'Self-Damage % of Max HP',ph:'10',base:10,noscale:true}],
+  battle_trance:[{key:'stamina_cost',label:'Stamina Cost',ph:'25',base:25},{key:'trance_stamina_per_crit',label:'Stamina Restored per Crit',ph:'20',base:20,noscale:true},{key:'trance_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}],
+  guardian_aura:[{key:'stamina_cost',label:'Stamina Cost',ph:'45',base:45},{key:'guardian_dmg_reduction_pct',label:'Allies Dmg Reduction %',ph:'20',base:20,noscale:true},{key:'guardian_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}],
+
+  // ── Special / Advanced Ability Types ─────────────────────────────────
+  clone:     [{key:'stamina_cost',label:'Stamina Cost',ph:'50',base:50},{key:'clone_hp_pct',label:'Decoy HP % of User Max HP',ph:'30',base:30,noscale:true}],
+  time_skip: [{key:'stamina_cost',label:'Stamina Cost',ph:'90',base:90}],
+  swap:      [{key:'stamina_cost',label:'Stamina Cost',ph:'40',base:40}],
+  rewind:    [{key:'stamina_cost',label:'Stamina Cost',ph:'60',base:60}],
+  sacrifice: [{key:'sacrifice_hp_pct',label:'HP Lost %',ph:'30',base:30,noscale:true},{key:'sacrifice_buff_pct',label:'Buff Gained %',ph:'50',base:50,noscale:true},{key:'sacrifice_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}],
+  gamble:    [{key:'stamina_cost',label:'Stamina Cost',ph:'35',base:35},{key:'gamble_max_value',label:'Max Possible Effect Value',ph:'150',base:150}],
+  mark:      [{key:'stamina_cost',label:'Stamina Cost',ph:'30',base:30},{key:'mark_mult',label:'Next Hit Damage Multiplier',ph:'2',base:2,step:'0.1',noscale:true},{key:'mark_turns',label:'Lasts (turns)',ph:'2',base:2,noscale:true}],
+  phase:     [{key:'stamina_cost',label:'Stamina Cost',ph:'50',base:50}],
+  corrupt:   [{key:'stamina_cost',label:'Stamina Cost',ph:'45',base:45},{key:'corrupt_turns',label:'Lasts (turns)',ph:'2',base:2,noscale:true}],
+  amplify:   [{key:'stamina_cost',label:'Stamina Cost',ph:'35',base:35},{key:'amplify_dot_mult',label:'DoT Damage Multiplier',ph:'2',base:2,step:'0.1',noscale:true},{key:'amplify_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}]
 };
 const QUEUE_SIZES={0:1,1:3,2:5};
 
@@ -942,8 +1025,30 @@ function adminTab(name,btn){
 }
 
 // ── MOVE BLOCKS ────────────────────────────────────────
+const MOVE_TYPE_GROUPS=[
+  {label:'Classic',types:['attack','heavy','heal','shield','dot','multi','power','combo','speed','aoe','lifesteal','stamina_steal','taunt','curse','counter','execute','scatter']},
+  {label:'Offensive',types:['piercing','chain','overcharge','precision','backstab','crushing','sunder','echo','overwhelm','finisher']},
+  {label:'Defensive / Sustain',types:['barrier','reflect','fortify','regenerate','cleanse','absorb','guard_stance','second_wind','iron_skin','rebound']},
+  {label:'Debuff / Control',types:['silence','blind','slow','weaken','expose','root','disarm','mana_burn','cripple','fear']},
+  {label:'Buff / Enhancement',types:['rage','focus','haste','empower','blessing','adrenaline','momentum','overclock','battle_trance','guardian_aura']},
+  {label:'Special / Advanced',types:['clone','time_skip','swap','rewind','sacrifice','gamble','mark','phase','corrupt','amplify']}
+];
+
 function moveTypeOptions(selected){
-  return Object.keys(MOVE_LABELS).map(t=>`<option value="${t}"${t===selected?' selected':''}>${MOVE_ICONS[t]||'⚔️'} ${MOVE_LABELS[t]}</option>`).join('');
+  return MOVE_TYPE_GROUPS.map(g=>
+    `<optgroup label="${g.label}">${g.types.map(t=>`<option value="${t}"${t===selected?' selected':''}>${MOVE_ICONS[t]||'⚔️'} ${MOVE_LABELS[t]}</option>`).join('')}</optgroup>`
+  ).join('');
+}
+
+// Scale a move field's base/Epic-tier reference value to the currently selected rarity.
+// noscale fields (percents, turn counts, ratios) stay fixed regardless of rarity.
+function suggestedMoveValue(f){
+  if(f.base===undefined)return f.ph||'';
+  if(f.noscale)return f.base;
+  const rarityEl=document.getElementById('ac-rarity');
+  const rarity=rarityEl?parseInt(rarityEl.value)||3:3; // default to Epic(3) reference tier if no card form present
+  const mult=(RARITY_STAT_MULT[rarity]||1)/(RARITY_STAT_MULT[3]||1) * (0.55+rarity*0.15); // scales meaningfully across tiers
+  return Math.round(f.base*Math.max(0.4,mult));
 }
 
 function renderMoveFields(block, type, existing){
@@ -952,11 +1057,25 @@ function renderMoveFields(block, type, existing){
   if(!container)return;
   container.innerHTML=`<div style="grid-column:1/-1;font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">${MOVE_LABELS[type]||type} fields</div>`+fields.map(f=>{
     const val=existing&&existing[f.key]!==undefined?existing[f.key]:'';
+    const suggested=suggestedMoveValue(f);
     return `<div class="field">
       <label>${f.label}</label>
-      <input type="number" class="mv-extra mv-${f.key}" data-key="${f.key}" placeholder="${f.ph||''}" ${f.step?`step="${f.step}"`:'min="0"'} value="${val}">
+      <input type="number" class="mv-extra mv-${f.key}" data-key="${f.key}" placeholder="Suggested: ${suggested}" ${f.step?`step="${f.step}"`:'min="0"'} value="${val}">
     </div>`;
   }).join('');
+}
+
+// Re-render placeholder suggestions on all open move blocks when rarity/class changes
+function refreshMoveFieldSuggestions(){
+  document.querySelectorAll('.move-block').forEach(block=>{
+    const typeSel=block.querySelector('.mv-type');
+    if(!typeSel)return;
+    const fields=MOVE_FIELDS[typeSel.value]||MOVE_FIELDS.attack;
+    fields.forEach(f=>{
+      const inp=block.querySelector('.mv-'+f.key);
+      if(inp&&!inp.value)inp.placeholder=`Suggested: ${suggestedMoveValue(f)}`;
+    });
+  });
 }
 
 function addMoveBlock(containerId, defaultUnlockLevel, existing){
@@ -1086,6 +1205,7 @@ function updateSuggestedStats(){
     const rarityName=RARITIES[rarity];
     tip.textContent=`Suggested stats for ${rarityName} ${cls} — edit any field to override.`;
   }
+  refreshMoveFieldSuggestions();
 }
 
 // Mark field as user-edited when they type in it
