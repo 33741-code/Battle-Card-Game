@@ -172,6 +172,11 @@ body.light .ability-btn{color:#1a1a1a;}
 .heal-popup{position:absolute;top:-24px;left:50%;transform:translateX(-50%);font-size:20px;font-weight:800;color:#22c55e;text-shadow:0 2px 6px rgba(0,0,0,0.7);pointer-events:none;animation:dmgFloat 1.5s ease forwards;z-index:100;}
 @keyframes dmgFloat{0%{opacity:1;transform:translateX(-50%) translateY(0);}100%{opacity:0;transform:translateX(-50%) translateY(-56px);}}
 @keyframes sparkleFly{0%{opacity:1;transform:translateY(0) scale(0.5);}100%{opacity:0;transform:translateY(-40px) scale(1.4);}}
+@keyframes podiumBounce{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
+.admin-name{background:linear-gradient(90deg,#fff6d8,#ffd700,#ff9d00,#ffd700,#fff6d8);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;animation:adminShine 3s linear infinite;font-weight:800;text-shadow:0 0 12px rgba(255,215,0,0.35);letter-spacing:0.3px;}
+@keyframes adminShine{0%{background-position:0% center;}100%{background-position:200% center;}}
+.admin-badge-glow{box-shadow:0 0 10px rgba(255,215,0,0.55),0 0 2px rgba(255,215,0,0.8);}
+
 .yours{background:#0a1e3a;color:#93c5fd;}
 .theirs{background:#2a0a0a;color:#fca5a5;}
 .move-block{background:var(--move-block);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:10px;}
@@ -848,7 +853,7 @@ async function handleDailyLogin(){
 async function enterApp(){
   document.getElementById('login-screen').style.display='none';
   document.getElementById('main-screen').style.display='flex';
-  document.getElementById('user-label').textContent=currentUser.id;
+  document.getElementById('user-label').innerHTML=nameHTML(currentUser);
   document.getElementById('admin-label').textContent=currentUser.is_admin?'⚙️ Admin account':'';
   document.getElementById('admin-tab').style.display=currentUser.is_admin?'':'none';
   // Show daily reward button if not yet claimed today
@@ -870,10 +875,13 @@ async function forceDailyLogin(){
 
 function updateHUD(){
   document.getElementById('money-badge').textContent=`💰 $${currentUser.money||0}`;
-  const title=currentUser.title||null;
-  const titleColor=currentUser.title_color||null;
+  const title=displayTitle(currentUser);
+  const titleColor=displayTitleColor(currentUser);
   const lvBadge=document.getElementById('level-badge');
-  if(title&&titleColor){
+  if(isAdminUser(currentUser)){
+    lvBadge.innerHTML=`<span class="admin-name">[${title}]</span> Lv ${currentUser.level||1}`;
+    lvBadge.classList.add('admin-badge-glow');
+  } else if(title&&titleColor){
     lvBadge.innerHTML=`<span style="color:${titleColor};">[${title}]</span> Lv ${currentUser.level||1}`;
   } else {
     lvBadge.textContent=`Lv ${currentUser.level||1}`;
@@ -2193,31 +2201,148 @@ async function leaveBattle(){
 }
 
 // ── LEADERBOARD ────────────────────────────────────────
+let _lbUsers=null,_lbCards=null,_lbTab='power';
+
+// Overall power score — blends level, card quality, win ratio, and money
+function powerScore(p,pc){
+  const winRatio=(p.wins||0)/Math.max(1,(p.wins||0)+(p.losses||0));
+  const cardPower=pc.reduce((s,c)=>s+cardScore(c),0);
+  const bestCard=pc.length?Math.max(...pc.map(cardScore)):0;
+  return Math.round(
+    (p.level||1)*150 +
+    cardPower*0.4 +
+    bestCard*0.6 +
+    winRatio*2000 +
+    (p.wins||0)*40 +
+    Math.log10((p.money||0)+1)*120
+  );
+}
+
+const LB_TABS=[
+  {id:'power',label:'⚡ Power',icon:'⚡'},
+  {id:'wins',label:'⚔️ Win Rate',icon:'⚔️'},
+  {id:'cards',label:'🃏 Most Cards',icon:'🃏'},
+  {id:'rarest',label:'💎 Rarest Card',icon:'💎'},
+  {id:'money',label:'💰 Richest',icon:'💰'}
+];
+
 async function renderLB(){
   const el=document.getElementById('lb-content');
   el.innerHTML='<div class="empty">Loading...</div>';
-  const{data:users}=await sb.from('users').select('*');
-  const{data:cards}=await sb.from('player_cards').select('*');
+  const[{data:users},{data:cards}]=await Promise.all([
+    sb.from('users').select('*'),
+    sb.from('player_cards').select('*')
+  ]);
   if(!users||!users.length){el.innerHTML='<div class="empty">No players yet</div>';return;}
-  const sorted=[...users].sort((a,b)=>(b.wins||0)-(a.wins||0)||(a.losses||0)-(b.losses||0));
-  const medals=['🥇','🥈','🥉'];
-  el.innerHTML='<h3 style="margin-bottom:1rem;">🏆 Leaderboard</h3>'+sorted.map((p,i)=>{
-    const pc=(cards||[]).filter(c=>c.owner===p.id&&!c.is_income_card);
-    const top=[...pc].sort((a,b)=>b.level-a.level)[0];
-    return `<div class="row-item">
-      <div style="display:flex;align-items:center;gap:12px;">
-        <div style="font-size:22px;width:28px;text-align:center;">${medals[i]||i+1}</div>
-        <div>
-          <div style="font-size:14px;font-weight:700;">${p.title?`<span style="color:${p.title_color||'var(--text)'};">[${p.title}]</span> `:''}${p.id} <span style="font-size:12px;color:var(--text3);">Lv ${p.level||1}</span></div>
-          <div style="font-size:12px;color:var(--text3);">${pc.length} cards${top?` · Best: <span style="color:${RARITY_COLORS[top.rarity]}">${top.name}</span> Lv${top.level}`:''}</div>
+  _lbUsers=users;_lbCards=cards||[];
+  el.innerHTML=`
+    <h3 style="margin-bottom:0.75rem;">🏆 Leaderboards</h3>
+    <div class="tab-row" id="lb-tabs" style="margin-bottom:1.25rem;">
+      ${LB_TABS.map(t=>`<button class="tab-btn${t.id==='power'?' active':''}" onclick="switchLBTab('${t.id}')" data-lbtab="${t.id}">${t.label}</button>`).join('')}
+    </div>
+    <div id="lb-body"></div>`;
+  renderLBBody('power');
+}
+
+function switchLBTab(tabId){
+  _lbTab=tabId;
+  document.querySelectorAll('#lb-tabs .tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.lbtab===tabId));
+  renderLBBody(tabId);
+}
+
+function renderLBBody(tabId){
+  const users=_lbUsers,cards=_lbCards;
+  const body=document.getElementById('lb-body');
+  if(!body)return;
+
+  let ranked=[]; // [{p, primaryStat, primaryLabel, secondaryHTML, pc}]
+
+  if(tabId==='power'){
+    ranked=users.map(p=>{
+      const pc=cards.filter(c=>c.owner===p.id&&!c.is_income_card);
+      const score=powerScore(p,pc);
+      const top=[...pc].sort((a,b)=>cardScore(b)-cardScore(a))[0];
+      return{p,pc,primaryStat:score,primaryLabel:score.toLocaleString()+' pts',
+        secondaryHTML:`Lv ${p.level||1} · ${pc.length} cards${top?` · Best: <span style="color:${RARITY_COLORS[top.rarity]}">${top.name}</span>`:''}`};
+    }).sort((a,b)=>b.primaryStat-a.primaryStat);
+  } else if(tabId==='wins'){
+    ranked=users.map(p=>{
+      const total=(p.wins||0)+(p.losses||0);
+      const ratio=total?Math.round(((p.wins||0)/total)*100):0;
+      const pc=cards.filter(c=>c.owner===p.id&&!c.is_income_card);
+      return{p,pc,primaryStat:ratio,primaryLabel:`${ratio}% WR`,
+        secondaryHTML:`${p.wins||0}W ${p.losses||0}L · Lv ${p.level||1}`};
+    }).filter(r=>(r.p.wins||0)+(r.p.losses||0)>0).sort((a,b)=>b.primaryStat-a.primaryStat||(b.p.wins||0)-(a.p.wins||0));
+  } else if(tabId==='cards'){
+    ranked=users.map(p=>{
+      const pc=cards.filter(c=>c.owner===p.id&&!c.is_income_card);
+      return{p,pc,primaryStat:pc.length,primaryLabel:`${pc.length} cards`,
+        secondaryHTML:`Lv ${p.level||1} · ${p.wins||0}W ${p.losses||0}L`};
+    }).sort((a,b)=>b.primaryStat-a.primaryStat);
+  } else if(tabId==='rarest'){
+    ranked=users.map(p=>{
+      const pc=cards.filter(c=>c.owner===p.id&&!c.is_income_card);
+      const top=[...pc].sort((a,b)=>b.rarity-a.rarity||cardScore(b)-cardScore(a))[0];
+      return{p,pc,primaryStat:top?top.rarity:-1,top,
+        primaryLabel:top?RARITIES[top.rarity]:'—',
+        secondaryHTML:top?`${top.name} · Lv ${top.level}`:'No cards yet'};
+    }).filter(r=>r.top).sort((a,b)=>b.primaryStat-a.primaryStat||cardScore(b.top)-cardScore(a.top));
+  } else if(tabId==='money'){
+    ranked=users.map(p=>{
+      const pc=cards.filter(c=>c.owner===p.id&&!c.is_income_card);
+      return{p,pc,primaryStat:p.money||0,primaryLabel:`$${(p.money||0).toLocaleString()}`,
+        secondaryHTML:`Lv ${p.level||1} · ${pc.length} cards`};
+    }).sort((a,b)=>b.primaryStat-a.primaryStat);
+  }
+
+  if(!ranked.length){body.innerHTML='<div class="empty">No data yet for this category.</div>';return;}
+
+  const podium=ranked.slice(0,3);
+  const rest=ranked.slice(3);
+  const podiumColors=['#ffd700','#c0c0c0','#cd7f32'];
+  const podiumGlow=['rgba(255,215,0,0.45)','rgba(192,192,192,0.35)','rgba(205,127,50,0.35)'];
+  const podiumOrder=podium.length===3?[1,0,2]:podium.map((_,i)=>i); // 2nd,1st,3rd visual order
+  const heights=['132px','164px','112px'];
+  const medalEmoji=['🥈','🥇','🥉'];
+
+  body.innerHTML=`
+    <div style="display:flex;align-items:flex-end;justify-content:center;gap:14px;margin-bottom:2rem;flex-wrap:wrap;">
+      ${podiumOrder.map((idx,visualPos)=>{
+        if(idx>=podium.length)return'';
+        const r=podium[idx];
+        const isAdm=isAdminUser(r.p);
+        const rank=idx; // 0=1st,1=2nd,2=3rd
+        const color=podiumColors[rank];
+        const glow=podiumGlow[rank];
+        const h=heights[visualPos]||'120px';
+        return `<div style="display:flex;flex-direction:column;align-items:center;cursor:pointer;width:140px;" onclick="openProfile('${r.p.id}')">
+          <div style="font-size:28px;margin-bottom:4px;${rank===0?'animation:podiumBounce 2s ease-in-out infinite;':''}">${medalEmoji[rank]}</div>
+          <div style="width:64px;height:64px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:30px;border:3px solid ${color};box-shadow:0 0 ${rank===0?24:14}px ${glow};margin-bottom:6px;">${displayAvatar(r.p)}</div>
+          <div style="font-size:13px;font-weight:800;text-align:center;line-height:1.3;">${isAdm?`<span class="admin-name">${r.p.id}</span>`:r.p.id}</div>
+          <div style="font-size:11px;color:${color};font-weight:700;margin-bottom:8px;">${r.primaryLabel}</div>
+          <div style="width:100%;height:${h};background:linear-gradient(180deg,${color}22,${color}08);border:2px solid ${color};border-radius:10px 10px 0 0;display:flex;align-items:flex-start;justify-content:center;padding-top:8px;box-shadow:0 0 18px ${glow} inset;">
+            <span style="font-size:22px;font-weight:900;color:${color};text-shadow:0 0 10px ${glow};">#${rank+1}</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    ${rest.length?rest.map((r,i)=>{
+      const isAdm=isAdminUser(r.p);
+      return `<div class="row-item" style="cursor:pointer;" onclick="openProfile('${r.p.id}')">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="font-size:15px;font-weight:700;width:28px;text-align:center;color:var(--text3);">${i+4}</div>
+          <div style="width:34px;height:34px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:17px;">${displayAvatar(r.p)}</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;">${nameHTML(r.p)}</div>
+            <div style="font-size:12px;color:var(--text3);">${r.secondaryHTML}</div>
+          </div>
         </div>
-      </div>
-      <div style="text-align:right;">
-        <div style="font-size:16px;font-weight:700;color:#fbbf24;">${p.wins||0}W</div>
-        <div style="font-size:12px;color:var(--text3);">${p.losses||0}L · 💰$${p.money||0}</div>
-      </div>
-    </div>`;
-  }).join('');
+        <div style="text-align:right;">
+          <div style="font-size:15px;font-weight:700;color:#fbbf24;">${r.primaryLabel}</div>
+        </div>
+      </div>`;
+    }).join(''):''}
+  `;
 }
 
 // ── ADMIN ──────────────────────────────────────────────
@@ -3087,13 +3212,15 @@ async function renderPlayers(){
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;">
       ${users.map(u=>{
         const isSelf=u.id===currentUser.id;
-        const tc=u.title_color||'var(--text3)';
-        return `<div class="box" style="cursor:pointer;margin-bottom:0;transition:all var(--transition);" onclick="${isSelf?`go('profile')`:`openProfile('${u.id}')`}" onmouseover="this.style.borderColor='var(--border2)'" onmouseout="this.style.borderColor='var(--border)'">
+        const isAdm=isAdminUser(u);
+        const t=displayTitle(u);
+        const tc=displayTitleColor(u)||'var(--text3)';
+        return `<div class="box" style="cursor:pointer;margin-bottom:0;transition:all var(--transition);${isAdm?'border-color:#ffd70055;':''}" onclick="${isSelf?`go('profile')`:`openProfile('${u.id}')`}" onmouseover="this.style.borderColor='${isAdm?'#ffd700':'var(--border2)'}'" onmouseout="this.style.borderColor='${isAdm?'#ffd70055':'var(--border)'}'">
           <div style="display:flex;align-items:center;gap:10px;">
-            <div style="width:40px;height:40px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">${u.avatar||'🧑'}</div>
+            <div style="width:40px;height:40px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;${isAdm?'box-shadow:0 0 10px rgba(255,215,0,0.5);':''}">${displayAvatar(u)}</div>
             <div>
-              <div style="font-weight:700;font-size:14px;">${isSelf?'<span style="color:var(--accent);">(You) </span>':''}${u.id}</div>
-              ${u.title?`<div style="font-size:11px;font-weight:600;color:${tc};">[${u.title}]</div>`:''}
+              <div style="font-weight:700;font-size:14px;">${isSelf&&!isAdm?'<span style="color:var(--accent);">(You) </span>':''}${isAdm?`<span class="admin-name">${u.id}</span>`:u.id}</div>
+              ${t?`<div style="font-size:11px;font-weight:600;color:${tc};">[${t}]</div>`:''}
               <div style="font-size:11px;color:var(--text3);">Lv ${u.level||1} · ${u.wins||0}W ${u.losses||0}L</div>
             </div>
           </div>
@@ -3139,19 +3266,22 @@ async function renderProfile(uid){
   // Milestone titles achieved
   const milestoneEntries=Object.entries(MILESTONES).filter(([lvl,m])=>(u.level||1)>=(+lvl)&&m.title);
 
-  const tc=u.title_color||'var(--accent)';
+  const isAdm=isAdminUser(u);
+  const t=displayTitle(u);
+  const tc=displayTitleColor(u)||'var(--accent)';
+  const canEditAvatar=isSelf&&!isAdm;
 
   el.innerHTML=`
     <div style="max-width:680px;">
       <!-- Header -->
-      <div class="box" style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:12px;">
+      <div class="box" style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:12px;${isAdm?'border-color:#ffd70066;':''}">
         <div style="position:relative;flex-shrink:0;">
-          <div id="profile-avatar" style="width:72px;height:72px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:36px;border:2px solid var(--border2);${isSelf?'cursor:pointer;':''}transition:all var(--transition);" ${isSelf?`onclick="openEmojiPicker()" title="Change avatar"`:''}>${u.avatar||'🧑'}</div>
-          ${isSelf?`<div style="position:absolute;bottom:0;right:0;background:var(--accent);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer;border:2px solid var(--bg2);" onclick="openEmojiPicker()">✏️</div>`:''}
+          <div id="profile-avatar" style="width:72px;height:72px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:36px;border:2px solid ${isAdm?'#ffd700':'var(--border2)'};${isAdm?'box-shadow:0 0 16px rgba(255,215,0,0.5);':''}${canEditAvatar?'cursor:pointer;':''}transition:all var(--transition);" ${canEditAvatar?`onclick="openEmojiPicker()" title="Change avatar"`:''}>${displayAvatar(u)}</div>
+          ${canEditAvatar?`<div style="position:absolute;bottom:0;right:0;background:var(--accent);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer;border:2px solid var(--bg2);" onclick="openEmojiPicker()">✏️</div>`:''}
         </div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:22px;font-weight:800;letter-spacing:-0.5px;">${u.id}</div>
-          ${u.title?`<div style="font-size:14px;font-weight:700;color:${tc};margin-bottom:4px;">[${u.title}]</div>`:''}
+          <div style="font-size:22px;font-weight:800;letter-spacing:-0.5px;">${isAdm?`<span class="admin-name">${u.id}</span>`:u.id}</div>
+          ${t?`<div style="font-size:14px;font-weight:700;color:${tc};margin-bottom:4px;${isAdm?'text-shadow:0 0 8px rgba(255,215,0,0.4);':''}">[${t}]</div>`:''}
           <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px;">
             <span style="font-size:13px;color:var(--text2);">⭐ Level ${u.level||1}</span>
             <span style="font-size:13px;color:#fbbf24;">⚔️ ${u.wins||0} Wins</span>
@@ -3232,7 +3362,7 @@ async function renderProfile(uid){
             const fu=allUsers.find(x=>x.id===fid);
             return `<div class="row-item" style="cursor:pointer;" onclick="openProfile('${fid}')">
               <div style="display:flex;align-items:center;gap:8px;">
-                <span style="font-size:16px;">${fu?fu.avatar||'🧑':'🧑'}</span>
+                <span style="font-size:16px;">${fu?displayAvatar(fu):'🧑'}</span>
                 <div>
                   <div style="font-size:13px;font-weight:600;">${fid}</div>
                   ${fu?`<div style="font-size:11px;color:var(--text3);">Lv ${fu.level||1}</div>`:''}
@@ -3318,6 +3448,26 @@ async function saveAvatar(emoji){
   closeEmojiModal();
   showToast('Avatar updated!');
   renderProfile(currentUser.id);
+}
+
+// ── ADMIN IDENTITY (unobtainable by normal players) ───────────────────
+const ADMIN_TITLE='Architect';
+const ADMIN_AVATAR='🛠️';
+const ADMIN_TITLE_COLOR='#ffd700';
+
+function isAdminUser(u){return !!(u&&u.is_admin);}
+function displayTitle(u){return isAdminUser(u)?ADMIN_TITLE:(u&&u.title)||null;}
+function displayTitleColor(u){return isAdminUser(u)?ADMIN_TITLE_COLOR:(u&&u.title_color)||null;}
+function displayAvatar(u){return isAdminUser(u)?ADMIN_AVATAR:(u&&u.avatar)||'🧑';}
+// Returns HTML for a player's name, gold/animated if admin, with title prefix
+function nameHTML(u,opts){
+  opts=opts||{};
+  const t=displayTitle(u);
+  const tc=displayTitleColor(u);
+  const id=u&&u.id||'';
+  const namePart=isAdminUser(u)?`<span class="admin-name">${id}</span>`:id;
+  const titlePart=t?`<span style="color:${tc};font-weight:700;">[${t}]</span> `:'';
+  return `${titlePart}${namePart}`;
 }
 
 function classColor(cls){
