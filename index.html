@@ -227,7 +227,7 @@ document.addEventListener("DOMContentLoaded",function(){
     <div class="main-topbar-row">
       <h2 style="font-size:18px;">⚔️ Untitled Card Game</h2>
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-        <span class="level-badge" id="level-badge" onclick="openLevelModal()" style="cursor:pointer;" title="Click to see milestones &amp; quests">Lv 1</span>
+        <span class="level-badge" id="level-badge" onclick="openLevelModal()" style="cursor:pointer;" title="Click to see milestones">Lv 1</span>
         <span class="money-badge" id="money-badge">💰 $0</span>
         <p id="admin-label" style="font-size:12px;color:var(--text3);margin:0;"></p>
         <div id="daily-reward-btn-wrap" style="display:none;">
@@ -252,6 +252,7 @@ document.addEventListener("DOMContentLoaded",function(){
       <button onclick="go('battle')">⚔️ Battle</button>
       <button onclick="go('trade')">🤝 Trade</button>
       <button onclick="go('training')">🏋️ Training</button>
+      <button onclick="go('quests')">📋 Quests</button>
       <button onclick="go('leaderboard')">🏆 Leaderboard</button>
       <button onclick="go('news')">📰 News</button>
       <button onclick="go('players')">👥 Players</button>
@@ -615,6 +616,7 @@ document.addEventListener("DOMContentLoaded",function(){
       </div>
     </div>
   </div>
+  <div id="screen-quests" class="screen"><div id="quests-content"></div></div>
   <div id="screen-players" class="screen"><div id="players-content"></div></div>
   <div id="screen-profile" class="screen"><div id="profile-content"></div></div>
     </div><!-- /main-content -->
@@ -908,12 +910,13 @@ function go(name){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
   const mc=document.querySelector('.main-content');if(mc)mc.scrollTop=0;
-  const names=['mycards','packs','battle','trade','training','leaderboard','news','players','profile','admin'];
+  const names=['mycards','packs','battle','trade','training','quests','leaderboard','news','players','profile','admin'];
   document.querySelectorAll('.main-sidebar button').forEach((b,i)=>b.classList.toggle('active',names[i]===name));
   if(name==='mycards')renderMyCards();
   if(name==='battle')renderBattleLobby();
   if(name==='trade')renderTrade();
   if(name==='training')renderTraining();
+  if(name==='quests')renderQuestsTab();
   if(name==='leaderboard')renderLB();
   if(name==='news')renderNews();
   if(name==='players')renderPlayers();
@@ -2685,10 +2688,8 @@ async function claimQuest(questId,reward){
 }
 
 async function refreshQuestPanel(){
-  const modal=document.getElementById('level-modal');
-  if(!modal)return;
-  const tab=modal.querySelector('[data-tab="quests"]');
-  if(tab)showLevelTab('quests');
+  const questsScreen=document.getElementById('screen-quests');
+  if(questsScreen&&questsScreen.classList.contains('active'))renderQuestsTab();
 }
 
 // ── LEVEL MODAL ───────────────────────────────────────
@@ -2715,15 +2716,11 @@ async function openLevelModal(){
         </div>
         <button class="btn btn-sm" onclick="document.getElementById('level-modal').remove()">✕ Close</button>
       </div>
-      <div style="display:flex;gap:4px;margin-bottom:1rem;border-bottom:1px solid var(--border);">
-        <button class="tab-btn active" data-tab="milestones" onclick="showLevelTab('milestones')">🏆 Milestones</button>
-        <button class="tab-btn" data-tab="quests" onclick="showLevelTab('quests')">📋 Quests</button>
-      </div>
       <div id="level-tab-content"><div class="empty">Loading...</div></div>
     </div>`;
   document.body.appendChild(div);
   div.addEventListener('click',function(e){if(e.target===this)this.remove();});
-  showLevelTab('milestones');
+  document.getElementById('level-tab-content').innerHTML=await renderMilestonesPanel();
 }
 
 async function showLevelTab(tab){
@@ -2733,6 +2730,13 @@ async function showLevelTab(tab){
   content.innerHTML='<div class="empty">Loading...</div>';
   if(tab==='milestones')content.innerHTML=await renderMilestonesPanel();
   else if(tab==='quests')content.innerHTML=await renderQuestsPanel();
+}
+
+async function renderQuestsTab(){
+  const el=document.getElementById('quests-content');
+  el.innerHTML='<div class="empty">Loading...</div>';
+  const panelHTML=await renderQuestsPanel();
+  el.innerHTML=`<h3 style="margin-bottom:1rem;">📋 Quests</h3>${panelHTML}`;
 }
 
 async function updateQuestProgress(type, amount, mode){
@@ -2840,6 +2844,41 @@ async function renderTraining(){
       }).join(''):`<div class="empty">All cards are training!</div>`}
     </div>`;
 }
+async function startTraining(uid,cost,xp,durHours){
+  if((currentUser.money||0)<cost){showToast('Not enough money!');return;}
+  const until=new Date(Date.now()+durHours*3600*1000).toISOString();
+  const{error}=await sb.from('player_cards').update({training_until:until,training_xp_pending:xp}).eq('uid',uid);
+  if(error){showToast('Error starting training');return;}
+  const newMoney=(currentUser.money||0)-cost;
+  await sb.from('users').update({money:newMoney}).eq('id',currentUser.id);
+  currentUser.money=newMoney;
+  updateHUD();
+  showToast('Training started!');
+  renderTraining();
+}
+
+async function collectTraining(uid){
+  const{data:c}=await sb.from('player_cards').select('*').eq('uid',uid).single();
+  if(!c){showToast('Card not found');return;}
+  let xp=(c.xp||0)+(c.training_xp_pending||0);
+  let level=c.level;
+  let atk=c.atk;let def=c.def;let max_hp=c.max_hp||c.hp;
+  let unlocked_moves=[...(c.unlocked_moves||[])];
+  while(xp>=xpForCard(level)){
+    xp-=xpForCard(level);level++;
+    atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);
+    def=Math.round(def*RARITY_STAT_MULT[c.rarity]);
+    max_hp=Math.round(max_hp*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
+    if(c.pool_card_id){
+      const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',c.pool_card_id).single();
+      if(pc&&pc.moves)pc.moves.forEach(m=>{if(m.unlock_level===level&&!unlocked_moves.includes(m.name))unlocked_moves.push(m.name);});
+    }
+  }
+  await sb.from('player_cards').update({xp,level,atk,def,max_hp,unlocked_moves,training_until:null,training_xp_pending:0}).eq('uid',uid);
+  showToast(`${c.name} gained XP!${level>c.level?' Leveled up to '+level+'!':''}`);
+  renderTraining();
+}
+
 // ── PLAYERS & PROFILES ─────────────────────────────────────────────────
 
 function cardScore(c){
