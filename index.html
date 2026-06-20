@@ -134,6 +134,18 @@ body.light .ability-btn{color:#1a1a1a;}
 .theme-btn{background:var(--btn-bg);border:1px solid var(--btn-border);border-radius:var(--radius-sm);padding:5px 10px;font-size:15px;cursor:pointer;transition:all var(--transition);}
 .theme-btn:hover{background:var(--bg3);}
 .income-card-badge{position:absolute;top:6px;right:6px;background:#16a34a;color:#fff;font-size:9px;padding:2px 5px;border-radius:4px;font-weight:700;}
+
+/* ── SKILL TREE ── */
+.skill-tab-row{display:flex;gap:6px;margin-bottom:1.25rem;flex-wrap:wrap;}
+.skill-tab-btn{padding:8px 16px;border-radius:10px;border:2px solid var(--border);background:var(--bg2);color:var(--text2);cursor:pointer;font-size:13px;font-weight:600;transition:all var(--transition);}
+.skill-tab-btn.active{background:var(--bg3);color:var(--text);}
+.skill-node{background:var(--card-bg);border:2px solid var(--border);border-radius:12px;padding:12px;width:170px;flex-shrink:0;transition:all var(--transition);position:relative;}
+.skill-node.unlocked{box-shadow:0 0 14px var(--node-glow,rgba(79,142,247,0.3));}
+.skill-node.locked-req{opacity:0.4;}
+.skill-node.affordable{cursor:pointer;}
+.skill-node.affordable:hover{transform:translateY(-2px);}
+.skill-tree-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:24px;justify-content:flex-start;position:relative;}
+.skill-points-banner{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px 18px;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
 .pack-option{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;text-align:center;flex:1;min-width:150px;transition:all var(--transition);}
 .pack-option:hover{border-color:var(--border2);transform:translateY(-2px);box-shadow:var(--shadow);}
 .guide-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:1rem;}
@@ -173,6 +185,7 @@ body.light .ability-btn{color:#1a1a1a;}
 @keyframes dmgFloat{0%{opacity:1;transform:translateX(-50%) translateY(0);}100%{opacity:0;transform:translateX(-50%) translateY(-56px);}}
 @keyframes sparkleFly{0%{opacity:1;transform:translateY(0) scale(0.5);}100%{opacity:0;transform:translateY(-40px) scale(1.4);}}
 @keyframes podiumBounce{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
+@keyframes notifPulse{0%,100%{box-shadow:0 0 16px rgba(245,158,11,0.25);}50%{box-shadow:0 0 26px rgba(245,158,11,0.5);}}
 .admin-name{background:linear-gradient(90deg,#fff6d8,#ffd700,#ff9d00,#ffd700,#fff6d8);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;animation:adminShine 3s linear infinite;font-weight:800;text-shadow:0 0 12px rgba(255,215,0,0.35);letter-spacing:0.3px;}
 @keyframes adminShine{0%{background-position:0% center;}100%{background-position:200% center;}}
 .admin-badge-glow{box-shadow:0 0 10px rgba(255,215,0,0.55),0 0 2px rgba(255,215,0,0.8);}
@@ -259,6 +272,7 @@ document.addEventListener("DOMContentLoaded",function(){
       <button onclick="go('trade')">🤝 Trade</button>
       <button onclick="go('training')">🏋️ Training</button>
       <button onclick="go('quests')">📋 Quests</button>
+      <button onclick="go('skills')">🌳 Skill Tree</button>
       <button onclick="go('leaderboard')">🏆 Leaderboard</button>
       <button onclick="go('news')">📰 News</button>
       <button onclick="go('players')">👥 Players</button>
@@ -598,6 +612,7 @@ document.addEventListener("DOMContentLoaded",function(){
     </div>
   </div>
   <div id="screen-quests" class="screen"><div id="quests-content"></div></div>
+  <div id="screen-skills" class="screen"><div id="skills-content"></div></div>
   <div id="screen-players" class="screen"><div id="players-content"></div></div>
   <div id="screen-profile" class="screen"><div id="profile-content"></div></div>
     </div><!-- /main-content -->
@@ -673,6 +688,89 @@ const RARITY_XP_MULT=[1.0,1.15,1.35,1.6,1.9,2.2,2.6,3.0];
 const RARITY_STAT_MULT=[1.04,1.07,1.10,1.13,1.16,1.20,1.24,1.28];
 
 // ── UTILITY / ACTION CARDS ────────────────────────────────────────────
+
+// ── PLAYER SKILL TREE ──────────────────────────────────────────────────
+// Permanent account-wide perks. Each node costs Skill Points (earned on level-up).
+// tier: how many points must already be spent in this tree before this node unlocks.
+const SKILL_TREES=[
+  {
+    id:'offense',name:'Offense',icon:'⚔️',color:'#ef4444',
+    nodes:[
+      {id:'off_crit1',name:'Keen Eye',desc:'+2% Crit Chance',icon:'🎯',cost:1,tier:0,effect:'crit_pct',value:2},
+      {id:'off_atk1', name:'Iron Grip',desc:'+3% ATK',icon:'💪',cost:1,tier:0,effect:'atk_pct',value:3},
+      {id:'off_crit2',name:'Hawk Eye',desc:'+3% Crit Chance',icon:'🎯',cost:2,tier:1,effect:'crit_pct',value:3,requires:'off_crit1'},
+      {id:'off_atk2', name:'Power Surge',desc:'+5% ATK',icon:'💪',cost:2,tier:1,effect:'atk_pct',value:5,requires:'off_atk1'},
+      {id:'off_critdmg',name:'Lethal Precision',desc:'+15% Critical Damage',icon:'💥',cost:3,tier:2,effect:'crit_dmg_pct',value:15,requires:'off_crit2'},
+      {id:'off_first',name:'Opening Strike',desc:'+10% damage on your first attack each battle',icon:'🗡️',cost:3,tier:2,effect:'first_hit_pct',value:10,requires:'off_atk2'},
+      {id:'off_master',name:'Battlemaster',desc:'+8% ATK and +5% Crit Chance',icon:'👑',cost:5,tier:3,effect:'master_offense',value:1,requires:'off_critdmg'},
+    ]
+  },
+  {
+    id:'defense',name:'Defense',icon:'🛡️',color:'#60a5fa',
+    nodes:[
+      {id:'def_def1',name:'Thick Hide',desc:'+3% DEF',icon:'🛡️',cost:1,tier:0,effect:'def_pct',value:3},
+      {id:'def_hp1', name:'Vitality',desc:'+5% Max HP',icon:'❤️',cost:1,tier:0,effect:'hp_pct',value:5},
+      {id:'def_def2',name:'Stone Skin',desc:'+5% DEF',icon:'🛡️',cost:2,tier:1,effect:'def_pct',value:5,requires:'def_def1'},
+      {id:'def_hp2', name:'Resilience',desc:'+8% Max HP',icon:'❤️',cost:2,tier:1,effect:'hp_pct',value:8,requires:'def_hp1'},
+      {id:'def_dodge',name:'Evasive Footwork',desc:'+3% Dodge Chance',icon:'💨',cost:3,tier:2,effect:'dodge_pct',value:3,requires:'def_def2'},
+      {id:'def_regen',name:'Steady Recovery',desc:'Regenerate 2% Max HP at the start of each of your turns',icon:'💚',cost:3,tier:2,effect:'turn_regen_pct',value:2,requires:'def_hp2'},
+      {id:'def_master',name:'Unbreakable',desc:'+10% DEF and +10% Max HP',icon:'👑',cost:5,tier:3,effect:'master_defense',value:1,requires:'def_dodge'},
+    ]
+  },
+  {
+    id:'stamina',name:'Stamina',icon:'⚡',color:'#facc15',
+    nodes:[
+      {id:'sta_start1',name:'Quick Start',desc:'+1 Starting Stamina',icon:'⚡',cost:1,tier:0,effect:'start_stamina_flat',value:1},
+      {id:'sta_regen1',name:'Deep Breathing',desc:'+2% Stamina Regen',icon:'🌬️',cost:1,tier:0,effect:'stamina_regen_pct',value:2},
+      {id:'sta_start2',name:'Adrenal Rush',desc:'+2 Starting Stamina',icon:'⚡',cost:2,tier:1,effect:'start_stamina_flat',value:2,requires:'sta_start1'},
+      {id:'sta_regen2',name:'Second Wind',desc:'+4% Stamina Regen',icon:'🌬️',cost:2,tier:1,effect:'stamina_regen_pct',value:4,requires:'sta_regen1'},
+      {id:'sta_max',name:'Expanded Reserves',desc:'+10% Max Stamina',icon:'🔋',cost:3,tier:2,effect:'max_stamina_pct',value:10,requires:'sta_start2'},
+      {id:'sta_efficiency',name:'Efficient Casting',desc:'All moves cost 5% less stamina',icon:'♻️',cost:3,tier:2,effect:'stamina_cost_reduction_pct',value:5,requires:'sta_regen2'},
+      {id:'sta_master',name:'Limitless Energy',desc:'+3 Starting Stamina and +10% Stamina Regen',icon:'👑',cost:5,tier:3,effect:'master_stamina',value:1,requires:'sta_max'},
+    ]
+  },
+  {
+    id:'economy',name:'Economy',icon:'💰',color:'#4ade80',
+    nodes:[
+      {id:'eco_money1',name:'Coin Collector',desc:'+5% money earned from battle wins',icon:'💰',cost:1,tier:0,effect:'win_money_pct',value:5},
+      {id:'eco_xp1',name:'Fast Learner',desc:'+5% player XP earned',icon:'📘',cost:1,tier:0,effect:'player_xp_pct',value:5},
+      {id:'eco_money2',name:'Treasure Hunter',desc:'+10% money earned from battle wins',icon:'💰',cost:2,tier:1,effect:'win_money_pct',value:10,requires:'eco_money1'},
+      {id:'eco_training',name:'Dedicated Trainer',desc:'+10% XP gained from card training',icon:'🏋️',cost:2,tier:1,effect:'training_xp_pct',value:10,requires:'eco_xp1'},
+      {id:'eco_packs',name:'Lucky Pulls',desc:'+2% chance to roll one rarity tier higher when opening packs',icon:'🍀',cost:3,tier:2,effect:'pack_luck_pct',value:2,requires:'eco_money2'},
+      {id:'eco_daily',name:'Loyalty Bonus',desc:'+20% daily login reward',icon:'🎁',cost:3,tier:2,effect:'daily_reward_pct',value:20,requires:'eco_training'},
+      {id:'eco_master',name:'Tycoon',desc:'+15% money earned and +15% player XP earned',icon:'👑',cost:5,tier:3,effect:'master_economy',value:1,requires:'eco_packs'},
+    ]
+  }
+];
+
+function allSkillNodes(){return SKILL_TREES.flatMap(t=>t.nodes);}
+function getSkillNode(id){return allSkillNodes().find(n=>n.id===id);}
+
+// Total skill points a player has earned so far (1 per level after level 1)
+function totalSkillPoints(level){return Math.max(0,(level||1)-1);}
+
+// Returns {used, available} for a player's unlocked node id list
+function skillPointSummary(unlocked,level){
+  const used=(unlocked||[]).reduce((sum,id)=>{const n=getSkillNode(id);return sum+(n?n.cost:0);},0);
+  return{used,available:totalSkillPoints(level)-used};
+}
+
+// Aggregate all unlocked perks into a flat bonus object for battle calculations
+function aggregateSkillBonuses(unlocked){
+  const b={crit_pct:0,atk_pct:0,crit_dmg_pct:0,first_hit_pct:0,def_pct:0,hp_pct:0,dodge_pct:0,turn_regen_pct:0,
+    start_stamina_flat:0,stamina_regen_pct:0,max_stamina_pct:0,stamina_cost_reduction_pct:0,
+    win_money_pct:0,player_xp_pct:0,training_xp_pct:0,pack_luck_pct:0,daily_reward_pct:0};
+  (unlocked||[]).forEach(id=>{
+    const n=getSkillNode(id);if(!n)return;
+    if(n.effect==='master_offense'){b.atk_pct+=8;b.crit_pct+=5;}
+    else if(n.effect==='master_defense'){b.def_pct+=10;b.hp_pct+=10;}
+    else if(n.effect==='master_stamina'){b.start_stamina_flat+=3;b.stamina_regen_pct+=10;}
+    else if(n.effect==='master_economy'){b.win_money_pct+=15;b.player_xp_pct+=15;}
+    else if(b[n.effect]!==undefined)b[n.effect]+=n.value;
+  });
+  return b;
+}
+
 const UTILITY_CARDS=[
   {id:'stamina_boost_25',name:'Team Stamina Surge',icon:'⚡',desc:'+25% stamina to your whole team at battle start',cost:300,effect:'team_stamina_pct',value:25,color:'#facc15'},
   {id:'stamina_boost_50',name:'Stamina Overload',icon:'🌩️',desc:'+50% stamina to your whole team at battle start',cost:700,effect:'team_stamina_pct',value:50,color:'#f59e0b'},
@@ -828,6 +926,7 @@ const QUEUE_SIZES={0:1,1:3,2:5};
 
 let currentUser=null,allUsers=[],battleSub=null,incomingSub=null,incomingPoll=null,currentBattle=null,selectedTeam=[],selectedQueue=1,_lastIncomingCount=0;
 let pendingTargetMode=false,pendingMove=null,pendingFighterUid=null,selectedAttackerUid=null,selectedUtilityCard=null;
+let globalNotifPoll=null,_lastFriendReqCount=0;
 let currentModalCard=null;
 
 // ── THEME ──────────────────────────────────────────────
@@ -914,11 +1013,12 @@ function setErr(msg){const e=document.getElementById('li-err');e.textContent=msg
 async function handleDailyLogin(){
   const today=new Date().toISOString().slice(0,10);
   // Re-fetch from DB to get the real last_login value
-  const{data:fresh}=await sb.from('users').select('last_login,money,player_xp,level').eq('id',currentUser.id).single();
+  const{data:fresh}=await sb.from('users').select('last_login,money,player_xp,level,unlocked_skills').eq('id',currentUser.id).single();
   if(fresh)currentUser={...currentUser,...fresh};
   const lastLogin=currentUser.last_login?String(currentUser.last_login).slice(0,10):'';
   if(lastLogin===today)return;
-  const reward=20+(5*(currentUser.level||1));
+  const skills=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
+  const reward=Math.round((20+(5*(currentUser.level||1)))*(1+skills.daily_reward_pct/100));
   const pxp=30;
   const oldLevel=currentUser.level||1;
   let{money,player_xp,level}={money:currentUser.money||0,player_xp:currentUser.player_xp||0,level:currentUser.level||1};
@@ -933,6 +1033,37 @@ async function handleDailyLogin(){
   await updateQuestProgress('level',level);
 }
 
+// ── GLOBAL NOTIFICATIONS (runs regardless of active tab) ───────────────
+async function checkFriendRequests(silent){
+  const{data,error}=await sb.from('friend_requests').select('*').eq('to',currentUser.id).eq('status','pending');
+  if(error){updateFriendReqBadge(0);return;}
+  const count=(data||[]).length;
+  if(!silent&&count>_lastFriendReqCount&&_lastFriendReqCount>=0)showToast('🤝 New friend request!');
+  _lastFriendReqCount=count;
+  updateFriendReqBadge(count);
+}
+
+async function globalNotificationCheck(silent){
+  if(!currentUser)return;
+  // Avoid double-toasting battle challenges while already on the Battle tab (it polls itself)
+  const onBattleTab=document.getElementById('screen-battle')?.classList.contains('active');
+  await fetchIncomingChallenges(silent||onBattleTab);
+  // Avoid double-toasting friend requests while already on the Profile tab
+  const onProfileTab=document.getElementById('screen-profile')?.classList.contains('active');
+  await checkFriendRequests(silent||onProfileTab);
+}
+
+function startGlobalNotifications(){
+  if(globalNotifPoll)clearInterval(globalNotifPoll);
+  globalNotificationCheck(true); // silent first check on load — no toast spam
+  globalNotifPoll=setInterval(()=>globalNotificationCheck(false), 8000);
+}
+
+function stopGlobalNotifications(){
+  if(globalNotifPoll){clearInterval(globalNotifPoll);globalNotifPoll=null;}
+  _lastIncomingCount=0;_lastFriendReqCount=0;
+}
+
 async function enterApp(){
   document.getElementById('login-screen').style.display='none';
   document.getElementById('main-screen').style.display='flex';
@@ -944,6 +1075,7 @@ async function enterApp(){
   const lastLogin=currentUser.last_login?String(currentUser.last_login).slice(0,10):'';
   document.getElementById('daily-reward-btn-wrap').style.display=lastLogin!==today?'block':'none';
   updateHUD();await loadUsers();go('mycards');
+  startGlobalNotifications();
 }
 
 async function forceDailyLogin(){
@@ -980,6 +1112,7 @@ function logout(){
   if(battleSub)sb.removeChannel(battleSub);
   if(incomingSub)sb.removeChannel(incomingSub);
   if(incomingPoll)clearInterval(incomingPoll);
+  stopGlobalNotifications();
   document.getElementById('main-screen').style.display='none';
   document.getElementById('login-screen').style.display='block';
   document.getElementById('li-err').style.display='none';
@@ -996,7 +1129,7 @@ function go(name){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
   const mc=document.querySelector('.main-content');if(mc)mc.scrollTop=0;
-  const names=['mycards','packs','battle','trade','training','quests','leaderboard','news','players','profile','admin'];
+  const names=['mycards','packs','battle','trade','training','quests','skills','leaderboard','news','players','profile','admin'];
   document.querySelectorAll('.main-sidebar button').forEach((b,i)=>b.classList.toggle('active',names[i]===name));
   if(name==='mycards')renderMyCards();
   if(name==='packs')renderPacks();
@@ -1004,10 +1137,11 @@ function go(name){
   if(name==='trade')renderTrade();
   if(name==='training')renderTraining();
   if(name==='quests')renderQuestsTab();
+  if(name==='skills')renderSkillTree();
   if(name==='leaderboard')renderLB();
   if(name==='news')renderNews();
   if(name==='players')renderPlayers();
-  if(name==='profile')renderProfile(currentUser.id);
+  if(name==='profile'){renderProfile(currentUser.id);checkFriendRequests(true);}
   if(name==='admin'){adminTab('add-card',document.querySelector('.tab-btn'));loadPoolForEdit();setTimeout(updateSuggestedStats,100);}
 }
 
@@ -1297,12 +1431,107 @@ function poolTileHTML(c){
 // ── PACKS / SHOP ───────────────────────────────────────
 function rollRarity(packType){
   const odds=PACK_ODDS[packType];const r=Math.random();let cum=0;
-  for(let i=0;i<odds.length;i++){cum+=odds[i];if(r<cum)return i;}
-  return odds.findIndex(o=>o>0);
+  let result=odds.findIndex(o=>o>0);
+  for(let i=0;i<odds.length;i++){cum+=odds[i];if(r<cum){result=i;break;}}
+  // Lucky Pulls perk: chance to bump the roll up one rarity tier
+  const skills=aggregateSkillBonuses(currentUser?.unlocked_skills||[]);
+  if(skills.pack_luck_pct>0&&result<odds.length-1&&Math.random()<skills.pack_luck_pct/100)result++;
+  return result;
 }
 
 function packCost(pt,sizeIdx){
   return Math.round(PACK_BASE_COST[pt]*PACK_SIZE_MULT[sizeIdx]);
+}
+
+let _skillTab='offense';
+
+async function renderSkillTree(){
+  const el=document.getElementById('skills-content');
+  if(!el)return;
+  const unlocked=currentUser.unlocked_skills||[];
+  const{used,available}=skillPointSummary(unlocked,currentUser.level||1);
+
+  el.innerHTML=`
+    <h3 style="margin-bottom:0.5rem;">🌳 Skill Tree</h3>
+    <p style="font-size:13px;color:var(--text3);margin-bottom:1rem;">Permanent, account-wide perks that apply to every battle. Earn 1 skill point per level.</p>
+    <div class="skill-points-banner">
+      <div>
+        <div style="font-size:13px;color:var(--text3);">Skill Points</div>
+        <div style="font-size:22px;font-weight:800;color:${available>0?'#4ade80':'var(--text)'};">${available} <span style="font-size:13px;color:var(--text3);font-weight:500;">available</span></div>
+      </div>
+      <div style="font-size:12px;color:var(--text3);text-align:right;">${used} spent · ${totalSkillPoints(currentUser.level||1)} total earned (Lv ${currentUser.level||1})</div>
+    </div>
+    <div class="skill-tab-row" id="skill-tabs">
+      ${SKILL_TREES.map(t=>`<button class="skill-tab-btn${t.id===_skillTab?' active':''}" data-tree="${t.id}" onclick="switchSkillTab('${t.id}')" style="${t.id===_skillTab?`border-color:${t.color};color:${t.color};`:''}">${t.icon} ${t.name}</button>`).join('')}
+    </div>
+    <div id="skill-tree-body"></div>`;
+  renderSkillTreeBody();
+}
+
+function switchSkillTab(treeId){
+  _skillTab=treeId;
+  document.querySelectorAll('#skill-tabs .skill-tab-btn').forEach(b=>{
+    const tree=SKILL_TREES.find(t=>t.id===b.dataset.tree);
+    const active=b.dataset.tree===treeId;
+    b.classList.toggle('active',active);
+    b.style.borderColor=active?tree.color:'var(--border)';
+    b.style.color=active?tree.color:'var(--text2)';
+  });
+  renderSkillTreeBody();
+}
+
+function renderSkillTreeBody(){
+  const body=document.getElementById('skill-tree-body');
+  if(!body)return;
+  const tree=SKILL_TREES.find(t=>t.id===_skillTab);
+  const unlocked=currentUser.unlocked_skills||[];
+  const{available}=skillPointSummary(unlocked,currentUser.level||1);
+
+  // Group nodes by tier for a clean row-by-row layout
+  const tiers=[...new Set(tree.nodes.map(n=>n.tier))].sort((a,b)=>a-b);
+
+  body.innerHTML=tiers.map(tier=>{
+    const nodes=tree.nodes.filter(n=>n.tier===tier);
+    return `<div class="skill-tree-row">
+      ${nodes.map(n=>{
+        const isUnlocked=unlocked.includes(n.id);
+        const reqMet=!n.requires||unlocked.includes(n.requires);
+        const canAfford=available>=n.cost;
+        const canUnlock=!isUnlocked&&reqMet&&canAfford;
+        let cls='skill-node';
+        if(isUnlocked)cls+=' unlocked';
+        else if(!reqMet)cls+=' locked-req';
+        else if(canAfford)cls+=' affordable';
+        return `<div class="${cls}" style="--node-glow:${tree.color}55;${isUnlocked?`border-color:${tree.color};`:''}" ${canUnlock?`onclick="unlockSkillNode('${n.id}')"`:''} title="${!reqMet?'Requires: '+(getSkillNode(n.requires)?.name||''):isUnlocked?'Unlocked!':!canAfford?'Not enough skill points':'Click to unlock'}">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <span style="font-size:22px;">${n.icon}</span>
+            <div style="font-weight:700;font-size:13px;">${n.name}</div>
+          </div>
+          <p style="font-size:11px;color:var(--text3);margin-bottom:8px;min-height:28px;">${n.desc}</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:11px;font-weight:700;color:${isUnlocked?tree.color:'var(--text3)'};">${isUnlocked?'✓ Unlocked':`${n.cost} pt${n.cost>1?'s':''}`}</span>
+            ${!isUnlocked&&n.requires?`<span style="font-size:10px;color:var(--text4);">🔒 needs ${getSkillNode(n.requires)?.name||''}</span>`:''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+}
+
+async function unlockSkillNode(nodeId){
+  const n=getSkillNode(nodeId);
+  if(!n)return;
+  const unlocked=[...(currentUser.unlocked_skills||[])];
+  if(unlocked.includes(nodeId)){showToast('Already unlocked!');return;}
+  if(n.requires&&!unlocked.includes(n.requires)){showToast('Unlock the prerequisite first!');return;}
+  const{available}=skillPointSummary(unlocked,currentUser.level||1);
+  if(available<n.cost){showToast(`Need ${n.cost} skill point${n.cost>1?'s':''}!`);return;}
+  unlocked.push(nodeId);
+  const{error}=await sb.from('users').update({unlocked_skills:unlocked}).eq('id',currentUser.id);
+  if(error){showToast('Error saving — try again');return;}
+  currentUser.unlocked_skills=unlocked;
+  showToast(`${n.icon} ${n.name} unlocked!`);
+  renderSkillTreeBody();
 }
 
 async function renderPacks(){
@@ -1774,22 +2003,25 @@ async function debugAllBattles(){
   ).join('<br>');
 }
 
-async function loadIncoming(){
-  const el=document.getElementById('incoming-list');if(!el)return;
+// Fetches incoming challenges and updates the badge — safe to call from any tab.
+// Returns the data array (or null on error) so callers can decide whether to render the list.
+async function fetchIncomingChallenges(silent){
   const{data,error}=await sb.from('live_battles').select('*').eq('player2',currentUser.id).eq('status','waiting');
-  const debugEl=document.getElementById('incoming-debug');
-  if(debugEl){
-    if(error)debugEl.textContent=`Error: ${error.message}`;
-    else debugEl.textContent=`Checking as "${currentUser.id}" — ${data?data.length:0} challenge(s). ${new Date().toLocaleTimeString()}`;
-  }
-  if(error)return;
-  if(!data||!data.length){
-    el.innerHTML='<div class="empty">No challenges</div>';
-    updateBattleBadge(0);_lastIncomingCount=0;return;
-  }
-  if(data.length>_lastIncomingCount&&_lastIncomingCount>=0)showToast('⚔️ New battle challenge!');
+  if(error){updateBattleBadge(0);return null;}
+  if(!data||!data.length){updateBattleBadge(0);_lastIncomingCount=0;return[];}
+  if(!silent&&data.length>_lastIncomingCount&&_lastIncomingCount>=0)showToast('⚔️ New battle challenge!');
   _lastIncomingCount=data.length;
   updateBattleBadge(data.length);
+  return data;
+}
+
+async function loadIncoming(){
+  const el=document.getElementById('incoming-list');if(!el)return;
+  const debugEl=document.getElementById('incoming-debug');
+  const data=await fetchIncomingChallenges(false);
+  if(debugEl)debugEl.textContent=data===null?'Error loading challenges':`Checking as "${currentUser.id}" — ${data.length} challenge(s). ${new Date().toLocaleTimeString()}`;
+  if(data===null)return;
+  if(!data.length){el.innerHTML='<div class="empty">No challenges</div>';return;}
   el.innerHTML=data.map((b)=>{
     const st=typeof b.state==='string'?JSON.parse(b.state):b.state;
     const size=QUEUE_SIZES[st.queue!==undefined?st.queue:1];
@@ -1812,17 +2044,21 @@ function acceptFromBtn(btn){
   acceptChallenge(battleId,q);
 }
 
-function updateBattleBadge(count){
-  let badge=document.getElementById('battle-nav-badge');
-  const battleBtn=document.querySelector('.main-sidebar button:nth-child(3)');
-  if(!battleBtn)return;
+// Generic sidebar notification badge — finds the nav button by its go('X') onclick handler
+function setNavBadge(tabName,badgeId,count){
+  let badge=document.getElementById(badgeId);
+  const btn=document.querySelector(`.main-sidebar button[onclick="go('${tabName}')"]`);
+  if(!btn)return;
   if(count>0){
-    if(!badge){badge=document.createElement('span');badge.id='battle-nav-badge';badge.style.cssText='background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;margin-left:4px;font-weight:700;';battleBtn.appendChild(badge);}
+    if(!badge){badge=document.createElement('span');badge.id=badgeId;badge.style.cssText='background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;margin-left:4px;font-weight:700;';btn.appendChild(badge);}
     badge.textContent=count;
   } else {
     if(badge)badge.remove();
   }
 }
+
+function updateBattleBadge(count){setNavBadge('battle','battle-nav-badge',count);}
+function updateFriendReqBadge(count){setNavBadge('profile','friend-req-nav-badge',count);}
 
 // Store pending battle ID safely outside HTML
 let _pendingAcceptBattleId=null;
@@ -1858,10 +2094,31 @@ async function confirmAccept(){
   const poolIds=[...new Set([...(t1||[]),...(t2||[])].map(c=>c.pool_card_id).filter(Boolean))];
   const poolMovesMap={};
   if(poolIds.length){const{data:pcs}=await sb.from('pool_cards').select('id,moves').in('id',poolIds);(pcs||[]).forEach(pc=>{poolMovesMap[pc.id]=pc.moves||[];});}
-  const buildF=c=>({uid:c.uid,name:c.name,class_name:c.class_name,rarity:c.rarity,element:c.element||'neutral',atk:c.atk,def:c.def,hp:c.max_hp||c.hp,maxHp:c.max_hp||c.hp,stamina:c.stamina||50,maxStamina:c.max_stamina||100,staminaRegen:c.stamina_regen||25,crit:c.crit_chance||0.1,dodge:c.dodge_chance||0.05,unlockedMoves:c.unlocked_moves||[],level:c.level,pool_card_id:c.pool_card_id||null,image_url:c.image_url||null,dot:0,dotTurns:0,shielded:false,shieldPct:0,speedBuff:false,defeated:false});
+  // Fetch each player's permanent skill tree perks (player1 from DB, player2 is currentUser already in memory)
+  const{data:p1User}=await sb.from('users').select('unlocked_skills').eq('id',b.player1).single();
+  const skillsP1=aggregateSkillBonuses(p1User?.unlocked_skills||[]);
+  const skillsP2=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
+  const buildF=(c,skills)=>{
+    const f={uid:c.uid,name:c.name,class_name:c.class_name,rarity:c.rarity,element:c.element||'neutral',atk:c.atk,def:c.def,hp:c.max_hp||c.hp,maxHp:c.max_hp||c.hp,stamina:c.stamina||50,maxStamina:c.max_stamina||100,staminaRegen:c.stamina_regen||25,crit:c.crit_chance||0.1,dodge:c.dodge_chance||0.05,unlockedMoves:c.unlocked_moves||[],level:c.level,pool_card_id:c.pool_card_id||null,image_url:c.image_url||null,dot:0,dotTurns:0,shielded:false,shieldPct:0,speedBuff:false,defeated:false};
+    if(skills){
+      f.atk=Math.round(f.atk*(1+skills.atk_pct/100));
+      f.def=Math.round(f.def*(1+skills.def_pct/100));
+      f.maxHp=Math.round(f.maxHp*(1+skills.hp_pct/100));f.hp=f.maxHp;
+      f.maxStamina=Math.round(f.maxStamina*(1+skills.max_stamina_pct/100));
+      f.stamina=Math.min(f.maxStamina,f.stamina+skills.start_stamina_flat);
+      f.staminaRegen=Math.round(f.staminaRegen*(1+skills.stamina_regen_pct/100));
+      f.crit=Math.min(0.95,f.crit+skills.crit_pct/100);
+      f.dodge=Math.min(0.95,f.dodge+skills.dodge_pct/100);
+      f.critDmgBonusPct=skills.crit_dmg_pct||0;
+      f.firstHitBonusPct=skills.first_hit_pct||0;
+      f.turnRegenPct=skills.turn_regen_pct||0;
+      f.staminaCostReductionPct=skills.stamina_cost_reduction_pct||0;
+    }
+    return f;
+  };
   const st=typeof b.state==='string'?JSON.parse(b.state):b.state;
-  const fighters1=(t1||[]).map(buildF);
-  const fighters2=(t2||[]).map(buildF);
+  const fighters1=(t1||[]).map(c=>buildF(c,skillsP1));
+  const fighters2=(t2||[]).map(c=>buildF(c,skillsP2));
   // Apply each player's chosen utility card (if any) to their own team
   const log=[`🏟️ Match: ${b.player1} vs ${b.player2}`];
   let goFirst=b.player2; // default: challenged player goes first
@@ -2100,19 +2357,25 @@ async function useMove(fighterUid,moveName,targetUid){
   const oppKey=isP1?'fighters2':'fighters1';
   const attacker=state[myKey].find(f=>f.uid===fighterUid);
   const move=((state.poolMoves&&state.poolMoves[attacker.pool_card_id])||[]).find(m=>m.name===moveName);
-  if(!move||attacker.stamina<(move.stamina_cost||0)){showToast('Not enough stamina!');return;}
+  const effectiveStaminaCost=Math.round((move?.stamina_cost||0)*(1-((attacker.staminaCostReductionPct||0)/100)));
+  if(!move||attacker.stamina<effectiveStaminaCost){showToast('Not enough stamina!');return;}
   const log=[];
   [...state.fighters1,...state.fighters2].forEach(f=>{
     if(f.dot>0&&f.dotTurns>0&&!f.defeated){f.hp=Math.max(0,f.hp-f.dot);log.push(`🔥 ${f.name} takes ${f.dot} damage-over-time (${f.dotTurns-1} turns left)`);f.dotTurns--;if(f.dotTurns<=0)f.dot=0;if(f.hp<=0){f.hp=0;f.defeated=true;log.push(`💀 ${f.name} was defeated!`);}}
   });
   [...state.fighters1,...state.fighters2].forEach(f=>{if(!f.defeated)f.stamina=Math.min(f.maxStamina,(f.stamina||0)+f.staminaRegen);});
-  attacker.stamina=Math.max(0,attacker.stamina-(move.stamina_cost||0));
+  // Steady Recovery skill perk — regen % max HP at the start of the acting player's turn, for their whole team
+  state[myKey].forEach(f=>{if(!f.defeated&&f.turnRegenPct>0){const heal=Math.round(f.maxHp*(f.turnRegenPct/100));if(heal>0){f.hp=Math.min(f.maxHp,f.hp+heal);}}});
+  attacker.stamina=Math.max(0,attacker.stamina-effectiveStaminaCost);
   if(!state.usedUids)state.usedUids=[];
+  const isFirstHit=!state.usedUids.includes(attacker.uid);
   if(!state.usedUids.includes(attacker.uid))state.usedUids.push(attacker.uid);
   const defender=targetUid?state[oppKey].find(f=>f.uid===targetUid):null;
   const typeMult=defender?getTypeMult(attacker.element,defender.element||'neutral'):1;
   const crit=Math.random()<(attacker.crit||0.1);
-  const critMult=crit?1.5+Math.random()*0.5:1;
+  let critMult=crit?1.5+Math.random()*0.5:1;
+  if(crit&&attacker.critDmgBonusPct)critMult*=(1+attacker.critDmgBonusPct/100);
+  const firstHitMult=(isFirstHit&&attacker.firstHitBonusPct)?(1+attacker.firstHitBonusPct/100):1;
 
   if(move.type==='heal'){
     const h=move.value||30;attacker.hp=Math.min(attacker.maxHp,attacker.hp+h);
@@ -2147,7 +2410,7 @@ async function useMove(fighterUid,moveName,targetUid){
         log.push(`🎯 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''}${triggered?' COMBO!':''} — ${dmg} damage!`);
         if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
       } else {
-        dmg=Math.max(1,Math.round((move.value+(attacker.atk*0.3)-defender.def*0.5)*typeMult*critMult));
+        dmg=Math.max(1,Math.round((move.value+(attacker.atk*0.3)-defender.def*0.5)*typeMult*critMult*firstHitMult));
         if(defender.shielded){const bl=Math.round(dmg*defender.shieldPct);dmg=Math.max(1,dmg-bl);log.push(`🛡️ Shield absorbed ${bl} damage!`);defender.shielded=false;}
         defender.hp=Math.max(0,defender.hp-dmg);
         log.push(`${MOVE_ICONS[move.type]||'⚔️'} ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${dmg} damage!${typeMult>1?' ⚡ Super effective!':''}`);
@@ -2267,10 +2530,17 @@ async function awardRewards(state,battle){
     }
     await sb.from('player_cards').update({xp:cx,level,atk,def,max_hp,unlocked_moves}).eq('uid',uid);
   }
-  const wu=allUsers.find(u=>u.id===winner);const lu=allUsers.find(u=>u.id===loser);
-  let wpx=(wu?.player_xp||0)+80;let wlv=wu?.level||1;while(wpx>=xpForPlayer(wlv)){wpx-=xpForPlayer(wlv);wlv++;}
-  let lpx=(lu?.player_xp||0)+20;let llv=lu?.level||1;while(lpx>=xpForPlayer(llv)){lpx-=xpForPlayer(llv);llv++;}
-  await sb.from('users').update({wins:(wu?.wins||0)+1,money:(wu?.money||0)+150,player_xp:wpx,level:wlv}).eq('id',winner);
+  const{data:wuFresh}=await sb.from('users').select('*').eq('id',winner).single();
+  const{data:luFresh}=await sb.from('users').select('*').eq('id',loser).single();
+  const wu=wuFresh||allUsers.find(u=>u.id===winner);const lu=luFresh||allUsers.find(u=>u.id===loser);
+  const wSkills=aggregateSkillBonuses(wu?.unlocked_skills||[]);
+  const lSkills=aggregateSkillBonuses(lu?.unlocked_skills||[]);
+  const winMoney=Math.round(150*(1+wSkills.win_money_pct/100));
+  const winXp=Math.round(80*(1+wSkills.player_xp_pct/100));
+  const loseXp=Math.round(20*(1+lSkills.player_xp_pct/100));
+  let wpx=(wu?.player_xp||0)+winXp;let wlv=wu?.level||1;while(wpx>=xpForPlayer(wlv)){wpx-=xpForPlayer(wlv);wlv++;}
+  let lpx=(lu?.player_xp||0)+loseXp;let llv=lu?.level||1;while(lpx>=xpForPlayer(llv)){lpx-=xpForPlayer(llv);llv++;}
+  await sb.from('users').update({wins:(wu?.wins||0)+1,money:(wu?.money||0)+winMoney,player_xp:wpx,level:wlv}).eq('id',winner);
   await sb.from('users').update({losses:(lu?.losses||0)+1,money:Math.max(0,(lu?.money||0)+50),player_xp:lpx,level:llv}).eq('id',loser);
   const prevWinnerLevel=allUsers.find(u=>u.id===winner)?.level||1;
   const prevLoserLevel=allUsers.find(u=>u.id===loser)?.level||1;
@@ -2423,7 +2693,7 @@ function renderLBBody(tabId){
   const podiumGlow=['rgba(255,215,0,0.45)','rgba(192,192,192,0.35)','rgba(205,127,50,0.35)'];
   const podiumOrder=podium.length===3?[1,0,2]:podium.map((_,i)=>i); // 2nd,1st,3rd visual order
   const heights=['132px','164px','112px'];
-  const medalEmoji=['🥈','🥇','🥉'];
+  const medalEmoji=['🥇','🥈','🥉'];
 
   body.innerHTML=`
     <div style="display:flex;align-items:flex-end;justify-content:center;gap:14px;margin-bottom:2rem;flex-wrap:wrap;">
@@ -3170,8 +3440,7 @@ async function showLevelTab(tab){
 async function renderQuestsTab(){
   const el=document.getElementById('quests-content');
   el.innerHTML='<div class="empty">Loading...</div>';
-  const panelHTML=await renderQuestsPanel();
-  el.innerHTML=`<h3 style="margin-bottom:1rem;">📋 Quests</h3>${panelHTML}`;
+  el.innerHTML=await renderQuestsPanel();
 }
 
 async function updateQuestProgress(type, amount, mode){
@@ -3295,7 +3564,9 @@ async function startTraining(uid,cost,xp,durHours){
 async function collectTraining(uid){
   const{data:c}=await sb.from('player_cards').select('*').eq('uid',uid).single();
   if(!c){showToast('Card not found');return;}
-  let xp=(c.xp||0)+(c.training_xp_pending||0);
+  const skills=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
+  const bonusXp=Math.round((c.training_xp_pending||0)*(1+skills.training_xp_pct/100));
+  let xp=(c.xp||0)+bonusXp;
   let level=c.level;
   let atk=c.atk;let def=c.def;let max_hp=c.max_hp||c.hp;
   let unlocked_moves=[...(c.unlocked_moves||[])];
@@ -3427,7 +3698,7 @@ async function renderProfile(uid){
       </div>
 
       <!-- Incoming requests (own profile only) -->
-      ${isSelf&&incomingReqs.length?`<div class="box" style="border-color:#f59e0b33;margin-bottom:12px;">
+      ${isSelf&&incomingReqs.length?`<div class="box" style="border-color:#f59e0b;margin-bottom:12px;box-shadow:0 0 16px rgba(245,158,11,0.25);animation:notifPulse 2s ease-in-out infinite;">
         <h4 style="color:#fbbf24;margin-bottom:8px;">📬 Friend Requests (${incomingReqs.length})</h4>
         ${incomingReqs.map(r=>`<div class="row-item">
           <span style="font-size:14px;font-weight:600;">${r.from}</span>
@@ -3520,12 +3791,14 @@ async function acceptFriendRequest(reqId,fromId){
   await sb.from('users').update({friends:theirFriends}).eq('id',fromId);
   showToast('You are now friends with '+fromId+'!');
   await renderProfile(currentUser.id);
+  await checkFriendRequests(true);
 }
 
 async function declineFriendRequest(reqId){
   await sb.from('friend_requests').delete().eq('id',reqId);
   showToast('Request declined.');
   await renderProfile(currentUser.id);
+  await checkFriendRequests(true);
 }
 
 // ── EMOJI AVATAR ────────────────────────────────────────────────────────
