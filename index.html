@@ -136,6 +136,36 @@ body.light .ability-btn{color:#1a1a1a;}
 .income-card-badge{position:absolute;top:6px;right:6px;background:#16a34a;color:#fff;font-size:9px;padding:2px 5px;border-radius:4px;font-weight:700;}
 
 /* ── SKILL TREE ── */
+
+/* ── ELEMENT-THEMED ANIMATED CARD FRAMES ── */
+.card-tile.frame-fire{border-color:#f97316;box-shadow:0 0 12px rgba(249,115,22,0.35);animation:frameFirePulse 2.4s ease-in-out infinite;}
+.card-tile.frame-ice{border-color:#38bdf8;box-shadow:0 0 12px rgba(56,189,248,0.35);animation:frameIceShimmer 3s ease-in-out infinite;}
+.card-tile.frame-lightning{border-color:#facc15;box-shadow:0 0 10px rgba(250,204,21,0.4);animation:frameBoltFlicker 1.8s steps(6) infinite;}
+.card-tile.frame-earth{border-color:#65a30d;box-shadow:0 0 10px rgba(101,163,13,0.35);}
+.card-tile.frame-dark{border-color:#7c3aed;box-shadow:0 0 14px rgba(124,58,237,0.4);animation:frameDarkPulse 2.6s ease-in-out infinite;}
+.card-tile.frame-light{border-color:#fde047;box-shadow:0 0 16px rgba(253,224,71,0.5);animation:frameLightGlow 2.2s ease-in-out infinite;}
+.card-tile.frame-water{border-color:#0ea5e9;box-shadow:0 0 10px rgba(14,165,233,0.35);animation:frameIceShimmer 3.2s ease-in-out infinite;}
+.card-tile.frame-wind{border-color:#a3e635;box-shadow:0 0 10px rgba(163,230,53,0.3);}
+.card-tile.frame-void{border-color:#1e1b4b;box-shadow:0 0 16px rgba(99,102,241,0.5);animation:frameDarkPulse 2.8s ease-in-out infinite;}
+@keyframes frameFirePulse{0%,100%{box-shadow:0 0 10px rgba(249,115,22,0.3);}50%{box-shadow:0 0 20px rgba(249,115,22,0.6);}}
+@keyframes frameIceShimmer{0%,100%{box-shadow:0 0 10px rgba(56,189,248,0.3);}50%{box-shadow:0 0 18px rgba(56,189,248,0.55);}}
+@keyframes frameBoltFlicker{0%,100%{box-shadow:0 0 8px rgba(250,204,21,0.3);}50%{box-shadow:0 0 16px rgba(250,204,21,0.65);}}
+@keyframes frameDarkPulse{0%,100%{box-shadow:0 0 12px rgba(124,58,237,0.35);}50%{box-shadow:0 0 22px rgba(124,58,237,0.65);}}
+@keyframes frameLightGlow{0%,100%{box-shadow:0 0 12px rgba(253,224,71,0.4);}50%{box-shadow:0 0 24px rgba(253,224,71,0.7);}}
+
+/* ── PROFILE BANNERS ── */
+.profile-banner{position:relative;height:100px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;overflow:hidden;margin-bottom:-44px;}
+.profile-banner-content{width:100%;height:100%;}
+.banner-flames{background:linear-gradient(135deg,#7c2d12,#dc2626,#f97316);}
+.banner-frost{background:linear-gradient(135deg,#0c4a6e,#0ea5e9,#bae6fd);}
+.banner-storm{background:linear-gradient(135deg,#1e1b4b,#7c3aed,#a78bfa);}
+.banner-gold{background:linear-gradient(135deg,#78350f,#d97706,#fde047);}
+.banner-void{background:linear-gradient(135deg,#000000,#1e1b4b,#4c1d95);}
+.banner-emerald{background:linear-gradient(135deg,#14532d,#16a34a,#86efac);}
+.banner-crimson{background:linear-gradient(135deg,#450a0a,#dc2626,#fca5a5);}
+.banner-celestial{background:linear-gradient(135deg,#1e1b4b,#6366f1,#e0e7ff,#a78bfa);background-size:300% 300%;animation:bannerShift 6s ease infinite;}
+@keyframes bannerShift{0%{background-position:0% 50%;}50%{background-position:100% 50%;}100%{background-position:0% 50%;}}
+.profile-header-with-banner{padding-top:56px!important;}
 .skill-tab-row{display:flex;gap:6px;margin-bottom:1.25rem;flex-wrap:wrap;}
 .skill-tab-btn{padding:8px 16px;border-radius:10px;border:2px solid var(--border);background:var(--bg2);color:var(--text2);cursor:pointer;font-size:13px;font-weight:600;transition:all var(--transition);}
 .skill-tab-btn.active{background:var(--bg3);color:var(--text);}
@@ -275,6 +305,7 @@ document.addEventListener("DOMContentLoaded",function(){
       <button onclick="go('skills')">🌳 Skill Tree</button>
       <button onclick="go('leaderboard')">🏆 Leaderboard</button>
       <button onclick="go('news')">📰 News</button>
+      <button onclick="go('events')">🎉 Events</button>
       <button onclick="go('players')">👥 Players</button>
       <button onclick="go('profile')">🪪 My Profile</button>
       <button id="admin-tab" style="display:none;" onclick="go('admin')">⚙️ Admin</button>
@@ -330,6 +361,7 @@ document.addEventListener("DOMContentLoaded",function(){
 
   <!-- NEWS -->
   <div id="screen-news" class="screen"><div id="news-content"></div></div>
+  <div id="screen-events" class="screen"><div id="events-content"></div></div>
 
   <!-- ADMIN -->
   <div id="screen-admin" class="screen">
@@ -339,6 +371,7 @@ document.addEventListener("DOMContentLoaded",function(){
       <button class="tab-btn" onclick="adminTab('pool',this)">📋 Card Pool</button>
       <button class="tab-btn" onclick="adminTab('guide',this)">📖 Balance Guide</button>
       <button class="tab-btn" onclick="adminTab('post-news',this)">📰 Post News</button>
+      <button class="tab-btn" onclick="adminTab('events',this)">🎉 Events</button>
       <button class="tab-btn" onclick="adminTab('manage',this)">👥 Manage</button>
     </div>
 
@@ -482,6 +515,36 @@ document.addEventListener("DOMContentLoaded",function(){
       </div>
       <h3 style="margin-bottom:0.75rem;">Posted News</h3>
       <div id="admin-news-list"></div>
+    </div>
+
+    <!-- EVENTS -->
+    <div id="admin-events" style="display:none;">
+      <div class="box">
+        <h3 style="margin-bottom:12px;">🎉 Create Event</h3>
+        <p style="font-size:12px;color:var(--text3);margin-bottom:12px;">Events post to the Events tab and to News automatically. Rewards are claimable by any player while the event is active.</p>
+        <div class="field-row">
+          <div class="field"><label>Event Name</label><input type="text" id="ev-name" placeholder="e.g. Winter Showdown"></div>
+          <div class="field"><label>Icon (emoji)</label><input type="text" id="ev-icon" placeholder="🎉" maxlength="4"></div>
+        </div>
+        <div class="field" style="margin-bottom:10px;"><label>Description</label><textarea id="ev-desc" placeholder="What's happening, how to participate..."></textarea></div>
+        <div class="field-row">
+          <div class="field"><label>Starts</label><input type="datetime-local" id="ev-start"></div>
+          <div class="field"><label>Ends</label><input type="datetime-local" id="ev-end"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Reward Type</label>
+            <select id="ev-reward-type" onchange="updateEventRewardFields()"></select>
+          </div>
+          <div class="field" id="ev-reward-value-wrap"><label>Amount</label><input type="number" id="ev-reward-value" placeholder="500" min="0"></div>
+        </div>
+        <div class="field" id="ev-reward-cosmetic-wrap" style="display:none;margin-bottom:10px;">
+          <label>Which cosmetic?</label>
+          <select id="ev-reward-cosmetic"></select>
+        </div>
+        <button class="btn btn-primary" onclick="postEvent()"><span id="ev-spin" class="spinner" style="display:none;"></span>Create Event</button>
+      </div>
+      <h3 style="margin-bottom:0.75rem;">Active &amp; Past Events</h3>
+      <div id="admin-events-list"></div>
     </div>
 
     <!-- MANAGE -->
@@ -671,11 +734,13 @@ const RARITIES=['Common','Uncommon','Rare','Epic','Legendary','Mythic','Ancient'
 const RARITY_COLORS=['#9ca3af','#34d399','#60a5fa','#a78bfa','#f59e0b','#ec4899','#f97316','#c7d2fe'];
 const COMBINE_COSTS=[50,100,200,400,800,1500,3000,6000];
 // Normal pack — full rarity range, weighted toward common, available at lvl 1
-const NORMAL_PACK_ODDS=[0.42,0.26,0.16,0.09,0.045,0.02,0.01,0.005];
-// Rare pack — unlocks at level 15, better floor
-const RARE_PACK_ODDS=[0,0,0.35,0.25,0.20,0.12,0.06,0.02];
-// Legendary pack — unlocks at level 40, guaranteed Legendary+
-const LEGENDARY_PACK_ODDS=[0,0,0,0,0.40,0.28,0.20,0.12];
+// Common,Uncommon,Rare,Epic,Legendary,Mythic,Ancient,Celestial
+// Legendary=1%, Mythic=0.1%, Ancient=0.01%, Celestial=0.001% (exact), remaining scaled across lower tiers
+const NORMAL_PACK_ODDS=[0.567146,0.255216,0.114847,0.051681,0.01,0.001,0.0001,0.00001];
+// Rare pack — unlocks at level 15. Floor of Rare, same Legendary+ tail percentages as Normal pack.
+const RARE_PACK_ODDS=[0,0,0.681993,0.306897,0.01,0.001,0.0001,0.00001];
+// Legendary pack — unlocks at level 40, guaranteed Legendary+. Ancient/Celestial keep the same rarity scaling.
+const LEGENDARY_PACK_ODDS=[0,0,0,0,0.689579,0.310311,0.0001,0.00001];
 const PACK_ODDS=[NORMAL_PACK_ODDS,RARE_PACK_ODDS,LEGENDARY_PACK_ODDS];
 const PACK_LEVEL_REQ=[1,15,40];
 const PACK_NAMES=['Normal Pack','Rare Pack','Legendary Pack'];
@@ -770,6 +835,65 @@ function aggregateSkillBonuses(unlocked){
   });
   return b;
 }
+
+// ── COSMETICS: TITLES, CARD FRAMES, PROFILE BANNERS ─────────────────────
+// These are granted as rewards from events (or milestones already grant titles).
+const TITLE_CATALOG=[
+  {id:'grandmaster',name:'Grandmaster',color:'#fbbf24'},
+  {id:'firelord',name:'Firelord',color:'#f97316'},
+  {id:'shadow_duelist',name:'Shadow Duelist',color:'#7c3aed'},
+  {id:'frostbringer',name:'Frostbringer',color:'#38bdf8'},
+  {id:'stormcaller',name:'Stormcaller',color:'#facc15'},
+  {id:'voidwalker',name:'Voidwalker',color:'#6366f1'},
+  {id:'dragonslayer',name:'Dragonslayer',color:'#ef4444'},
+  {id:'celestial_envoy',name:'Celestial Envoy',color:'#c7d2fe'},
+];
+
+// Element-themed animated card frames. `cls` maps to a CSS class added to .card-tile
+const CARD_FRAME_CATALOG=[
+  {id:'frame_fire',name:'Inferno Frame',cls:'frame-fire',element:'fire',icon:'🔥'},
+  {id:'frame_ice',name:'Glacial Frame',cls:'frame-ice',element:'ice',icon:'❄️'},
+  {id:'frame_lightning',name:'Storm Frame',cls:'frame-lightning',element:'lightning',icon:'⚡'},
+  {id:'frame_earth',name:'Verdant Frame',cls:'frame-earth',element:'earth',icon:'🌿'},
+  {id:'frame_dark',name:'Shadow Frame',cls:'frame-dark',element:'dark',icon:'🌑'},
+  {id:'frame_light',name:'Radiant Frame',cls:'frame-light',element:'light',icon:'☀️'},
+  {id:'frame_water',name:'Tidal Frame',cls:'frame-water',element:'water',icon:'💧'},
+  {id:'frame_wind',name:'Gale Frame',cls:'frame-wind',element:'wind',icon:'🌪️'},
+  {id:'frame_void',name:'Void Frame',cls:'frame-void',element:'void',icon:'🌀'},
+];
+
+// Profile banners — earned from events or ranked seasons
+const BANNER_CATALOG=[
+  {id:'banner_flames',name:'Flames Banner',cls:'banner-flames'},
+  {id:'banner_frost',name:'Frost Banner',cls:'banner-frost'},
+  {id:'banner_storm',name:'Storm Banner',cls:'banner-storm'},
+  {id:'banner_gold',name:'Gilded Banner',cls:'banner-gold'},
+  {id:'banner_void',name:'Void Banner',cls:'banner-void'},
+  {id:'banner_emerald',name:'Emerald Banner',cls:'banner-emerald'},
+  {id:'banner_crimson',name:'Crimson Banner',cls:'banner-crimson'},
+  {id:'banner_celestial',name:'Celestial Banner',cls:'banner-celestial'},
+];
+
+function getTitleDef(id){return TITLE_CATALOG.find(t=>t.id===id);}
+function getFrameDef(id){return CARD_FRAME_CATALOG.find(f=>f.id===id);}
+function getBannerDef(id){return BANNER_CATALOG.find(b=>b.id===id);}
+// Auto-pick a frame by a card's element if the player owns the matching frame
+function frameClassForCard(card,ownedFrameIds){
+  if(!card||!card.element||!ownedFrameIds||!ownedFrameIds.length)return'';
+  const match=CARD_FRAME_CATALOG.find(f=>f.element===card.element&&ownedFrameIds.includes(f.id));
+  return match?match.cls:'';
+}
+
+// ── EVENTS ────────────────────────────────────────────────────────────
+// Reward types: 'gold','title','frame','banner','pack','card_xp'
+const EVENT_REWARD_TYPES=[
+  {id:'gold',label:'💰 Gold'},
+  {id:'title',label:'🏷️ Title'},
+  {id:'frame',label:'🖼️ Card Frame'},
+  {id:'banner',label:'🎌 Profile Banner'},
+  {id:'pack',label:'📦 Free Pack'},
+  {id:'card_xp',label:'⭐ Card XP (all cards)'},
+];
 
 const UTILITY_CARDS=[
   {id:'stamina_boost_25',name:'Team Stamina Surge',icon:'⚡',desc:'+25% stamina to your whole team at battle start',cost:300,effect:'team_stamina_pct',value:25,color:'#facc15'},
@@ -1051,6 +1175,16 @@ async function globalNotificationCheck(silent){
   // Avoid double-toasting friend requests while already on the Profile tab
   const onProfileTab=document.getElementById('screen-profile')?.classList.contains('active');
   await checkFriendRequests(silent||onProfileTab);
+  await checkLiveEvents();
+}
+
+async function checkLiveEvents(){
+  const{data,error}=await sb.from('events').select('id,starts_at,ends_at').order('starts_at',{ascending:false});
+  if(error){setNavBadge('events','events-nav-badge',0);return;}
+  const now=Date.now();
+  const claimed=currentUser.claimed_events||[];
+  const liveUnclaimed=(data||[]).filter(ev=>now>=new Date(ev.starts_at).getTime()&&now<=new Date(ev.ends_at).getTime()&&!claimed.includes(String(ev.id)));
+  setNavBadge('events','events-nav-badge',liveUnclaimed.length);
 }
 
 function startGlobalNotifications(){
@@ -1129,7 +1263,7 @@ function go(name){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
   const mc=document.querySelector('.main-content');if(mc)mc.scrollTop=0;
-  const names=['mycards','packs','battle','trade','training','quests','skills','leaderboard','news','players','profile','admin'];
+  const names=['mycards','packs','battle','trade','training','quests','skills','leaderboard','news','events','players','profile','admin'];
   document.querySelectorAll('.main-sidebar button').forEach((b,i)=>b.classList.toggle('active',names[i]===name));
   if(name==='mycards')renderMyCards();
   if(name==='packs')renderPacks();
@@ -1140,6 +1274,7 @@ function go(name){
   if(name==='skills')renderSkillTree();
   if(name==='leaderboard')renderLB();
   if(name==='news')renderNews();
+  if(name==='events')renderEvents();
   if(name==='players')renderPlayers();
   if(name==='profile'){renderProfile(currentUser.id);checkFriendRequests(true);}
   if(name==='admin'){adminTab('add-card',document.querySelector('.tab-btn'));loadPoolForEdit();setTimeout(updateSuggestedStats,100);}
@@ -1147,7 +1282,7 @@ function go(name){
 
 // ── ADMIN TABS ─────────────────────────────────────────
 function adminTab(name,btn){
-  ['add-card','edit-card','pool','guide','post-news','manage'].forEach(t=>{
+  ['add-card','edit-card','pool','guide','post-news','events','manage'].forEach(t=>{
     const el=document.getElementById('admin-'+t);if(el)el.style.display=t===name?'block':'none';
   });
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -1155,6 +1290,7 @@ function adminTab(name,btn){
   if(name==='pool')renderPool();
   if(name==='edit-card')loadPoolForEdit();
   if(name==='post-news')renderAdminNews();
+  if(name==='events'){updateEventRewardFields();renderAdminEventsList();}
   if(name==='manage')loadAdminPlayers();
 }
 
@@ -1404,7 +1540,8 @@ function cardTileHTML(c,selectable){
   const incBadge=c.is_income_card?`<div class="income-card-badge">💵</div>`:'';
   const safeUid=btoa(encodeURIComponent(c.uid)).replace(/=/g,'');
   const action=selectable?`data-selectable="1"`:`data-openmodal="1"`;
-  return `<div class="card-tile${selectable?' selectable':''}" data-safeuid="${safeUid}" data-action="${selectable?'select':'modal'}" ${action}>
+  const frameCls=frameClassForCard(c,currentUser?.owned_frames);
+  return `<div class="card-tile${selectable?' selectable':''}${frameCls?' '+frameCls:''}" data-safeuid="${safeUid}" data-action="${selectable?'select':'modal'}" ${action}>
     ${incBadge}${imgHTML}
     <div style="font-size:13px;font-weight:700;margin-bottom:3px;">${c.name}</div>
     <span class="cat-badge" style="background:${col.bg};color:${col.fg};">${c.class_name}</span>
@@ -1548,7 +1685,12 @@ async function renderPacks(){
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:1.5rem;" id="pack-options-wrap">
       ${[0,1,2].map(pt=>{
         const locked=lvl<PACK_LEVEL_REQ[pt];
-        const oddsStr=PACK_ODDS[pt].map((o,i)=>o>0?`${RARITIES[i]} ${Math.round(o*100)}%`:null).filter(Boolean).join(' · ');
+        const oddsStr=PACK_ODDS[pt].map((o,i)=>{
+          if(o<=0)return null;
+          const pct=o*100;
+          const label=pct>=1?`${pct.toFixed(pct>=10?0:1)}%`:pct>=0.01?`${pct.toFixed(2)}%`:`${pct.toFixed(3)}%`;
+          return `${RARITIES[i]} ${label}`;
+        }).filter(Boolean).join(' · ');
         return `<div class="pack-option" style="${locked?'opacity:0.5;':''}">
           <div style="font-size:32px;margin-bottom:6px;">${PACK_ICONS[pt]}</div>
           <h4>${PACK_NAMES[pt]}</h4>
@@ -3144,6 +3286,208 @@ async function postNews(){
   renderAdminNews();
 }
 
+// ── EVENTS ────────────────────────────────────────────────────────────
+function updateEventRewardFields(){
+  const typeSel=document.getElementById('ev-reward-type');
+  if(!typeSel)return;
+  if(!typeSel.options.length){
+    typeSel.innerHTML=EVENT_REWARD_TYPES.map(r=>`<option value="${r.id}">${r.label}</option>`).join('');
+  }
+  const type=typeSel.value;
+  const valWrap=document.getElementById('ev-reward-value-wrap');
+  const cosWrap=document.getElementById('ev-reward-cosmetic-wrap');
+  const cosSel=document.getElementById('ev-reward-cosmetic');
+  if(type==='title'){
+    valWrap.style.display='none';cosWrap.style.display='block';
+    cosSel.innerHTML=TITLE_CATALOG.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+  } else if(type==='frame'){
+    valWrap.style.display='none';cosWrap.style.display='block';
+    cosSel.innerHTML=CARD_FRAME_CATALOG.map(f=>`<option value="${f.id}">${f.icon} ${f.name}</option>`).join('');
+  } else if(type==='banner'){
+    valWrap.style.display='none';cosWrap.style.display='block';
+    cosSel.innerHTML=BANNER_CATALOG.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+  } else if(type==='pack'){
+    valWrap.style.display='block';valWrap.querySelector('label').textContent='Pack Type (0=Normal,1=Rare,2=Legendary)';
+    cosWrap.style.display='none';
+  } else {
+    valWrap.style.display='block';valWrap.querySelector('label').textContent=type==='gold'?'Gold Amount':'XP Amount';
+    cosWrap.style.display='none';
+  }
+}
+
+async function postEvent(){
+  const name=document.getElementById('ev-name').value.trim();
+  const icon=document.getElementById('ev-icon').value.trim()||'🎉';
+  const desc=document.getElementById('ev-desc').value.trim();
+  const startsAt=document.getElementById('ev-start').value;
+  const endsAt=document.getElementById('ev-end').value;
+  const rewardType=document.getElementById('ev-reward-type').value;
+  const rewardValueRaw=document.getElementById('ev-reward-value').value;
+  const rewardCosmetic=document.getElementById('ev-reward-cosmetic').value;
+  if(!name||!desc){showToast('Enter a name and description');return;}
+  if(!startsAt||!endsAt){showToast('Set a start and end time');return;}
+  const reward={type:rewardType};
+  if(['gold','card_xp','pack'].includes(rewardType))reward.value=parseInt(rewardValueRaw)||0;
+  else reward.cosmetic_id=rewardCosmetic;
+  spin('ev-spin',true);
+  const{error}=await sb.from('events').insert({
+    name,icon,description:desc,starts_at:new Date(startsAt).toISOString(),ends_at:new Date(endsAt).toISOString(),
+    reward:JSON.stringify(reward),author:currentUser.id
+  });
+  spin('ev-spin',false);
+  if(error){showToast('Error: '+error.message);return;}
+  // Auto-post to News too
+  await sb.from('news').insert({
+    title:`${icon} New Event: ${name}`,
+    body:`${desc}\n\nReward: ${eventRewardLabel(reward)}\n\nHead to the Events tab to learn more and claim it!`,
+    tag:'event',pinned:false,author:currentUser.id
+  });
+  document.getElementById('ev-name').value='';
+  document.getElementById('ev-desc').value='';
+  document.getElementById('ev-reward-value').value='';
+  showToast('Event created and posted to News!');
+  renderAdminEventsList();
+}
+
+function eventRewardLabel(reward){
+  if(reward.type==='gold')return `💰 $${reward.value||0} gold`;
+  if(reward.type==='card_xp')return `⭐ ${reward.value||0} XP for all cards`;
+  if(reward.type==='pack')return `📦 Free ${PACK_NAMES[reward.value]||'Normal'} Pack`;
+  if(reward.type==='title'){const t=getTitleDef(reward.cosmetic_id);return `🏷️ Title: "${t?t.name:reward.cosmetic_id}"`;}
+  if(reward.type==='frame'){const f=getFrameDef(reward.cosmetic_id);return `🖼️ ${f?f.icon+' '+f.name:reward.cosmetic_id}`;}
+  if(reward.type==='banner'){const b=getBannerDef(reward.cosmetic_id);return `🎌 ${b?b.name:reward.cosmetic_id}`;}
+  return 'Mystery reward';
+}
+
+async function renderAdminEventsList(){
+  const el=document.getElementById('admin-events-list');if(!el)return;
+  const{data}=await sb.from('events').select('*').order('starts_at',{ascending:false});
+  if(!data||!data.length){el.innerHTML='<div class="empty">No events yet</div>';return;}
+  const now=Date.now();
+  el.innerHTML=data.map(ev=>{
+    const reward=typeof ev.reward==='string'?JSON.parse(ev.reward):ev.reward;
+    const status=now<new Date(ev.starts_at).getTime()?'⏳ Upcoming':now>new Date(ev.ends_at).getTime()?'🏁 Ended':'🟢 Live';
+    return `<div class="box" style="margin-bottom:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div>
+          <div style="font-size:14px;font-weight:700;">${ev.icon} ${ev.name} <span style="font-size:11px;color:var(--text3);">${status}</span></div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px;">${new Date(ev.starts_at).toLocaleString()} → ${new Date(ev.ends_at).toLocaleString()}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px;">${eventRewardLabel(reward)}</div>
+        </div>
+        <button class="btn btn-sm" style="color:#dc2626;border-color:#7f1d1d;" onclick="deleteEvent(${ev.id})">Delete</button>
+      </div>
+      <p style="font-size:13px;color:var(--text2);margin-top:8px;white-space:pre-wrap;">${ev.description}</p>
+    </div>`;
+  }).join('');
+}
+
+async function deleteEvent(id){
+  await sb.from('events').delete().eq('id',id);
+  showToast('Event deleted.');
+  renderAdminEventsList();
+}
+
+// ── PLAYER-FACING EVENTS TAB ─────────────────────────────────────────
+async function renderEvents(){
+  const el=document.getElementById('events-content');
+  if(!el)return;
+  el.innerHTML='<div class="empty">Loading...</div>';
+  const{data,error}=await sb.from('events').select('*').order('starts_at',{ascending:false});
+  if(error||!data||!data.length){
+    el.innerHTML=`<div class="box" style="text-align:center;padding:2rem;">
+      <div style="font-size:40px;margin-bottom:1rem;">🎉</div>
+      <h3>No events right now</h3>
+      <p style="color:var(--text3);margin-top:0.5rem;">Check back soon!</p>
+    </div>`;return;
+  }
+  const now=Date.now();
+  const claimed=currentUser.claimed_events||[];
+  el.innerHTML='<h3 style="margin-bottom:1rem;">🎉 Events</h3>'+data.map(ev=>{
+    const reward=typeof ev.reward==='string'?JSON.parse(ev.reward):ev.reward;
+    const isLive=now>=new Date(ev.starts_at).getTime()&&now<=new Date(ev.ends_at).getTime();
+    const isUpcoming=now<new Date(ev.starts_at).getTime();
+    const isEnded=now>new Date(ev.ends_at).getTime();
+    const isClaimed=claimed.includes(String(ev.id));
+    const statusBadge=isUpcoming?`<span style="font-size:11px;padding:2px 8px;border-radius:6px;background:#1e3a5f;color:#93c5fd;">⏳ Upcoming</span>`
+      :isEnded?`<span style="font-size:11px;padding:2px 8px;border-radius:6px;background:#374151;color:#9ca3af;">🏁 Ended</span>`
+      :`<span style="font-size:11px;padding:2px 8px;border-radius:6px;background:#14532d;color:#4ade80;">🟢 Live</span>`;
+    return `<div class="box" style="margin-bottom:12px;${isLive?'border-color:#16a34a66;':''}">
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+        <span style="font-size:20px;">${ev.icon}</span>
+        <span style="font-size:16px;font-weight:700;">${ev.name}</span>
+        ${statusBadge}
+      </div>
+      <p style="font-size:14px;color:var(--text2);line-height:1.7;white-space:pre-wrap;margin-bottom:10px;">${ev.description}</p>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div style="font-size:13px;color:#fbbf24;font-weight:600;">🎁 ${eventRewardLabel(reward)}</div>
+        ${isLive?(isClaimed?
+          `<span style="font-size:12px;color:#4ade80;font-weight:600;">✅ Claimed</span>`:
+          `<button class="btn btn-green btn-sm" onclick="claimEventReward(${ev.id})">Claim Reward</button>`
+        ):isUpcoming?`<span style="font-size:12px;color:var(--text3);">Starts ${new Date(ev.starts_at).toLocaleDateString()}</span>`
+        :`<span style="font-size:12px;color:var(--text3);">Event ended</span>`}
+      </div>
+      <div style="font-size:11px;color:var(--text4);margin-top:8px;">${new Date(ev.starts_at).toLocaleDateString()} – ${new Date(ev.ends_at).toLocaleDateString()}</div>
+    </div>`;
+  }).join('');
+}
+
+async function claimEventReward(eventId){
+  const{data:ev}=await sb.from('events').select('*').eq('id',eventId).single();
+  if(!ev){showToast('Event not found');return;}
+  const now=Date.now();
+  if(now<new Date(ev.starts_at).getTime()||now>new Date(ev.ends_at).getTime()){showToast('Event is not currently active');return;}
+  const claimed=[...(currentUser.claimed_events||[])];
+  if(claimed.includes(String(eventId))){showToast('Already claimed!');return;}
+  const reward=typeof ev.reward==='string'?JSON.parse(ev.reward):ev.reward;
+  const updates={};
+  if(reward.type==='gold'){
+    updates.money=(currentUser.money||0)+(reward.value||0);
+  } else if(reward.type==='card_xp'){
+    const{data:cards}=await sb.from('player_cards').select('uid,xp').eq('owner',currentUser.id).eq('is_income_card',false);
+    if(cards&&cards.length){
+      await Promise.all(cards.map(c=>sb.from('player_cards').update({xp:(c.xp||0)+(reward.value||0)}).eq('uid',c.uid)));
+    }
+  } else if(reward.type==='pack'){
+    const{data:pool}=await sb.from('pool_cards').select('*');
+    if(pool&&pool.length){
+      const rarity=rollRarity(reward.value||0);
+      const byR=pool.filter(c=>c.rarity===rarity);
+      const src=byR.length?byR:pool;
+      const t=src[Math.floor(Math.random()*src.length)];
+      const startMoves=(t.moves||[]).filter(m=>!m.unlock_level||m.unlock_level<=1).map(m=>m.name);
+      await sb.from('player_cards').insert({
+        uid:`${currentUser.id}-${Date.now()}-evt`,owner:currentUser.id,name:t.name,
+        cat:t.class_name||t.cat||'Warrior',class_name:t.class_name||t.cat||'Warrior',
+        rarity:t.rarity,element:t.element||'neutral',atk:t.atk||10,def:t.def||10,hp:t.hp||100,max_hp:t.hp||100,
+        stamina:t.stamina_start||50,max_stamina:t.stamina_max||100,stamina_regen:t.stamina_regen||25,
+        crit_chance:t.crit_chance||0.1,dodge_chance:t.dodge_chance||0.05,level:1,xp:0,unlocked_moves:startMoves,
+        image_url:t.image_url||null,pool_card_id:t.id,is_income_card:t.is_income_card||false,
+        income_amount:t.income_amount||0,income_interval_hours:t.income_interval_hours||24
+      });
+    }
+  } else if(reward.type==='title'){
+    const owned=[...(currentUser.owned_titles||[])];
+    if(!owned.includes(reward.cosmetic_id))owned.push(reward.cosmetic_id);
+    updates.owned_titles=owned;
+  } else if(reward.type==='frame'){
+    const owned=[...(currentUser.owned_frames||[])];
+    if(!owned.includes(reward.cosmetic_id))owned.push(reward.cosmetic_id);
+    updates.owned_frames=owned;
+  } else if(reward.type==='banner'){
+    const owned=[...(currentUser.owned_banners||[])];
+    if(!owned.includes(reward.cosmetic_id))owned.push(reward.cosmetic_id);
+    updates.owned_banners=owned;
+  }
+  claimed.push(String(eventId));
+  updates.claimed_events=claimed;
+  const{error}=await sb.from('users').update(updates).eq('id',currentUser.id);
+  if(error){showToast('Error claiming reward');return;}
+  Object.assign(currentUser,updates);
+  updateHUD();
+  showToast(`🎉 Claimed: ${eventRewardLabel(reward)}`);
+  renderEvents();
+}
+
 async function renderAdminNews(){
   const el=document.getElementById('admin-news-list');if(!el)return;
   const{data}=await sb.from('news').select('*').order('created_at',{ascending:false});
@@ -3662,10 +4006,13 @@ async function renderProfile(uid){
   const tc=displayTitleColor(u)||'var(--accent)';
   const canEditAvatar=isSelf&&!isAdm;
 
+  const banner=displayBanner(u);
+
   el.innerHTML=`
     <div style="max-width:680px;">
+      ${banner?`<div class="profile-banner"><div class="profile-banner-content ${banner.cls}"></div></div>`:''}
       <!-- Header -->
-      <div class="box" style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:12px;${isAdm?'border-color:#ffd70066;':''}">
+      <div class="box ${banner?'profile-header-with-banner':''}" style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:12px;${isAdm?'border-color:#ffd70066;':''}">
         <div style="position:relative;flex-shrink:0;">
           <div id="profile-avatar" style="width:72px;height:72px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:36px;border:2px solid ${isAdm?'#ffd700':'var(--border2)'};${isAdm?'box-shadow:0 0 16px rgba(255,215,0,0.5);':''}${canEditAvatar?'cursor:pointer;':''}transition:all var(--transition);" ${canEditAvatar?`onclick="openEmojiPicker()" title="Change avatar"`:''}>${displayAvatar(u)}</div>
           ${canEditAvatar?`<div style="position:absolute;bottom:0;right:0;background:var(--accent);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer;border:2px solid var(--bg2);" onclick="openEmojiPicker()">✏️</div>`:''}
@@ -3763,7 +4110,49 @@ async function renderProfile(uid){
           }).join(''):`<div class="empty" style="padding:0.5rem;font-size:12px;">No friends yet.</div>`}
         </div>
       </div>
+
+      ${isSelf?customizeBoxHTML(u):''}
     </div>`;
+}
+
+function customizeBoxHTML(u){
+  const ownedTitles=u.owned_titles||[];
+  const ownedFrames=u.owned_frames||[];
+  const ownedBanners=u.owned_banners||[];
+  if(!ownedTitles.length&&!ownedFrames.length&&!ownedBanners.length)return'';
+  return `<div class="box" style="margin-top:12px;">
+    <h4 style="margin-bottom:10px;">🎨 Customize</h4>
+    ${ownedTitles.length?`<div style="margin-bottom:14px;">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">Titles</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <div onclick="equipCosmetic('title',null)" style="cursor:pointer;padding:6px 12px;border-radius:8px;border:2px solid ${!u.equipped_title?'var(--accent)':'var(--border)'};font-size:12px;background:var(--bg3);">None</div>
+        ${ownedTitles.map(id=>{const t=getTitleDef(id);if(!t)return'';return `<div onclick="equipCosmetic('title','${id}')" style="cursor:pointer;padding:6px 12px;border-radius:8px;border:2px solid ${u.equipped_title===id?t.color:'var(--border)'};font-size:12px;background:var(--bg3);color:${t.color};font-weight:600;">${t.name}</div>`;}).join('')}
+      </div>
+    </div>`:''}
+    ${ownedFrames.length?`<div style="margin-bottom:14px;">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">Card Frames (auto-applies to matching element cards)</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        ${ownedFrames.map(id=>{const f=getFrameDef(id);if(!f)return'';return `<div style="padding:6px 12px;border-radius:8px;border:1px solid var(--border);font-size:12px;background:var(--bg3);">${f.icon} ${f.name}</div>`;}).join('')}
+      </div>
+    </div>`:''}
+    ${ownedBanners.length?`<div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">Profile Banners</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <div onclick="equipCosmetic('banner',null)" style="cursor:pointer;width:70px;height:36px;border-radius:8px;border:2px solid ${!u.equipped_banner?'var(--accent)':'var(--border)'};display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text3);background:var(--bg3);">None</div>
+        ${ownedBanners.map(id=>{const b=getBannerDef(id);if(!b)return'';return `<div onclick="equipCosmetic('banner','${id}')" class="${b.cls}" title="${b.name}" style="cursor:pointer;width:70px;height:36px;border-radius:8px;border:2px solid ${u.equipped_banner===id?'#fff':'transparent'};"></div>`;}).join('')}
+      </div>
+    </div>`:''}
+  </div>`;
+}
+
+async function equipCosmetic(kind,id){
+  const field=kind==='title'?'equipped_title':kind==='banner'?'equipped_banner':null;
+  if(!field)return;
+  const{error}=await sb.from('users').update({[field]:id}).eq('id',currentUser.id);
+  if(error){showToast('Error saving');return;}
+  currentUser[field]=id;
+  showToast(id?'Equipped!':'Removed.');
+  renderProfile(currentUser.id);
 }
 
 async function sendFriendRequest(toId){
@@ -3849,9 +4238,19 @@ const ADMIN_AVATAR='🛠️';
 const ADMIN_TITLE_COLOR='#ffd700';
 
 function isAdminUser(u){return !!(u&&u.is_admin);}
-function displayTitle(u){return isAdminUser(u)?ADMIN_TITLE:(u&&u.title)||null;}
-function displayTitleColor(u){return isAdminUser(u)?ADMIN_TITLE_COLOR:(u&&u.title_color)||null;}
+// Equipped event title (from owned_titles) takes priority over milestone title, which takes priority over nothing.
+function displayTitle(u){
+  if(isAdminUser(u))return ADMIN_TITLE;
+  if(u&&u.equipped_title){const t=getTitleDef(u.equipped_title);if(t)return t.name;}
+  return (u&&u.title)||null;
+}
+function displayTitleColor(u){
+  if(isAdminUser(u))return ADMIN_TITLE_COLOR;
+  if(u&&u.equipped_title){const t=getTitleDef(u.equipped_title);if(t)return t.color;}
+  return (u&&u.title_color)||null;
+}
 function displayAvatar(u){return isAdminUser(u)?ADMIN_AVATAR:(u&&u.avatar)||'🧑';}
+function displayBanner(u){return u&&u.equipped_banner?getBannerDef(u.equipped_banner):null;}
 // Returns HTML for a player's name, gold/animated if admin, with title prefix
 function nameHTML(u,opts){
   opts=opts||{};
