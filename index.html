@@ -306,6 +306,7 @@ document.addEventListener("DOMContentLoaded",function(){
       <button onclick="go('leaderboard')">🏆 Leaderboard</button>
       <button onclick="go('news')">📰 News</button>
       <button onclick="go('events')">🎉 Events</button>
+      <button onclick="go('feedback')">💬 Feedback</button>
       <button onclick="go('players')">👥 Players</button>
       <button onclick="go('profile')">🪪 My Profile</button>
       <button id="admin-tab" style="display:none;" onclick="go('admin')">⚙️ Admin</button>
@@ -362,6 +363,7 @@ document.addEventListener("DOMContentLoaded",function(){
   <!-- NEWS -->
   <div id="screen-news" class="screen"><div id="news-content"></div></div>
   <div id="screen-events" class="screen"><div id="events-content"></div></div>
+  <div id="screen-feedback" class="screen"><div id="feedback-content"></div></div>
 
   <!-- ADMIN -->
   <div id="screen-admin" class="screen">
@@ -372,6 +374,7 @@ document.addEventListener("DOMContentLoaded",function(){
       <button class="tab-btn" onclick="adminTab('guide',this)">📖 Balance Guide</button>
       <button class="tab-btn" onclick="adminTab('post-news',this)">📰 Post News</button>
       <button class="tab-btn" onclick="adminTab('events',this)">🎉 Events</button>
+      <button class="tab-btn" onclick="adminTab('feedback',this)">💬 Feedback</button>
       <button class="tab-btn" onclick="adminTab('manage',this)">👥 Manage</button>
     </div>
 
@@ -491,6 +494,11 @@ document.addEventListener("DOMContentLoaded",function(){
           <label>Body</label>
           <textarea id="news-body" rows="4" placeholder="Write your announcement here..."></textarea>
         </div>
+        <div class="field" style="margin-bottom:10px;">
+          <label>Image (optional)</label>
+          <input type="file" id="news-image" accept="image/*" onchange="previewAdminImage('news-img-preview','news-image')" style="padding:6px;">
+          <img id="news-img-preview" class="img-preview">
+        </div>
         <div class="field-row" style="margin-bottom:12px;">
           <div class="field">
             <label>Tag (optional)</label>
@@ -545,6 +553,15 @@ document.addEventListener("DOMContentLoaded",function(){
       </div>
       <h3 style="margin-bottom:0.75rem;">Active &amp; Past Events</h3>
       <div id="admin-events-list"></div>
+    </div>
+
+    <!-- FEEDBACK -->
+    <div id="admin-feedback" style="display:none;">
+      <div class="box" style="margin-bottom:1rem;">
+        <h3 style="margin-bottom:8px;">💬 Player Feedback</h3>
+        <div class="tab-row" id="fb-admin-filter-tabs" style="margin-bottom:0;"></div>
+      </div>
+      <div id="admin-feedback-list"></div>
     </div>
 
     <!-- MANAGE -->
@@ -835,6 +852,16 @@ function aggregateSkillBonuses(unlocked){
   });
   return b;
 }
+
+// ── FEEDBACK ─────────────────────────────────────────────────────────
+const FEEDBACK_CATEGORIES=[
+  {id:'mechanics',label:'⚙️ Game Mechanics',color:'#60a5fa',desc:'Battle system, stamina, moves, balance issues'},
+  {id:'card_idea',label:'🃏 New Card Idea',color:'#a78bfa',desc:'Suggest a new card, class, or ability'},
+  {id:'bug',label:'🐛 Bug Report',color:'#ef4444',desc:'Something broken or not working as expected'},
+  {id:'ui_ux',label:'🎨 UI / UX',color:'#4ade80',desc:'Interface, layout, or usability feedback'},
+  {id:'other',label:'💬 Other',color:'#facc15',desc:'Anything else on your mind'},
+];
+function getFeedbackCategory(id){return FEEDBACK_CATEGORIES.find(c=>c.id===id);}
 
 // ── COSMETICS: TITLES, CARD FRAMES, PROFILE BANNERS ─────────────────────
 // These are granted as rewards from events (or milestones already grant titles).
@@ -1176,6 +1203,28 @@ async function globalNotificationCheck(silent){
   const onProfileTab=document.getElementById('screen-profile')?.classList.contains('active');
   await checkFriendRequests(silent||onProfileTab);
   await checkLiveEvents();
+  if(currentUser.is_admin)await checkNewFeedback();
+  const onTradeTab=document.getElementById('screen-trade')?.classList.contains('active');
+  await checkTradeNotifications(silent||onTradeTab);
+}
+
+async function checkTradeNotifications(silent){
+  const{data:incoming,error:e1}=await sb.from('trade_requests').select('id').eq('receiver',currentUser.id).eq('status','pending');
+  const{data:sessions,error:e2}=await sb.from('trade_sessions').select('*').or(`player1.eq.${currentUser.id},player2.eq.${currentUser.id}`).eq('status','active');
+  if(e1||e2){setNavBadge('trade','trade-nav-badge',0);return;}
+  const count=(incoming||[]).length;
+  // Also flag an active trade room as needing attention if I haven't confirmed yet
+  const activeRoomNeedsMe=(sessions||[]).some(s=>{
+    const isP1=s.player1===currentUser.id;
+    return isP1?!s.p1_accepted:!s.p2_accepted;
+  })?1:0;
+  setNavBadge('trade','trade-nav-badge',count+activeRoomNeedsMe);
+}
+
+async function checkNewFeedback(){
+  const{data,error}=await sb.from('feedback').select('id',{count:'exact'}).eq('status','new');
+  if(error){setNavBadge('admin','admin-feedback-badge',0);return;}
+  setNavBadge('admin','admin-feedback-badge',(data||[]).length);
 }
 
 async function checkLiveEvents(){
@@ -1263,7 +1312,7 @@ function go(name){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
   const mc=document.querySelector('.main-content');if(mc)mc.scrollTop=0;
-  const names=['mycards','packs','battle','trade','training','quests','skills','leaderboard','news','events','players','profile','admin'];
+  const names=['mycards','packs','battle','trade','training','quests','skills','leaderboard','news','events','feedback','players','profile','admin'];
   document.querySelectorAll('.main-sidebar button').forEach((b,i)=>b.classList.toggle('active',names[i]===name));
   if(name==='mycards')renderMyCards();
   if(name==='packs')renderPacks();
@@ -1275,6 +1324,7 @@ function go(name){
   if(name==='leaderboard')renderLB();
   if(name==='news')renderNews();
   if(name==='events')renderEvents();
+  if(name==='feedback')renderFeedbackTab();
   if(name==='players')renderPlayers();
   if(name==='profile'){renderProfile(currentUser.id);checkFriendRequests(true);}
   if(name==='admin'){adminTab('add-card',document.querySelector('.tab-btn'));loadPoolForEdit();setTimeout(updateSuggestedStats,100);}
@@ -1282,7 +1332,7 @@ function go(name){
 
 // ── ADMIN TABS ─────────────────────────────────────────
 function adminTab(name,btn){
-  ['add-card','edit-card','pool','guide','post-news','events','manage'].forEach(t=>{
+  ['add-card','edit-card','pool','guide','post-news','events','feedback','manage'].forEach(t=>{
     const el=document.getElementById('admin-'+t);if(el)el.style.display=t===name?'block':'none';
   });
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -1291,6 +1341,7 @@ function adminTab(name,btn){
   if(name==='edit-card')loadPoolForEdit();
   if(name==='post-news')renderAdminNews();
   if(name==='events'){updateEventRewardFields();renderAdminEventsList();}
+  if(name==='feedback')renderAdminFeedback();
   if(name==='manage')loadAdminPlayers();
 }
 
@@ -1846,118 +1897,284 @@ async function revealPackCards(drawn){
 }
 
 // ── TRADE ──────────────────────────────────────────────
+let _tradeSessionSub=null,_tradePollInterval=null;
+let _tradeMySelected=[],_tradeMyGold=0;
+
 async function renderTrade(){
   const el=document.getElementById('trade-content');
   el.innerHTML='<div class="empty">Loading...</div>';
+
+  // Is there an active trade session involving me?
+  const{data:activeSessions}=await sb.from('trade_sessions').select('*').or(`player1.eq.${currentUser.id},player2.eq.${currentUser.id}`).eq('status','active');
+  if(activeSessions&&activeSessions.length){
+    renderTradeSession(activeSessions[0]);
+    return;
+  }
+
   const opponents=allUsers.filter(u=>u.id!==currentUser.id);
   const{data:myCards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
-  const{data:incoming}=await sb.from('trades').select('*').eq('receiver',currentUser.id).eq('status','pending');
-  const{data:outgoing}=await sb.from('trades').select('*').eq('sender',currentUser.id).eq('status','pending');
+  const{data:incoming}=await sb.from('trade_requests').select('*').eq('receiver',currentUser.id).eq('status','pending');
+  const{data:outgoing}=await sb.from('trade_requests').select('*').eq('sender',currentUser.id).eq('status','pending');
 
-  let tradeSelectedCards=[];
+  _tradeMySelected=[];
 
   el.innerHTML=`
-    <div class="box">
-      <h3>🤝 Send a Trade Offer</h3>
-      <p style="font-size:12px;color:var(--text3);margin-bottom:12px;">Offer cards and/or gold to another player in exchange for theirs.</p>
-      <div class="field-row" style="margin-bottom:12px;">
-        <div class="field"><label>Trade with</label>
-          <select id="trade-opp">${opponents.map(u=>`<option value="${u.id}">${u.id}</option>`).join('')}</select>
-        </div>
-      </div>
-      <div class="field-row" style="margin-bottom:12px;">
-        <div class="field"><label>Your gold offer ($)</label><input type="number" id="trade-my-gold" value="0" min="0" max="${currentUser.money||0}"></div>
-        <div class="field"><label>Gold you want ($)</label><input type="number" id="trade-their-gold" value="0" min="0"></div>
-      </div>
-      <p style="font-size:12px;color:var(--text3);margin-bottom:8px;">Your cards to offer (tap to select):</p>
-      <div class="card-grid" id="trade-my-cards">${(myCards||[]).map(c=>`
-        <div class="card-tile" id="trd-${c.uid}" onclick="toggleTradeCard('${c.uid}',this)">
-          ${c.image_url?`<img class="card-img" src="${c.image_url}">`:`<div class="card-img-placeholder">${classEmoji(c.class_name)}</div>`}
-          <div style="font-size:12px;font-weight:700;">${c.name}</div>
-          <div style="font-size:10px;color:${RARITY_COLORS[c.rarity]};">${RARITIES[c.rarity]}</div>
-          <div style="font-size:10px;color:var(--text4);">Lv ${c.level}</div>
-        </div>`).join('')}</div>
-      <p style="font-size:12px;color:var(--text3);margin-bottom:6px;">Cards you want from them (by name, comma separated):</p>
-      <input type="text" id="trade-want-cards" placeholder="e.g. Shadow Knight, Fire Drake" style="margin-bottom:12px;">
-      <button class="btn btn-primary" onclick="sendTrade()">Send Trade Offer</button>
-    </div>
-
-    ${incoming&&incoming.length?`<div class="box"><h3>📥 Incoming Offers (${incoming.length})</h3>
-      ${incoming.map(t=>`<div class="row-item">
-        <div>
-          <div style="font-size:13px;font-weight:600;">From ${t.sender}</div>
-          <div style="font-size:12px;color:var(--text3);">They offer: ${t.sender_cards.length} card${t.sender_cards.length!==1?'s':''}${t.sender_gold>0?` + $${t.sender_gold}`:''}</div>
-          <div style="font-size:12px;color:var(--text3);">They want: ${t.receiver_cards.length} card${t.receiver_cards.length!==1?'s':''}${t.receiver_gold>0?` + $${t.receiver_gold}`:''}</div>
-        </div>
-        <div style="display:flex;gap:6px;">
-          <button class="btn btn-green btn-sm" onclick="respondTrade(${t.id},'accepted')">Accept</button>
-          <button class="btn btn-sm" style="color:#dc2626;" onclick="respondTrade(${t.id},'declined')">Decline</button>
-        </div>
-      </div>`).join('')}
+    ${incoming&&incoming.length?`<div class="box" style="border-color:#f59e0b;box-shadow:0 0 16px rgba(245,158,11,0.25);">
+      <h3 style="margin-bottom:8px;">📥 Incoming Trade Requests (${incoming.length})</h3>
+      ${incoming.map(t=>{
+        const hasPitch=(t.pitch_cards&&t.pitch_cards.length)||t.pitch_gold>0;
+        return `<div class="row-item" style="align-items:flex-start;">
+          <div>
+            <div style="font-size:14px;font-weight:700;">${nameHTML({id:t.sender})}</div>
+            ${t.message?`<div style="font-size:12px;color:var(--text2);margin-top:2px;font-style:italic;">"${t.message}"</div>`:''}
+            ${hasPitch?`<div style="font-size:12px;color:var(--text3);margin-top:4px;">Pitching: ${(t.pitch_cards||[]).join(', ')}${t.pitch_gold>0?`${(t.pitch_cards||[]).length?' + ':''}$${t.pitch_gold}`:''}</div>`:`<div style="font-size:12px;color:var(--text3);margin-top:4px;">No specific offer yet — open to discuss</div>`}
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0;">
+            <button class="btn btn-green btn-sm" onclick="acceptTradeRequest(${t.id},'${t.sender}')">Accept</button>
+            <button class="btn btn-sm" style="color:#dc2626;" onclick="declineTradeRequest(${t.id})">Decline</button>
+          </div>
+        </div>`;
+      }).join('')}
     </div>`:''}
 
-    ${outgoing&&outgoing.length?`<div class="box"><h3>📤 Sent Offers (${outgoing.length})</h3>
+    ${outgoing&&outgoing.length?`<div class="box">
+      <h3 style="margin-bottom:8px;">📤 Sent Requests (${outgoing.length})</h3>
       ${outgoing.map(t=>`<div class="row-item">
         <div>
           <div style="font-size:13px;font-weight:600;">To ${t.receiver}</div>
           <div style="font-size:12px;color:var(--text3);">Waiting for response...</div>
         </div>
-        <button class="btn btn-sm" style="color:#dc2626;" onclick="cancelTrade(${t.id})">Cancel</button>
+        <button class="btn btn-sm" style="color:#dc2626;" onclick="cancelTradeRequest(${t.id})">Cancel</button>
       </div>`).join('')}
-    </div>`:''}`;
+    </div>`:''}
+
+    <div class="box">
+      <h3 style="margin-bottom:6px;">🤝 Send a Trade Request</h3>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:12px;">Send a request first. Once they accept, you'll both enter a shared trade room where you can freely add cards and gold from your own side, then both confirm to finalize.</p>
+      <div class="field" style="margin-bottom:10px;">
+        <label>Trade with</label>
+        <select id="trade-opp">${opponents.map(u=>`<option value="${u.id}">${u.id}</option>`).join('')}</select>
+      </div>
+      <div class="field" style="margin-bottom:10px;">
+        <label>Message (optional)</label>
+        <input type="text" id="trade-message" placeholder="e.g. Want to trade for your Fire Drake?">
+      </div>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:8px;">Optionally pitch what you'd offer (tap cards, set gold) — or leave blank to just open a trade room with no prior info:</p>
+      <div class="field" style="margin-bottom:10px;">
+        <label>Gold to pitch ($)</label>
+        <input type="number" id="trade-pitch-gold" value="0" min="0" max="${currentUser.money||0}">
+      </div>
+      <div class="card-grid" id="trade-pitch-cards" style="margin-bottom:14px;">${(myCards||[]).map(c=>`
+        <div class="card-tile" id="pitch-${c.uid}" onclick="togglePitchCard('${c.uid}','${c.name.replace(/'/g,"\\'")}',this)">
+          ${c.image_url?`<img class="card-img" src="${c.image_url}">`:`<div class="card-img-placeholder">${classEmoji(c.class_name)}</div>`}
+          <div style="font-size:12px;font-weight:700;">${c.name}</div>
+          <div style="font-size:10px;color:${RARITY_COLORS[c.rarity]};">${RARITIES[c.rarity]}</div>
+          <div style="font-size:10px;color:var(--text4);">Lv ${c.level}</div>
+        </div>`).join('')}</div>
+      <button class="btn btn-primary" onclick="sendTradeRequest()">Send Trade Request</button>
+    </div>`;
 }
 
-let tradeSelectedCards=[];
-function toggleTradeCard(uid,el){
-  if(tradeSelectedCards.includes(uid)){tradeSelectedCards=tradeSelectedCards.filter(x=>x!==uid);el.classList.remove('selected');}
-  else{tradeSelectedCards.push(uid);el.classList.add('selected');}
+let _pitchSelected=[]; // [{uid,name}]
+function togglePitchCard(uid,name,el){
+  const idx=_pitchSelected.findIndex(c=>c.uid===uid);
+  if(idx>=0){_pitchSelected.splice(idx,1);el.classList.remove('selected');}
+  else{_pitchSelected.push({uid,name});el.classList.add('selected');}
 }
 
-async function sendTrade(){
+async function sendTradeRequest(){
   const opp=document.getElementById('trade-opp').value;
-  const myGold=parseInt(document.getElementById('trade-my-gold').value)||0;
-  const theirGold=parseInt(document.getElementById('trade-their-gold').value)||0;
-  const wantStr=document.getElementById('trade-want-cards').value.trim();
+  const message=document.getElementById('trade-message').value.trim();
+  const pitchGold=parseInt(document.getElementById('trade-pitch-gold').value)||0;
   if(!opp){showToast('Pick a player to trade with');return;}
-  if(myGold>(currentUser.money||0)){showToast("You don't have that much gold");return;}
-  if(tradeSelectedCards.length===0&&myGold===0&&theirGold===0&&!wantStr){showToast('Add something to the trade');return;}
-  const wantCards=wantStr?wantStr.split(',').map(s=>s.trim()).filter(Boolean):[];
-  await sb.from('trades').insert({sender:currentUser.id,receiver:opp,sender_cards:tradeSelectedCards,receiver_cards:wantCards,sender_gold:myGold,receiver_gold:theirGold,status:'pending'});
-  showToast('Trade offer sent!');tradeSelectedCards=[];renderTrade();
+  if(pitchGold>(currentUser.money||0)){showToast("You don't have that much gold");return;}
+  const{data:existing}=await sb.from('trade_requests').select('id').eq('sender',currentUser.id).eq('receiver',opp).eq('status','pending');
+  if(existing&&existing.length){showToast('You already have a pending request with them');return;}
+  await sb.from('trade_requests').insert({
+    sender:currentUser.id,receiver:opp,message:message||null,
+    pitch_cards:_pitchSelected.map(c=>c.name),pitch_gold:pitchGold,status:'pending'
+  });
+  _pitchSelected=[];
+  showToast('Trade request sent!');
+  renderTrade();
 }
 
-async function respondTrade(id,status){
-  if(status==='accepted'){
-    const{data:trade}=await sb.from('trades').select('*').eq('id',id).single();
-    if(!trade){showToast('Trade not found');return;}
-    // Transfer sender cards to receiver
-    for(const uid of trade.sender_cards){await sb.from('player_cards').update({owner:trade.receiver}).eq('uid',uid);}
-    // Transfer receiver cards to sender — find by name (simplified)
-    for(const name of trade.receiver_cards){
-      const{data:card}=await sb.from('player_cards').select('*').eq('owner',trade.receiver).eq('name',name).limit(1).single();
-      if(card)await sb.from('player_cards').update({owner:trade.sender}).eq('uid',card.uid);
-    }
-    // Transfer gold
-    if(trade.sender_gold>0){
-      const sender=allUsers.find(u=>u.id===trade.sender);const recv=allUsers.find(u=>u.id===trade.receiver);
-      await sb.from('users').update({money:(sender?.money||0)-trade.sender_gold}).eq('id',trade.sender);
-      await sb.from('users').update({money:(recv?.money||0)+trade.sender_gold}).eq('id',trade.receiver);
-    }
-    if(trade.receiver_gold>0){
-      const recv=allUsers.find(u=>u.id===trade.receiver);const sender=allUsers.find(u=>u.id===trade.sender);
-      await sb.from('users').update({money:(recv?.money||0)-trade.receiver_gold}).eq('id',trade.receiver);
-      await sb.from('users').update({money:(sender?.money||0)+trade.receiver_gold}).eq('id',trade.sender);
-      currentUser.money=Math.max(0,(currentUser.money||0)-trade.receiver_gold);updateHUD();
-    }
-    showToast('Trade accepted!');
-  } else showToast('Trade declined.');
-  await sb.from('trades').update({status}).eq('id',id);
-  await loadUsers();renderTrade();
+async function cancelTradeRequest(id){
+  await sb.from('trade_requests').update({status:'cancelled'}).eq('id',id);
+  showToast('Request cancelled.');
+  renderTrade();
 }
 
-async function cancelTrade(id){
-  await sb.from('trades').update({status:'cancelled'}).eq('id',id);
-  showToast('Trade cancelled.');renderTrade();
+async function declineTradeRequest(id){
+  await sb.from('trade_requests').update({status:'declined'}).eq('id',id);
+  showToast('Request declined.');
+  renderTrade();
+}
+
+async function acceptTradeRequest(reqId,senderId){
+  // Create a trade session and mark the request accepted
+  const{data:session,error}=await sb.from('trade_sessions').insert({
+    player1:senderId,player2:currentUser.id,
+    p1_cards:[],p1_gold:0,p2_cards:[],p2_gold:0,
+    p1_accepted:false,p2_accepted:false,status:'active'
+  }).select().single();
+  if(error){showToast('Error creating trade room: '+error.message);return;}
+  await sb.from('trade_requests').update({status:'accepted',session_id:session.id}).eq('id',reqId);
+  showToast('Trade room opened!');
+  renderTrade();
+}
+
+// ── LIVE TRADE SESSION ROOM ─────────────────────────────────────────
+async function renderTradeSession(session){
+  const el=document.getElementById('trade-content');
+  const isP1=session.player1===currentUser.id;
+  const myKey=isP1?'p1':'p2',oppKey=isP1?'p2':'p1';
+  const myCardsUids=session[myKey+'_cards']||[];
+  const oppCardsUids=session[oppKey+'_cards']||[];
+  const myGold=session[myKey+'_gold']||0;
+  const oppGold=session[oppKey+'_gold']||0;
+  const myAccepted=session[myKey+'_accepted'];
+  const oppAccepted=session[oppKey+'_accepted'];
+  const oppName=isP1?session.player2:session.player1;
+
+  const{data:myAllCards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
+  const oppUid=isP1?session.player2:session.player1;
+  const{data:oppAllCards}=await sb.from('player_cards').select('*').eq('owner',oppUid).eq('is_income_card',false);
+
+  const myOfferedCards=(myAllCards||[]).filter(c=>myCardsUids.includes(c.uid));
+  const oppOfferedCards=(oppAllCards||[]).filter(c=>oppCardsUids.includes(c.uid));
+  const myAvailableCards=(myAllCards||[]).filter(c=>!myCardsUids.includes(c.uid));
+
+  el.innerHTML=`
+    <div class="box" style="margin-bottom:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <h3 style="margin:0;">🤝 Trade Room with ${oppName}</h3>
+        <button class="btn btn-sm" style="color:#dc2626;" onclick="cancelTradeSession(${session.id})">✕ Cancel Trade</button>
+      </div>
+      <p style="font-size:12px;color:var(--text3);margin-top:6px;">Add or remove cards/gold from your side anytime. Both players must click Confirm to finalize — changing your offer resets both confirmations.</p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+      <!-- MY SIDE -->
+      <div class="box" style="margin-bottom:0;${myAccepted?'border-color:#16a34a;box-shadow:0 0 14px rgba(22,163,74,0.3);':''}">
+        <h4 style="margin-bottom:8px;">🟢 Your Offer ${myAccepted?'<span style="color:#4ade80;font-size:12px;">✅ Confirmed</span>':''}</h4>
+        <div class="field" style="margin-bottom:10px;">
+          <label>Gold</label>
+          <input type="number" id="ts-my-gold" value="${myGold}" min="0" max="${currentUser.money||0}" onchange="updateMyTradeOffer(${session.id})">
+        </div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">Cards offered (${myOfferedCards.length}):</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+          ${myOfferedCards.length?myOfferedCards.map(c=>`<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:4px 8px;font-size:11px;display:flex;align-items:center;gap:5px;">
+            ${c.name} <span style="color:${RARITY_COLORS[c.rarity]};">${RARITIES[c.rarity][0]}</span>
+            <span onclick="removeMyTradeCard(${session.id},'${c.uid}')" style="cursor:pointer;color:#ef4444;font-weight:700;">✕</span>
+          </div>`).join(''):`<span style="font-size:11px;color:var(--text4);">None yet</span>`}
+        </div>
+        <details style="margin-bottom:10px;">
+          <summary style="font-size:12px;color:var(--accent);cursor:pointer;">+ Add a card</summary>
+          <div class="card-grid" style="margin-top:8px;max-height:220px;overflow-y:auto;">
+            ${myAvailableCards.length?myAvailableCards.map(c=>`
+              <div class="card-tile" onclick="addMyTradeCard(${session.id},'${c.uid}')" style="cursor:pointer;">
+                ${c.image_url?`<img class="card-img" src="${c.image_url}">`:`<div class="card-img-placeholder">${classEmoji(c.class_name)}</div>`}
+                <div style="font-size:12px;font-weight:700;">${c.name}</div>
+                <div style="font-size:10px;color:${RARITY_COLORS[c.rarity]};">${RARITIES[c.rarity]}</div>
+              </div>`).join(''):'<div class="empty" style="grid-column:1/-1;font-size:12px;">No more cards available</div>'}
+          </div>
+        </details>
+        <button class="btn ${myAccepted?'btn-sm':'btn-green'}" style="width:100%;" onclick="toggleMyTradeAccept(${session.id},${myAccepted})">${myAccepted?'Unconfirm':'✅ Confirm Trade'}</button>
+      </div>
+
+      <!-- THEIR SIDE -->
+      <div class="box" style="margin-bottom:0;${oppAccepted?'border-color:#16a34a;box-shadow:0 0 14px rgba(22,163,74,0.3);':''}">
+        <h4 style="margin-bottom:8px;">🔵 ${oppName}'s Offer ${oppAccepted?'<span style="color:#4ade80;font-size:12px;">✅ Confirmed</span>':'<span style="color:var(--text3);font-size:12px;">⏳ Waiting</span>'}</h4>
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">💰 $${oppGold.toLocaleString()}</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">Cards offered (${oppOfferedCards.length}):</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          ${oppOfferedCards.length?oppOfferedCards.map(c=>`<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:4px 8px;font-size:11px;">
+            ${c.name} <span style="color:${RARITY_COLORS[c.rarity]};">${RARITIES[c.rarity][0]}</span>
+          </div>`).join(''):`<span style="font-size:11px;color:var(--text4);">Nothing offered yet</span>`}
+        </div>
+      </div>
+    </div>`;
+}
+
+async function getMySession(){
+  const{data}=await sb.from('trade_sessions').select('*').or(`player1.eq.${currentUser.id},player2.eq.${currentUser.id}`).eq('status','active').limit(1).single();
+  return data;
+}
+
+async function addMyTradeCard(sessionId,uid){
+  const{data:session}=await sb.from('trade_sessions').select('*').eq('id',sessionId).single();
+  if(!session)return;
+  const isP1=session.player1===currentUser.id;
+  const key=(isP1?'p1':'p2')+'_cards';
+  const cards=[...(session[key]||[])];
+  if(!cards.includes(uid))cards.push(uid);
+  await sb.from('trade_sessions').update({[key]:cards,p1_accepted:false,p2_accepted:false}).eq('id',sessionId);
+  renderTrade();
+}
+
+async function removeMyTradeCard(sessionId,uid){
+  const{data:session}=await sb.from('trade_sessions').select('*').eq('id',sessionId).single();
+  if(!session)return;
+  const isP1=session.player1===currentUser.id;
+  const key=(isP1?'p1':'p2')+'_cards';
+  const cards=(session[key]||[]).filter(u=>u!==uid);
+  await sb.from('trade_sessions').update({[key]:cards,p1_accepted:false,p2_accepted:false}).eq('id',sessionId);
+  renderTrade();
+}
+
+async function updateMyTradeOffer(sessionId){
+  const goldInput=document.getElementById('ts-my-gold');
+  const gold=Math.max(0,Math.min(currentUser.money||0,parseInt(goldInput.value)||0));
+  const{data:session}=await sb.from('trade_sessions').select('*').eq('id',sessionId).single();
+  if(!session)return;
+  const isP1=session.player1===currentUser.id;
+  const key=(isP1?'p1':'p2')+'_gold';
+  await sb.from('trade_sessions').update({[key]:gold,p1_accepted:false,p2_accepted:false}).eq('id',sessionId);
+  renderTrade();
+}
+
+async function toggleMyTradeAccept(sessionId,currentlyAccepted){
+  const{data:session}=await sb.from('trade_sessions').select('*').eq('id',sessionId).single();
+  if(!session)return;
+  const isP1=session.player1===currentUser.id;
+  const key=(isP1?'p1':'p2')+'_accepted';
+  const newVal=!currentlyAccepted;
+  await sb.from('trade_sessions').update({[key]:newVal}).eq('id',sessionId);
+
+  // Re-fetch to check if both sides are now accepted
+  const{data:updated}=await sb.from('trade_sessions').select('*').eq('id',sessionId).single();
+  if(updated&&updated.p1_accepted&&updated.p2_accepted){
+    await finalizeTradeSession(updated);
+  } else {
+    renderTrade();
+  }
+}
+
+async function finalizeTradeSession(session){
+  // Transfer cards
+  for(const uid of (session.p1_cards||[])){await sb.from('player_cards').update({owner:session.player2}).eq('uid',uid);}
+  for(const uid of (session.p2_cards||[])){await sb.from('player_cards').update({owner:session.player1}).eq('uid',uid);}
+  // Transfer gold
+  const{data:p1User}=await sb.from('users').select('money').eq('id',session.player1).single();
+  const{data:p2User}=await sb.from('users').select('money').eq('id',session.player2).single();
+  const p1Gold=(p1User?.money||0)-(session.p1_gold||0)+(session.p2_gold||0);
+  const p2Gold=(p2User?.money||0)-(session.p2_gold||0)+(session.p1_gold||0);
+  await sb.from('users').update({money:Math.max(0,p1Gold)}).eq('id',session.player1);
+  await sb.from('users').update({money:Math.max(0,p2Gold)}).eq('id',session.player2);
+  await sb.from('trade_sessions').update({status:'completed'}).eq('id',session.id);
+  if(currentUser.id===session.player1)currentUser.money=Math.max(0,p1Gold);
+  else if(currentUser.id===session.player2)currentUser.money=Math.max(0,p2Gold);
+  updateHUD();
+  showToast('🎉 Trade completed!');
+  await loadUsers();
+  renderTrade();
+}
+
+async function cancelTradeSession(sessionId){
+  await sb.from('trade_sessions').update({status:'cancelled'}).eq('id',sessionId);
+  showToast('Trade cancelled.');
+  renderTrade();
 }
 
 // ── BATTLE LOBBY ───────────────────────────────────────
@@ -3245,6 +3462,12 @@ const NEWS_TAG_LABELS={'new-cards':'🃏 New Cards','new-pack':'📦 New Pack','
 const NEWS_TAG_COLORS={'new-cards':'#1e3a5f','new-pack':'#92400e','event':'#14532d','update':'#1e1b4b','announcement':'#450a0a'};
 const NEWS_TAG_TEXT={'new-cards':'#93c5fd','new-pack':'#fbbf24','event':'#4ade80','update':'#a5b4fc','announcement':'#fca5a5'};
 
+const NEWS_REACTIONS=[
+  {id:'heart',emoji:'❤️',label:'Love it'},
+  {id:'thumbsup',emoji:'👍',label:'Nice'},
+  {id:'surprised',emoji:'😲',label:'Whoa'},
+];
+
 async function renderNews(){
   const el=document.getElementById('news-content');
   el.innerHTML='<div class="empty">Loading...</div>';
@@ -3256,18 +3479,42 @@ async function renderNews(){
       <p style="color:var(--text3);margin-top:0.5rem;">Check back soon for announcements!</p>
     </div>`;return;
   }
+  const newsIds=data.map(n=>n.id);
+  const{data:allReactions}=await sb.from('news_reactions').select('*').in('news_id',newsIds);
   el.innerHTML='<h3 style="margin-bottom:1rem;">📰 News & Announcements</h3>'+data.map(n=>{
     const tag=n.tag&&NEWS_TAG_LABELS[n.tag]?`<span style="font-size:11px;padding:2px 8px;border-radius:6px;background:${NEWS_TAG_COLORS[n.tag]};color:${NEWS_TAG_TEXT[n.tag]};margin-left:8px;">${NEWS_TAG_LABELS[n.tag]}</span>`:'';
     const pin=n.pinned?'<span style="font-size:11px;color:#fbbf24;margin-right:6px;">📌 Pinned</span>':'';
     const date=new Date(n.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    const myReactions=(allReactions||[]).filter(r=>r.news_id===n.id&&r.user_id===currentUser.id).map(r=>r.reaction);
+    const reactionBtns=NEWS_REACTIONS.map(r=>{
+      const count=(allReactions||[]).filter(x=>x.news_id===n.id&&x.reaction===r.id).length;
+      const active=myReactions.includes(r.id);
+      return `<button onclick="toggleNewsReaction(${n.id},'${r.id}')" style="display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;border:1.5px solid ${active?'var(--accent)':'var(--border)'};background:${active?'var(--bg4)':'var(--bg3)'};cursor:pointer;font-size:13px;transition:all var(--transition);" title="${r.label}">
+        <span>${r.emoji}</span>${count>0?`<span style="font-size:11px;color:var(--text3);font-weight:600;">${count}</span>`:''}
+      </button>`;
+    }).join('');
     return `<div class="box" style="margin-bottom:12px;${n.pinned?'border-color:#d97706;':''}" >
       <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:8px;">
         ${pin}<span style="font-size:16px;font-weight:700;">${n.title}</span>${tag}
       </div>
+      ${n.image_url?`<img src="${n.image_url}" style="width:100%;max-height:280px;object-fit:cover;border-radius:10px;margin-bottom:10px;">`:''}
       <p style="font-size:14px;color:var(--text2);line-height:1.7;white-space:pre-wrap;margin-bottom:10px;">${n.body}</p>
-      <div style="font-size:11px;color:var(--text4);">Posted by ${n.author} · ${date}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;gap:6px;">${reactionBtns}</div>
+        <div style="font-size:11px;color:var(--text4);">Posted by ${n.author} · ${date}</div>
+      </div>
     </div>`;
   }).join('');
+}
+
+async function toggleNewsReaction(newsId,reactionId){
+  const{data:existing}=await sb.from('news_reactions').select('*').eq('news_id',newsId).eq('user_id',currentUser.id).eq('reaction',reactionId);
+  if(existing&&existing.length){
+    await sb.from('news_reactions').delete().eq('news_id',newsId).eq('user_id',currentUser.id).eq('reaction',reactionId);
+  } else {
+    await sb.from('news_reactions').insert({news_id:newsId,user_id:currentUser.id,reaction:reactionId});
+  }
+  renderNews();
 }
 
 async function postNews(){
@@ -3277,11 +3524,21 @@ async function postNews(){
   const tag=document.getElementById('news-tag').value;
   const pinned=document.getElementById('news-pin').value==='true';
   spin('news-spin',true);
-  const{error}=await sb.from('news').insert({title,body,tag,pinned,author:currentUser.id});
+  let imageUrl=null;
+  const f=document.getElementById('news-image').files[0];
+  if(f){
+    const ext=f.name.split('.').pop();const path=`news/${Date.now()}.${ext}`;
+    const{error:ue}=await sb.storage.from('card-images').upload(path,f,{upsert:true});
+    if(ue){console.error('News image upload error:',ue);showToast('Warning: image upload failed — '+ue.message);}
+    else{const{data:ud}=sb.storage.from('card-images').getPublicUrl(path);imageUrl=ud.publicUrl;}
+  }
+  const{error}=await sb.from('news').insert({title,body,tag,pinned,author:currentUser.id,image_url:imageUrl});
   spin('news-spin',false);
   if(error){showToast('Error: '+error.message);return;}
   document.getElementById('news-title').value='';
   document.getElementById('news-body').value='';
+  document.getElementById('news-image').value='';
+  document.getElementById('news-img-preview').style.display='none';
   showToast('News posted!');
   renderAdminNews();
 }
@@ -3488,6 +3745,150 @@ async function claimEventReward(eventId){
   renderEvents();
 }
 
+let _feedbackCategory='mechanics',_fbAdminFilter='all';
+
+async function renderFeedbackTab(){
+  const el=document.getElementById('feedback-content');
+  if(!el)return;
+  el.innerHTML=`
+    <h3 style="margin-bottom:0.5rem;">💬 Feedback &amp; Ideas</h3>
+    <p style="font-size:13px;color:var(--text3);margin-bottom:1rem;">Got a balance complaint, a new card idea, or found a bug? Pick a category and let us know.</p>
+    <div class="box">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;" id="fb-category-row">
+        ${FEEDBACK_CATEGORIES.map(c=>`<button class="skill-tab-btn${c.id===_feedbackCategory?' active':''}" data-fbcat="${c.id}" onclick="setFeedbackCategory('${c.id}')" style="${c.id===_feedbackCategory?`border-color:${c.color};color:${c.color};`:''}">${c.label}</button>`).join('')}
+      </div>
+      <p id="fb-category-desc" style="font-size:12px;color:var(--text3);margin-bottom:10px;">${getFeedbackCategory(_feedbackCategory).desc}</p>
+      <div class="field" style="margin-bottom:10px;">
+        <label>Title</label>
+        <input type="text" id="fb-title" placeholder="Short summary of your feedback or idea">
+      </div>
+      <div class="field" style="margin-bottom:12px;">
+        <label>Details</label>
+        <textarea id="fb-body" placeholder="Be as specific as you can — what happened, what you'd like changed, or describe your card idea (class, rarity, abilities, etc.)" style="min-height:120px;"></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="submitFeedback()"><span id="fb-spin" class="spinner" style="display:none;"></span>Submit Feedback</button>
+    </div>
+    <h3 style="margin:1.5rem 0 0.75rem;">Your Past Submissions</h3>
+    <div id="my-feedback-list"></div>`;
+  renderMyFeedback();
+}
+
+function setFeedbackCategory(catId){
+  _feedbackCategory=catId;
+  document.querySelectorAll('#fb-category-row .skill-tab-btn').forEach(b=>{
+    const cat=getFeedbackCategory(b.dataset.fbcat);
+    const active=b.dataset.fbcat===catId;
+    b.classList.toggle('active',active);
+    b.style.borderColor=active?cat.color:'var(--border)';
+    b.style.color=active?cat.color:'var(--text2)';
+  });
+  document.getElementById('fb-category-desc').textContent=getFeedbackCategory(catId).desc;
+}
+
+async function submitFeedback(){
+  const title=document.getElementById('fb-title').value.trim();
+  const body=document.getElementById('fb-body').value.trim();
+  if(!title||!body){showToast('Fill in both fields');return;}
+  spin('fb-spin',true);
+  const{error}=await sb.from('feedback').insert({
+    category:_feedbackCategory,title,body,author:currentUser.id,status:'new'
+  });
+  spin('fb-spin',false);
+  if(error){showToast('Error: '+error.message);return;}
+  document.getElementById('fb-title').value='';
+  document.getElementById('fb-body').value='';
+  showToast('Feedback submitted — thank you!');
+  renderMyFeedback();
+}
+
+async function renderMyFeedback(){
+  const el=document.getElementById('my-feedback-list');
+  if(!el)return;
+  const{data}=await sb.from('feedback').select('*').eq('author',currentUser.id).order('created_at',{ascending:false});
+  if(!data||!data.length){el.innerHTML='<div class="empty">You haven\'t submitted any feedback yet.</div>';return;}
+  el.innerHTML=data.map(f=>{
+    const cat=getFeedbackCategory(f.category)||FEEDBACK_CATEGORIES[4];
+    const statusBadge=f.status==='new'?`<span style="font-size:11px;padding:2px 8px;border-radius:6px;background:#374151;color:#d1d5db;">📥 Submitted</span>`
+      :f.status==='reviewed'?`<span style="font-size:11px;padding:2px 8px;border-radius:6px;background:#1e3a5f;color:#93c5fd;">👀 Reviewed</span>`
+      :`<span style="font-size:11px;padding:2px 8px;border-radius:6px;background:#14532d;color:#4ade80;">✅ Addressed</span>`;
+    return `<div class="box" style="margin-bottom:10px;">
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px;">
+        <span style="font-size:11px;padding:2px 8px;border-radius:6px;background:${cat.color}22;color:${cat.color};font-weight:600;">${cat.label}</span>
+        ${statusBadge}
+      </div>
+      <div style="font-size:14px;font-weight:700;margin-bottom:4px;">${f.title}</div>
+      <p style="font-size:13px;color:var(--text2);white-space:pre-wrap;line-height:1.6;">${f.body}</p>
+      <div style="font-size:11px;color:var(--text4);margin-top:8px;">${new Date(f.created_at).toLocaleString()}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── ADMIN FEEDBACK DASHBOARD ──────────────────────────────────────────
+async function renderAdminFeedback(){
+  const tabsEl=document.getElementById('fb-admin-filter-tabs');
+  if(tabsEl){
+    const filters=[{id:'all',label:'All'},{id:'new',label:'📥 New'},{id:'reviewed',label:'👀 Reviewed'},{id:'addressed',label:'✅ Addressed'},...FEEDBACK_CATEGORIES.map(c=>({id:'cat:'+c.id,label:c.label}))];
+    tabsEl.innerHTML=filters.map(f=>`<button class="tab-btn${f.id===_fbAdminFilter?' active':''}" onclick="setFeedbackAdminFilter('${f.id}')">${f.label}</button>`).join('');
+  }
+  await loadAdminFeedbackList();
+}
+
+function setFeedbackAdminFilter(filterId){
+  _fbAdminFilter=filterId;
+  renderAdminFeedback();
+}
+
+async function loadAdminFeedbackList(){
+  const el=document.getElementById('admin-feedback-list');
+  if(!el)return;
+  el.innerHTML='<div class="empty">Loading...</div>';
+  const{data,error}=await sb.from('feedback').select('*').order('created_at',{ascending:false});
+  if(error||!data){el.innerHTML='<div class="empty">Error loading feedback</div>';return;}
+  let filtered=data;
+  if(_fbAdminFilter.startsWith('cat:')){
+    const catId=_fbAdminFilter.slice(4);
+    filtered=data.filter(f=>f.category===catId);
+  } else if(_fbAdminFilter!=='all'){
+    filtered=data.filter(f=>f.status===_fbAdminFilter);
+  }
+  if(!filtered.length){el.innerHTML='<div class="empty">No feedback in this filter.</div>';return;}
+  el.innerHTML=filtered.map(f=>{
+    const cat=getFeedbackCategory(f.category)||FEEDBACK_CATEGORIES[4];
+    return `<div class="box" style="margin-bottom:10px;${f.status==='new'?'border-color:'+cat.color+'55;':''}">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:11px;padding:2px 8px;border-radius:6px;background:${cat.color}22;color:${cat.color};font-weight:600;">${cat.label}</span>
+          <span style="font-size:13px;color:var(--text3);">from <strong style="color:var(--text);">${f.author}</strong></span>
+        </div>
+        <select onchange="updateFeedbackStatus(${f.id},this.value)" style="width:auto;font-size:12px;padding:4px 8px;">
+          <option value="new" ${f.status==='new'?'selected':''}>📥 New</option>
+          <option value="reviewed" ${f.status==='reviewed'?'selected':''}>👀 Reviewed</option>
+          <option value="addressed" ${f.status==='addressed'?'selected':''}>✅ Addressed</option>
+        </select>
+      </div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:4px;">${f.title}</div>
+      <p style="font-size:13px;color:var(--text2);white-space:pre-wrap;line-height:1.6;">${f.body}</p>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
+        <div style="font-size:11px;color:var(--text4);">${new Date(f.created_at).toLocaleString()}</div>
+        <button class="btn btn-sm" style="color:#dc2626;border-color:#7f1d1d;" onclick="deleteFeedback(${f.id})">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function updateFeedbackStatus(id,status){
+  await sb.from('feedback').update({status}).eq('id',id);
+  showToast('Status updated');
+  loadAdminFeedbackList();
+  checkNewFeedback();
+}
+
+async function deleteFeedback(id){
+  await sb.from('feedback').delete().eq('id',id);
+  showToast('Feedback deleted');
+  loadAdminFeedbackList();
+}
+
 async function renderAdminNews(){
   const el=document.getElementById('admin-news-list');if(!el)return;
   const{data}=await sb.from('news').select('*').order('created_at',{ascending:false});
@@ -3504,6 +3905,7 @@ async function renderAdminNews(){
           <button class="btn btn-sm" style="color:#dc2626;border-color:#7f1d1d;" onclick="deleteNews(${n.id})">Delete</button>
         </div>
       </div>
+      ${n.image_url?`<img src="${n.image_url}" style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-top:8px;">`:''}
       <p style="font-size:13px;color:var(--text2);margin-top:8px;white-space:pre-wrap;">${n.body}</p>
     </div>`).join('');
 }
