@@ -1293,6 +1293,7 @@ function updateHUD(){
 function logout(){
   currentUser=null;
   if(battleSub)sb.removeChannel(battleSub);
+  if(battlePoll){clearInterval(battlePoll);battlePoll=null;}
   if(incomingSub)sb.removeChannel(incomingSub);
   if(incomingPoll)clearInterval(incomingPoll);
   stopGlobalNotifications();
@@ -2523,6 +2524,8 @@ async function confirmAccept(){
 }
 
 // ── BATTLE UI ──────────────────────────────────────────
+let battlePoll=null;
+
 function enterBattle(battle){
   document.getElementById('battle-lobby').style.display='none';
   document.getElementById('battle-active').style.display='block';
@@ -2533,8 +2536,34 @@ function enterBattle(battle){
   if(battleSub)sb.removeChannel(battleSub);
   battleSub=sb.channel('battle-'+battle.id)
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'live_battles',filter:`id=eq.${battle.id}`},
-      p=>{currentBattle=p.new;pendingTargetMode=false;pendingMove=null;pendingFighterUid=null;selectedAttackerUid=null;renderBattleUI();})
+      p=>{
+        const oldState=currentBattle?(typeof currentBattle.state==='string'?JSON.parse(currentBattle.state):currentBattle.state):null;
+        const newState=typeof p.new.state==='string'?JSON.parse(p.new.state):p.new.state;
+        currentBattle=p.new;pendingTargetMode=false;pendingMove=null;pendingFighterUid=null;selectedAttackerUid=null;
+        renderBattleUI();
+        diffAndShowPopups(oldState,newState);
+      })
     .subscribe();
+
+  // Polling fallback — realtime requires replication to be enabled on live_battles in Supabase.
+  // This guarantees both players see updates even if that's not configured correctly.
+  if(battlePoll)clearInterval(battlePoll);
+  battlePoll=setInterval(async()=>{
+    if(!currentBattle||currentBattle.status==='complete'){clearInterval(battlePoll);battlePoll=null;return;}
+    const{data:fresh,error}=await sb.from('live_battles').select('*').eq('id',battle.id).single();
+    if(error||!fresh)return;
+    // Only re-render if the state actually changed, to avoid wiping local UI selections unnecessarily
+    const freshStateStr=typeof fresh.state==='string'?fresh.state:JSON.stringify(fresh.state);
+    const currentStateStr=typeof currentBattle.state==='string'?currentBattle.state:JSON.stringify(currentBattle.state);
+    if(freshStateStr!==currentStateStr||fresh.status!==currentBattle.status){
+      const oldState=typeof currentBattle.state==='string'?JSON.parse(currentBattle.state):currentBattle.state;
+      const newState=typeof fresh.state==='string'?JSON.parse(fresh.state):fresh.state;
+      currentBattle=fresh;
+      pendingTargetMode=false;pendingMove=null;pendingFighterUid=null;selectedAttackerUid=null;
+      renderBattleUI();
+      diffAndShowPopups(oldState,newState);
+    }
+  },1500);
 }
 
 function renderBattleUI(){
@@ -2719,6 +2748,22 @@ function showDmgPopup(targetUid,amount,isHeal){
   el.style.position='relative';
   el.appendChild(pop);
   setTimeout(()=>pop.remove(),1500);
+}
+
+// Compares the previous battle state to a freshly received one and pops damage/heal
+// numbers for any fighter whose HP changed — this is what makes damage visible on the
+// receiving player's screen, not just the attacker's.
+function diffAndShowPopups(oldState,newState){
+  if(!oldState||!newState)return;
+  const oldFighters=[...(oldState.fighters1||[]),...(oldState.fighters2||[])];
+  const newFighters=[...(newState.fighters1||[]),...(newState.fighters2||[])];
+  newFighters.forEach(nf=>{
+    const of=oldFighters.find(f=>f.uid===nf.uid);
+    if(!of)return;
+    const delta=nf.hp-of.hp;
+    if(delta<0)showDmgPopup(nf.uid,Math.abs(delta),false);
+    else if(delta>0)showDmgPopup(nf.uid,delta,true);
+  });
 }
 
 function selectAttacker(uid){
@@ -2972,6 +3017,7 @@ function renderBattleOver(state){
 async function leaveBattle(){
   // Stop all subscriptions
   if(battleSub){sb.removeChannel(battleSub);battleSub=null;}
+  if(battlePoll){clearInterval(battlePoll);battlePoll=null;}
   if(incomingSub){sb.removeChannel(incomingSub);incomingSub=null;}
   // Mark battle as abandoned so we don't auto-rejoin
   if(currentBattle&&currentBattle.id){
