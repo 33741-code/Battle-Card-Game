@@ -1716,10 +1716,10 @@ async function unlockSkillNode(nodeId){
   if(available<n.cost){showToast(`Need ${n.cost} skill point${n.cost>1?'s':''}!`);return;}
   unlocked.push(nodeId);
   const{error}=await sb.from('users').update({unlocked_skills:unlocked}).eq('id',currentUser.id);
-  if(error){showToast('Error saving — try again');return;}
+  if(error){console.error('unlockSkillNode error:',error);showToast('Error: '+error.message);return;}
   currentUser.unlocked_skills=unlocked;
   showToast(`${n.icon} ${n.name} unlocked!`);
-  renderSkillTreeBody();
+  renderSkillTree();
 }
 
 async function renderPacks(){
@@ -2186,6 +2186,14 @@ async function renderBattleLobby(){
   const{data:existing}=await sb.from('live_battles').select('*').or(`player1.eq.${currentUser.id},player2.eq.${currentUser.id}`).eq('status','active').order('created_at',{ascending:false}).limit(1);
   // Don't rejoin if it was abandoned
   if(existing&&existing.length&&existing[0].status!=='abandoned'){currentBattle=existing[0];enterBattle(currentBattle);return;}
+
+  // If I'm waiting on someone to accept a challenge I sent, show a dedicated waiting screen
+  const{data:myWaiting}=await sb.from('live_battles').select('*').eq('player1',currentUser.id).eq('status','waiting').order('created_at',{ascending:false}).limit(1);
+  if(myWaiting&&myWaiting.length){
+    renderWaitingForAccept(myWaiting[0]);
+    return;
+  }
+
   const opponents=allUsers.filter(u=>u.id!==currentUser.id);
   const el=document.getElementById('battle-lobby');
   el.innerHTML=`
@@ -2313,6 +2321,39 @@ function toggleTeam(uid){
   if(lbl)lbl.textContent=`Selected: ${selectedTeam.length} / ${size}`;
 }
 
+function renderWaitingForAccept(battle){
+  const el=document.getElementById('battle-lobby');
+  el.innerHTML=`
+    <div class="box" style="text-align:center;padding:2.5rem 1.5rem;">
+      <div class="spinner" style="width:28px;height:28px;border-width:3px;margin:0 auto 1rem;"></div>
+      <h3 style="margin-bottom:8px;">Waiting for ${battle.player2} to accept...</h3>
+      <p style="font-size:13px;color:var(--text3);margin-bottom:1.5rem;">You challenged ${battle.player2}. This screen will update automatically once they respond.</p>
+      <button class="btn btn-sm" style="color:#dc2626;border-color:#7f1d1d;" onclick="cancelOutgoingChallenge('${battle.id}')">✕ Cancel Challenge</button>
+    </div>`;
+
+  // Poll for acceptance or cancellation by the other side
+  if(incomingPoll)clearInterval(incomingPoll);
+  incomingPoll=setInterval(async()=>{
+    const{data:b}=await sb.from('live_battles').select('*').eq('id',battle.id).single();
+    if(!b){clearInterval(incomingPoll);incomingPoll=null;renderBattleLobby();return;}
+    if(b.status==='active'){
+      clearInterval(incomingPoll);incomingPoll=null;
+      currentBattle=b;enterBattle(b);
+    } else if(b.status==='abandoned'||b.status==='declined'){
+      clearInterval(incomingPoll);incomingPoll=null;
+      showToast(b.status==='declined'?`${b.player2} declined your challenge.`:'Challenge was cancelled.');
+      renderBattleLobby();
+    }
+  },3000);
+}
+
+async function cancelOutgoingChallenge(battleId){
+  if(incomingPoll){clearInterval(incomingPoll);incomingPoll=null;}
+  await sb.from('live_battles').delete().eq('id',battleId);
+  showToast('Challenge cancelled.');
+  renderBattleLobby();
+}
+
 async function challengePlayer(){
   const opp=document.getElementById('opp-select').value;
   const size=QUEUE_SIZES[selectedQueue];
@@ -2327,19 +2368,6 @@ async function challengePlayer(){
   if(cErr){showToast('Error sending challenge: '+cErr.message);return;}
   showToast(`Challenge sent to ${opp}! Waiting for them to accept...`);
   selectedTeam=[];
-  // Poll every 3 seconds waiting for opponent to accept
-  if(incomingPoll)clearInterval(incomingPoll);
-  let _waitingBattleId=bid;
-  incomingPoll=setInterval(async()=>{
-    const{data:b}=await sb.from('live_battles').select('*').eq('id',_waitingBattleId).single();
-    if(b&&b.status==='active'){
-      clearInterval(incomingPoll);incomingPoll=null;
-      currentBattle=b;
-      enterBattle(b);
-    } else if(!b||b.status==='abandoned'){
-      clearInterval(incomingPoll);incomingPoll=null;
-    }
-  },3000);
   renderBattleLobby();
 }
 
@@ -2595,8 +2623,14 @@ function renderBattleUI(){
       if(fighter){
         const moves=getMoves(fighter,state);
         const typeColor={attack:'#3b82f6',heavy:'#ef4444',heal:'#22c55e',shield:'#f59e0b',dot:'#f97316',multi:'#8b5cf6',power:'#ec4899',combo:'#06b6d4',speed:'#84cc16',aoe:'#dc2626',lifesteal:'#e11d48',stamina_steal:'#7c3aed',taunt:'#92400e',curse:'#6b21a8',counter:'#065f46',execute:'#1c1917',scatter:'#0369a1'};
+        const stPctPanel=Math.max(0,Math.round((fighter.stamina/fighter.maxStamina)*100));
         actionHTML=`<div class="action-panel">
           <div class="phase-label">🃏 ${fighter.name} — choose an ability</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-size:12px;color:var(--text3);white-space:nowrap;">⚡ Stamina</span>
+            <div class="bc-bar-wrap" style="flex:1;"><div class="bc-st-fill" style="width:${stPctPanel}%;"></div></div>
+            <span style="font-size:12px;font-weight:700;color:var(--text2);white-space:nowrap;">${fighter.stamina}/${fighter.maxStamina}</span>
+          </div>
           <button class="btn btn-sm" style="align-self:flex-start;" onclick="cancelAttacker()">← Back</button>
           ${moves.length?moves.map(m=>{
             const ok=fighter.stamina>=(m.stamina_cost||0);
@@ -2870,7 +2904,11 @@ async function useMove(fighterUid,moveName,targetUid){
   state.turn=isP1?currentBattle.player2:currentBattle.player1;
   state.phase=isP1?'action2':'action1';
   state.log.push(`── ${state.turn}'s turn ──`);
-  await sb.from('live_battles').update({state:JSON.stringify(state)}).eq('id',currentBattle.id);
+  const{error:moveErr}=await sb.from('live_battles').update({state:JSON.stringify(state)}).eq('id',currentBattle.id);
+  if(moveErr){console.error('useMove save error:',moveErr);showToast('Error saving move — try again');return;}
+  // Update locally right away — don't rely solely on the realtime echo coming back
+  currentBattle={...currentBattle,state:JSON.stringify(state)};
+  renderBattleUI();
 }
 
 async function awardRewards(state,battle){
