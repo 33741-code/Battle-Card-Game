@@ -213,6 +213,42 @@ body.light .ability-btn{color:#1a1a1a;}
 .dmg-popup{position:absolute;top:-24px;left:50%;transform:translateX(-50%);font-size:20px;font-weight:800;color:#ef4444;text-shadow:0 2px 6px rgba(0,0,0,0.7);pointer-events:none;animation:dmgFloat 1.5s ease forwards;z-index:100;}
 .heal-popup{position:absolute;top:-24px;left:50%;transform:translateX(-50%);font-size:20px;font-weight:800;color:#22c55e;text-shadow:0 2px 6px rgba(0,0,0,0.7);pointer-events:none;animation:dmgFloat 1.5s ease forwards;z-index:100;}
 @keyframes dmgFloat{0%{opacity:1;transform:translateX(-50%) translateY(0);}100%{opacity:0;transform:translateX(-50%) translateY(-56px);}}
+
+/* ── BATTLE VISUAL EFFECTS ── */
+.crit-popup{position:absolute;top:-44px;left:50%;transform:translateX(-50%);font-size:13px;font-weight:900;color:#fde047;text-shadow:0 0 8px #f59e0b,0 2px 4px rgba(0,0,0,0.8);pointer-events:none;animation:critFloat 1.3s ease forwards;z-index:101;letter-spacing:0.05em;white-space:nowrap;}
+@keyframes critFloat{0%{opacity:0;transform:translateX(-50%) scale(0.5) rotate(-8deg);}15%{opacity:1;transform:translateX(-50%) scale(1.3) rotate(4deg);}30%{transform:translateX(-50%) scale(1) rotate(0deg);}100%{opacity:0;transform:translateX(-50%) translateY(-30px) scale(1);}}
+
+.miss-popup{position:absolute;top:-30px;left:50%;transform:translateX(-50%);font-size:13px;font-weight:800;color:#9ca3af;text-shadow:0 2px 4px rgba(0,0,0,0.6);pointer-events:none;animation:dmgFloat 1.2s ease forwards;z-index:101;letter-spacing:0.04em;}
+
+.stam-popup{position:absolute;top:50%;left:50%;transform:translateX(-50%);font-size:12px;font-weight:800;color:#facc15;text-shadow:0 2px 4px rgba(0,0,0,0.6);pointer-events:none;animation:stamFloat 1.1s ease forwards;z-index:100;}
+@keyframes stamFloat{0%{opacity:1;transform:translateX(-50%) translateY(0);}100%{opacity:0;transform:translateX(-50%) translateY(-26px);}}
+
+.battle-card.fx-hit{animation:fxHit 0.35s ease;}
+@keyframes fxHit{0%{transform:translateX(0);}20%{transform:translateX(-6px) rotate(-1.5deg);}40%{transform:translateX(5px) rotate(1deg);}60%{transform:translateX(-3px);}80%{transform:translateX(2px);}100%{transform:translateX(0);}}
+
+.battle-card.fx-crit{animation:fxCrit 0.5s ease;}
+@keyframes fxCrit{0%{transform:scale(1);filter:brightness(1);}30%{transform:scale(1.08);filter:brightness(1.6) drop-shadow(0 0 18px #f59e0b);}100%{transform:scale(1);filter:brightness(1);}}
+
+.battle-card.fx-heal{animation:fxHeal 0.6s ease;}
+@keyframes fxHeal{0%{box-shadow:0 0 0 rgba(34,197,94,0);}40%{box-shadow:0 0 24px rgba(34,197,94,0.7);}100%{box-shadow:0 0 0 rgba(34,197,94,0);}}
+
+.battle-card.fx-defeat{animation:fxDefeat 0.7s ease forwards;}
+@keyframes fxDefeat{0%{transform:scale(1) rotate(0deg);filter:grayscale(0) brightness(1);opacity:1;}40%{transform:scale(1.05) rotate(-3deg);filter:grayscale(0.6) brightness(0.7);}100%{transform:scale(0.96) rotate(-2deg);filter:grayscale(1) brightness(0.5);opacity:0.18;}}
+
+.battle-card.fx-dodge{animation:fxDodge 0.45s ease;}
+@keyframes fxDodge{0%{transform:translateY(0);}30%{transform:translateY(-10px) translateX(8px);}60%{transform:translateY(-4px) translateX(-4px);}100%{transform:translateY(0) translateX(0);}}
+
+.screen-shake{animation:screenShake 0.3s ease;}
+@keyframes screenShake{0%,100%{transform:translateX(0);}20%{transform:translateX(-4px);}40%{transform:translateX(4px);}60%{transform:translateX(-2px);}80%{transform:translateX(2px);}}
+
+.fx-flash-overlay{position:fixed;inset:0;background:radial-gradient(circle,rgba(245,158,11,0.18),transparent 70%);pointer-events:none;z-index:99;opacity:0;animation:flashFade 0.5s ease forwards;}
+@keyframes flashFade{0%{opacity:1;}100%{opacity:0;}}
+
+.bc-hp-fill,.bc-st-fill{transition:width 0.5s cubic-bezier(.4,0,.2,1);}
+
+@keyframes resultPop{0%{opacity:0;transform:scale(0.3) rotate(-15deg);}60%{opacity:1;transform:scale(1.15) rotate(5deg);}100%{opacity:1;transform:scale(1) rotate(0deg);}}
+@keyframes resultFadeUp{0%{opacity:0;transform:translateY(10px);}100%{opacity:1;transform:translateY(0);}}
+
 @keyframes sparkleFly{0%{opacity:1;transform:translateY(0) scale(0.5);}100%{opacity:0;transform:translateY(-40px) scale(1.4);}}
 @keyframes podiumBounce{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
 @keyframes notifPulse{0%,100%{box-shadow:0 0 16px rgba(245,158,11,0.25);}50%{box-shadow:0 0 26px rgba(245,158,11,0.5);}}
@@ -2532,7 +2568,7 @@ function enterBattle(battle){
   // Stop polling for incoming challenges once in a battle
   if(incomingSub)sb.removeChannel(incomingSub);
   if(incomingPoll)clearInterval(incomingPoll);
-  currentBattle=battle;renderBattleUI();
+  currentBattle=battle;_resultsShownForBattleId=null;renderBattleUI();
   if(battleSub)sb.removeChannel(battleSub);
   battleSub=sb.channel('battle-'+battle.id)
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'live_battles',filter:`id=eq.${battle.id}`},
@@ -2570,7 +2606,7 @@ function renderBattleUI(){
   const el=document.getElementById('battle-active');if(!currentBattle||!el)return;
   const state=typeof currentBattle.state==='string'?JSON.parse(currentBattle.state):currentBattle.state;
   if(!state){el.innerHTML='<p style="color:var(--text3);padding:16px;">Loading battle...</p>';return;}
-  if(state.winner){renderBattleOver(state);return;}
+  if(state.winner){handleBattleEndForViewer(state);return;}
 
   const isP1=currentBattle.player1===currentUser.id;
   const myF=isP1?state.fighters1:state.fighters2;
@@ -2753,17 +2789,101 @@ function showDmgPopup(targetUid,amount,isHeal){
 // Compares the previous battle state to a freshly received one and pops damage/heal
 // numbers for any fighter whose HP changed — this is what makes damage visible on the
 // receiving player's screen, not just the attacker's.
+// Adds/removes a CSS animation class on a card element, auto-cleaning up afterward
+function flashCardFx(uid,cls,duration){
+  const el=document.getElementById('fc-'+uid);
+  if(!el)return;
+  el.classList.remove(cls);
+  // restart animation even if already present
+  void el.offsetWidth;
+  el.classList.add(cls);
+  setTimeout(()=>el.classList.remove(cls),duration||700);
+}
+
+function showStaminaPopup(targetUid,amount){
+  const el=document.getElementById('fc-'+targetUid);
+  if(!el)return;
+  const pop=document.createElement('div');
+  pop.className='stam-popup';
+  pop.textContent=`+${amount}⚡`;
+  el.style.position='relative';
+  el.appendChild(pop);
+  setTimeout(()=>pop.remove(),1100);
+}
+
+function screenFlash(){
+  const flash=document.createElement('div');
+  flash.className='fx-flash-overlay';
+  document.body.appendChild(flash);
+  setTimeout(()=>flash.remove(),500);
+}
+
+function shakeBattleScreen(){
+  const el=document.getElementById('battle-active');
+  if(!el)return;
+  el.classList.remove('screen-shake');
+  void el.offsetWidth;
+  el.classList.add('screen-shake');
+  setTimeout(()=>el.classList.remove('screen-shake'),320);
+}
+
+// Compares the previous battle state to a freshly received one and triggers all the
+// visual effects (damage/heal numbers, crit flash, defeat fade, stamina pop, screen shake)
+// for whatever changed — this is what makes battle feedback visible to BOTH players,
+// not just whoever made the move.
 function diffAndShowPopups(oldState,newState){
   if(!oldState||!newState)return;
   const oldFighters=[...(oldState.fighters1||[]),...(oldState.fighters2||[])];
   const newFighters=[...(newState.fighters1||[]),...(newState.fighters2||[])];
+
+  // Inspect newly-added log lines this turn to detect crit / defeat events
+  const newLogLines=(newState.log||[]).slice((oldState.log||[]).length);
+  const hadCrit=newLogLines.some(l=>l.includes('CRIT'));
+  const defeatedNamesThisTurn=newLogLines.filter(l=>l.includes('was defeated')).map(l=>{
+    const m=l.match(/💀 (.+?) was defeated!/);return m?m[1]:null;
+  }).filter(Boolean);
+
+  let anyBigHit=false;
+
   newFighters.forEach(nf=>{
     const of=oldFighters.find(f=>f.uid===nf.uid);
     if(!of)return;
     const delta=nf.hp-of.hp;
-    if(delta<0)showDmgPopup(nf.uid,Math.abs(delta),false);
-    else if(delta>0)showDmgPopup(nf.uid,delta,true);
+    const justDefeated=!of.defeated&&nf.defeated;
+
+    if(delta<0){
+      const amount=Math.abs(delta);
+      showDmgPopup(nf.uid,amount,false);
+      flashCardFx(nf.uid,'fx-hit',350);
+      if(hadCrit){
+        // Crit popup shown on the fighter that took the hit
+        flashCardFx(nf.uid,'fx-crit',500);
+        const el=document.getElementById('fc-'+nf.uid);
+        if(el){
+          const pop=document.createElement('div');
+          pop.className='crit-popup';
+          pop.textContent='💥 CRITICAL!';
+          el.style.position='relative';
+          el.appendChild(pop);
+          setTimeout(()=>pop.remove(),1300);
+        }
+      }
+      if(amount>=of.maxHp*0.25)anyBigHit=true;
+    } else if(delta>0){
+      showDmgPopup(nf.uid,delta,true);
+      flashCardFx(nf.uid,'fx-heal',600);
+    }
+
+    // Stamina gained (e.g. regen, haste perks) — only show small positive ticks, not the
+    // big jump that happens when a card is first selected (handled by initial render)
+    const stDelta=(nf.stamina||0)-(of.stamina||0);
+    if(stDelta>0&&!justDefeated)showStaminaPopup(nf.uid,stDelta);
+
+    if(justDefeated)flashCardFx(nf.uid,'fx-defeat',700);
   });
+
+  if(hadCrit){screenFlash();shakeBattleScreen();}
+  else if(anyBigHit){shakeBattleScreen();}
 }
 
 function selectAttacker(uid){
@@ -2790,6 +2910,7 @@ function cancelTarget(){pendingTargetMode=false;pendingMove=null;pendingFighterU
 async function useMove(fighterUid,moveName,targetUid){
   selectedAttackerUid=null;
   const state=typeof currentBattle.state==='string'?JSON.parse(currentBattle.state):currentBattle.state;
+  const _preMoveState=JSON.parse(JSON.stringify(state)); // snapshot for visual-effect diffing after mutation
   const isP1=currentBattle.player1===currentUser.id;
   const myKey=isP1?'fighters1':'fighters2';
   const oppKey=isP1?'fighters2':'fighters1';
@@ -2944,6 +3065,9 @@ async function useMove(fighterUid,moveName,targetUid){
     state.winner=a1>0?currentBattle.player1:currentBattle.player2;state.phase='over';
     state.log.push(`🏆 ${state.winner} wins!`);
     await sb.from('live_battles').update({state:JSON.stringify(state),status:'complete'}).eq('id',currentBattle.id);
+    currentBattle={...currentBattle,state:JSON.stringify(state)};
+    diffAndShowPopups(_preMoveState,state);
+    await new Promise(r=>setTimeout(r,650)); // let the final hit's effects play before the results screen takes over
     await awardRewards(state,currentBattle);return;
   }
   state.turn=isP1?currentBattle.player2:currentBattle.player1;
@@ -2954,6 +3078,7 @@ async function useMove(fighterUid,moveName,targetUid){
   // Update locally right away — don't rely solely on the realtime echo coming back
   currentBattle={...currentBattle,state:JSON.stringify(state)};
   renderBattleUI();
+  diffAndShowPopups(_preMoveState,state);
 }
 
 async function awardRewards(state,battle){
@@ -2961,17 +3086,25 @@ async function awardRewards(state,battle){
   const winF=winner===battle.player1?state.fighters1:state.fighters2;
   const loseF=winner===battle.player1?state.fighters2:state.fighters1;
   const used=[...new Set([...(state.usedUids||[]),...winF.map(f=>f.uid),...loseF.map(f=>f.uid)])];
+
+  const cardResultsWinner=[],cardResultsLoser=[]; // per-player slices so BOTH clients can animate their own cards
   for(const uid of used){
     const{data:c}=await sb.from('player_cards').select('*').eq('uid',uid).single();if(!c)continue;
-    const onWin=!!winF.find(f=>f.uid===uid);const surv=onWin&&!winF.find(f=>f.uid===uid)?.defeated;
+    const onWin=!!winF.find(f=>f.uid===uid);const survFighter=winF.find(f=>f.uid===uid);const surv=onWin&&survFighter&&!survFighter.defeated;
     let xp=onWin?30:10;if(surv)xp+=20;xp=Math.round(xp*RARITY_XP_MULT[c.rarity]);
     let{xp:cx,level,atk,def,max_hp,unlocked_moves}={...c,unlocked_moves:c.unlocked_moves||[]};
+    const beforeXp=cx,beforeLevel=level,xpNeededAtStart=xpForCard(level);
     cx+=xp;
-    while(cx>=xpForCard(level)){cx-=xpForCard(level);level++;atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);def=Math.round(def*RARITY_STAT_MULT[c.rarity]);max_hp=Math.round((max_hp||c.hp||100)*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
+    let leveledUp=false;
+    while(cx>=xpForCard(level)){cx-=xpForCard(level);level++;leveledUp=true;atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);def=Math.round(def*RARITY_STAT_MULT[c.rarity]);max_hp=Math.round((max_hp||c.hp||100)*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
       if(c.pool_card_id){const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',c.pool_card_id).single();if(pc&&pc.moves)pc.moves.forEach(m=>{if(m.unlock_level===level&&!unlocked_moves.includes(m.name))unlocked_moves.push(m.name);});}
     }
     await sb.from('player_cards').update({xp:cx,level,atk,def,max_hp,unlocked_moves}).eq('uid',uid);
+    const entry={uid,name:c.name,image_url:c.image_url,rarity:c.rarity,class_name:c.class_name,
+      beforeXp,beforeLevel,afterXp:cx,afterLevel:level,xpGained:xp,xpNeededAtStart,leveledUp,survived:onWin?surv:false,onWin};
+    if(onWin)cardResultsWinner.push(entry);else cardResultsLoser.push(entry);
   }
+
   const{data:wuFresh}=await sb.from('users').select('*').eq('id',winner).single();
   const{data:luFresh}=await sb.from('users').select('*').eq('id',loser).single();
   const wu=wuFresh||allUsers.find(u=>u.id===winner);const lu=luFresh||allUsers.find(u=>u.id===loser);
@@ -2979,34 +3112,223 @@ async function awardRewards(state,battle){
   const lSkills=aggregateSkillBonuses(lu?.unlocked_skills||[]);
   const winMoney=Math.round(150*(1+wSkills.win_money_pct/100));
   const winXp=Math.round(80*(1+wSkills.player_xp_pct/100));
+  const loseMoney=50;
   const loseXp=Math.round(20*(1+lSkills.player_xp_pct/100));
   let wpx=(wu?.player_xp||0)+winXp;let wlv=wu?.level||1;while(wpx>=xpForPlayer(wlv)){wpx-=xpForPlayer(wlv);wlv++;}
   let lpx=(lu?.player_xp||0)+loseXp;let llv=lu?.level||1;while(lpx>=xpForPlayer(llv)){lpx-=xpForPlayer(llv);llv++;}
+
+  // Capture leaderboard power-rank BEFORE this battle's rewards land, for rank-shift comparison
+  let prevRank=null;
+  try{
+    const{data:allUsersForRank}=await sb.from('users').select('*');
+    const{data:allCardsForRank}=await sb.from('player_cards').select('*').eq('is_income_card',false);
+    if(allUsersForRank&&allCardsForRank){
+      const ranked=allUsersForRank.map(p=>({id:p.id,score:powerScore(p,allCardsForRank.filter(c=>c.owner===p.id))})).sort((a,b)=>b.score-a.score);
+      const idx=ranked.findIndex(r=>r.id===currentUser.id);
+      if(idx>=0)prevRank=idx+1;
+    }
+  }catch(e){}
+
   await sb.from('users').update({wins:(wu?.wins||0)+1,money:(wu?.money||0)+winMoney,player_xp:wpx,level:wlv}).eq('id',winner);
-  await sb.from('users').update({losses:(lu?.losses||0)+1,money:Math.max(0,(lu?.money||0)+50),player_xp:lpx,level:llv}).eq('id',loser);
+  await sb.from('users').update({losses:(lu?.losses||0)+1,money:Math.max(0,(lu?.money||0)+loseMoney),player_xp:lpx,level:llv}).eq('id',loser);
   const prevWinnerLevel=allUsers.find(u=>u.id===winner)?.level||1;
   const prevLoserLevel=allUsers.find(u=>u.id===loser)?.level||1;
+
+  let myMoneyGain,myXpGain,myNewLevel,myLeveledUp,myWon;
   if(currentUser.id===winner){
-    currentUser={...currentUser,money:(currentUser.money||0)+150,player_xp:wpx,level:wlv};
-    showXpGain('Victory!',150,80,wlv>prevWinnerLevel?wlv:null);
+    myWon=true;myMoneyGain=winMoney;myXpGain=winXp;myNewLevel=wlv;myLeveledUp=wlv>prevWinnerLevel;
+    currentUser={...currentUser,money:(currentUser.money||0)+winMoney,player_xp:wpx,level:wlv};
     await checkMilestones(wlv);
     await updateQuestProgress('wins',currentUser.wins||0);
     await updateQuestProgress('win_mode',1,selectedQueue);
   } else {
-    currentUser={...currentUser,money:Math.max(0,(currentUser.money||0)+50),player_xp:lpx,level:llv};
-    showXpGain('Defeat',50,20,llv>prevLoserLevel?llv:null);
+    myWon=false;myMoneyGain=loseMoney;myXpGain=loseXp;myNewLevel=llv;myLeveledUp=llv>prevLoserLevel;
+    currentUser={...currentUser,money:Math.max(0,(currentUser.money||0)+loseMoney),player_xp:lpx,level:llv};
     await checkMilestones(llv);
   }
   updateHUD();
+
+  // Capture leaderboard rank AFTER rewards landed
+  let newRank=null;
+  try{
+    const{data:allUsersForRank2}=await sb.from('users').select('*');
+    const{data:allCardsForRank2}=await sb.from('player_cards').select('*').eq('is_income_card',false);
+    if(allUsersForRank2&&allCardsForRank2){
+      const ranked2=allUsersForRank2.map(p=>({id:p.id,score:powerScore(p,allCardsForRank2.filter(c=>c.owner===p.id))})).sort((a,b)=>b.score-a.score);
+      const idx2=ranked2.findIndex(r=>r.id===currentUser.id);
+      if(idx2>=0)newRank=idx2+1;
+    }
+  }catch(e){}
+
+  // Store both players' results on the battle row so EITHER client can read its own slice
+  // and play the animated sequence, regardless of who actually triggered the winning move.
+  const resultsPayload={
+    [winner]:{won:true,moneyGain:winMoney,xpGain:winXp,newLevel:wlv,leveledUp:wlv>prevWinnerLevel,cardResults:cardResultsWinner},
+    [loser]:{won:false,moneyGain:loseMoney,xpGain:loseXp,newLevel:llv,leveledUp:llv>prevLoserLevel,cardResults:cardResultsLoser},
+    ranks:{[currentUser.id]:{prevRank,newRank}}
+  };
+  await sb.from('live_battles').update({results:JSON.stringify(resultsPayload)}).eq('id',battle.id);
+
+  _resultsShownForBattleId=currentBattle.id;
+  renderBattleResultsSequence({
+    won:myWon,moneyGain:myMoneyGain,xpGain:myXpGain,newLevel:myNewLevel,leveledUp:myLeveledUp,
+    cardResults:currentUser.id===winner?cardResultsWinner:cardResultsLoser,prevRank,newRank,log:state.log||[]
+  });
+}
+
+// ── ANIMATED END-OF-BATTLE RESULTS SEQUENCE ──────────────────────────
+async function renderBattleResultsSequence(results){
+  const el=document.getElementById('battle-active');
+  if(!el)return;
+
+  el.innerHTML=`
+    <div class="box" style="text-align:center;padding:2.5rem 1.5rem;">
+      <div style="font-size:64px;margin-bottom:0.5rem;animation:resultPop 0.6s cubic-bezier(.2,1.6,.4,1);">${results.won?'🏆':'💀'}</div>
+      <h2 style="font-size:24px;">${results.won?'Victory!':'Defeat'}</h2>
+    </div>
+    <div class="box" id="results-rewards-box" style="text-align:center;padding:1.5rem;">
+      <div style="font-size:13px;color:var(--text3);margin-bottom:10px;">Calculating rewards...</div>
+    </div>
+    <div class="box" id="results-cards-box" style="display:none;">
+      <h3 style="margin-bottom:12px;">🃏 Card Progress</h3>
+      <div id="results-cards-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+    </div>
+    <div class="box" id="results-rank-box" style="display:none;text-align:center;padding:1.5rem;"></div>
+    <div class="box" id="results-continue-box" style="display:none;text-align:center;">
+      <button class="btn btn-primary" onclick="leaveBattle()">Back to Lobby</button>
+    </div>
+    <div class="box"><h3>Battle Log</h3>
+      <div style="max-height:220px;overflow-y:auto;">${results.log.map(l=>`<div class="log-entry">${l}</div>`).join('')}</div>
+    </div>`;
+
+  await new Promise(r=>setTimeout(r,500));
+
+  // Step 1: reveal gold + player XP + level up
+  const rewardsBox=document.getElementById('results-rewards-box');
+  rewardsBox.innerHTML=`
+    <div style="display:flex;justify-content:center;gap:24px;flex-wrap:wrap;">
+      <div>
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;">Gold</div>
+        <div style="font-size:26px;font-weight:800;color:#fbbf24;opacity:0;animation:resultFadeUp 0.5s ease forwards;animation-delay:0.1s;">+$${results.moneyGain}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;">Player XP</div>
+        <div style="font-size:26px;font-weight:800;color:#60a5fa;opacity:0;animation:resultFadeUp 0.5s ease forwards;animation-delay:0.3s;">+${results.xpGain}</div>
+      </div>
+    </div>
+    ${results.leveledUp?`<div style="font-size:16px;font-weight:800;color:#a78bfa;margin-top:14px;opacity:0;animation:resultFadeUp 0.5s ease forwards;animation-delay:0.6s;">🎉 Level Up! → Lv ${results.newLevel}</div>`:''}`;
+
+  await new Promise(r=>setTimeout(r,results.leveledUp?1300:900));
+
+  // Step 2: reveal card-by-card progress, one at a time
+  const cardsBox=document.getElementById('results-cards-box');
+  const cardsList=document.getElementById('results-cards-list');
+  if(results.cardResults.length){
+    cardsBox.style.display='block';
+    for(const cr of results.cardResults){
+      const col=classColor(cr.class_name);
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:12px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 14px;opacity:0;transform:translateY(8px);transition:all 0.4s ease;';
+      const startPct=Math.min(100,Math.round((cr.beforeXp/cr.xpNeededAtStart)*100));
+      row.innerHTML=`
+        ${cr.image_url?`<img src="${cr.image_url}" style="width:42px;height:42px;object-fit:contain;border-radius:8px;background:var(--bg2);flex-shrink:0;">`:`<div style="width:42px;height:42px;border-radius:8px;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">${classEmoji(cr.class_name)}</div>`}
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+            <span style="font-size:13px;font-weight:700;">${cr.name}</span>
+            <span style="font-size:12px;font-weight:700;color:#4ade80;">+${cr.xpGained} XP</span>
+          </div>
+          <div class="bc-bar-wrap" style="margin-top:4px;"><div class="bc-hp-fill" id="cardfill-${cr.uid}" style="width:${startPct}%;background:${col.fg};"></div></div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;">Lv <span id="cardlv-${cr.uid}">${cr.beforeLevel}</span>${cr.leveledUp?` <span style="color:#a78bfa;font-weight:700;">→ LEVEL UP!</span>`:''}</div>
+        </div>`;
+      cardsList.appendChild(row);
+      await new Promise(r=>setTimeout(r,50));
+      row.style.opacity='1';row.style.transform='translateY(0)';
+      await new Promise(r=>setTimeout(r,150));
+      // Animate the XP bar filling (and overflowing into level-up if applicable)
+      const fillEl=document.getElementById('cardfill-'+cr.uid);
+      const lvEl=document.getElementById('cardlv-'+cr.uid);
+      if(fillEl){
+        if(cr.leveledUp){
+          fillEl.style.width='100%';
+          await new Promise(r=>setTimeout(r,450));
+          if(lvEl)lvEl.textContent=cr.afterLevel;
+          fillEl.style.background='#a78bfa';
+          const afterPct=Math.min(100,Math.round((cr.afterXp/Math.max(1,xpForCard(cr.afterLevel)))*100));
+          await new Promise(r=>setTimeout(r,150));
+          fillEl.style.width='0%';
+          await new Promise(r=>setTimeout(r,200));
+          fillEl.style.background=col.fg;
+          fillEl.style.width=afterPct+'%';
+        } else {
+          const pct=Math.min(100,Math.round((cr.afterXp/cr.xpNeededAtStart)*100));
+          fillEl.style.width=pct+'%';
+        }
+      }
+      await new Promise(r=>setTimeout(r,500));
+    }
+  }
+
+  await new Promise(r=>setTimeout(r,300));
+
+  // Step 3: leaderboard rank shift
+  const rankBox=document.getElementById('results-rank-box');
+  if(results.prevRank&&results.newRank){
+    rankBox.style.display='block';
+    const shift=results.prevRank-results.newRank; // positive = moved up
+    if(shift>0){
+      rankBox.innerHTML=`<div style="font-size:13px;color:var(--text3);margin-bottom:6px;">🏆 Leaderboard</div>
+        <div style="font-size:20px;font-weight:800;color:#4ade80;">↑ Moved up to #${results.newRank}!</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:4px;">(was #${results.prevRank})</div>`;
+    } else if(shift<0){
+      rankBox.innerHTML=`<div style="font-size:13px;color:var(--text3);margin-bottom:6px;">🏆 Leaderboard</div>
+        <div style="font-size:18px;font-weight:700;color:#f87171;">↓ Dropped to #${results.newRank}</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:4px;">(was #${results.prevRank})</div>`;
+    } else {
+      rankBox.innerHTML=`<div style="font-size:13px;color:var(--text3);margin-bottom:6px;">🏆 Leaderboard</div>
+        <div style="font-size:16px;font-weight:700;color:var(--text2);">Still ranked #${results.newRank}</div>`;
+    }
+  }
+
+  document.getElementById('results-continue-box').style.display='block';
+}
+
+let _resultsShownForBattleId=null;
+
+// Called whenever renderBattleUI sees state.winner is set. The player whose move ended the
+// battle already triggered awardRewards() directly. The OTHER player needs to read the
+// results payload that awardRewards() stored on the battle row once it's ready.
+async function handleBattleEndForViewer(state){
+  if(_resultsShownForBattleId===currentBattle.id)return; // already showing/shown for this battle
+
+  // Poll briefly for the results payload to land on the battle row
+  document.getElementById('battle-active').innerHTML='<div class="empty" style="padding:3rem;">Tallying results...</div>';
+  for(let i=0;i<10;i++){
+    const{data:fresh}=await sb.from('live_battles').select('results').eq('id',currentBattle.id).single();
+    if(fresh&&fresh.results){
+      const results=typeof fresh.results==='string'?JSON.parse(fresh.results):fresh.results;
+      const mine=results[currentUser.id];
+      if(mine){
+        _resultsShownForBattleId=currentBattle.id;
+        const ranks=results.ranks&&results.ranks[currentUser.id];
+        renderBattleResultsSequence({...mine,prevRank:ranks?ranks.prevRank:null,newRank:ranks?ranks.newRank:null,log:state.log||[]});
+        return;
+      }
+    }
+    await new Promise(r=>setTimeout(r,500));
+  }
+  // Fallback if results never arrived (shouldn't normally happen)
+  _resultsShownForBattleId=currentBattle.id;
+  renderBattleOver(state);
 }
 
 function renderBattleOver(state){
+  // Fallback static view (used if results were already shown, e.g. on reconnect/refresh)
   const iWon=state.winner===currentUser.id;
   document.getElementById('battle-active').innerHTML=`
     <div class="box" style="text-align:center;padding:2rem;">
       <div style="font-size:56px;margin-bottom:1rem;">${iWon?'🏆':'💀'}</div>
       <h2>${iWon?'Victory!':'Defeat'}</h2>
-      <p style="color:var(--text3);margin:0.5rem 0 1.5rem;">${iWon?'+$150 earned + card XP!':'+$50 consolation + card XP.'}</p>
+      <p style="color:var(--text3);margin:0.5rem 0 1.5rem;">Rewards already applied.</p>
       <button class="btn btn-primary" onclick="leaveBattle()">Back to Lobby</button>
     </div>
     <div class="box"><h3>Battle Log</h3>
