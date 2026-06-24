@@ -166,6 +166,17 @@ body.light .ability-btn{color:#1a1a1a;}
 .banner-celestial{background:linear-gradient(135deg,#1e1b4b,#6366f1,#e0e7ff,#a78bfa);background-size:300% 300%;animation:bannerShift 6s ease infinite;}
 @keyframes bannerShift{0%{background-position:0% 50%;}50%{background-position:100% 50%;}100%{background-position:0% 50%;}}
 .profile-header-with-banner{padding-top:56px!important;}
+
+/* ── SPIN WHEEL ── */
+.wheel-outer{position:relative;width:280px;height:280px;margin:0 auto;}
+.wheel-pointer{position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:28px;z-index:10;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));}
+.wheel-svg{width:100%;height:100%;border-radius:50%;box-shadow:0 0 0 6px var(--bg3),0 0 30px rgba(0,0,0,0.4);transition:transform 3.5s cubic-bezier(.15,.85,.25,1);}
+.wheel-segment-label{font-size:9px;font-weight:700;fill:#0a0a0a;}
+.wheel-center-btn{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:64px;height:64px;border-radius:50%;background:var(--bg2);border:3px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;cursor:pointer;z-index:5;box-shadow:0 2px 10px rgba(0,0,0,0.4);transition:transform 0.15s;}
+.wheel-center-btn:hover{transform:translate(-50%,-50%) scale(1.05);}
+.wheel-center-btn:disabled,.wheel-center-btn.disabled{opacity:0.5;cursor:not-allowed;}
+.ticket-badge{display:inline-flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;}
+@keyframes wheelResultPop{0%{opacity:0;transform:scale(0.5);}60%{opacity:1;transform:scale(1.15);}100%{opacity:1;transform:scale(1);}}
 .skill-tab-row{display:flex;gap:6px;margin-bottom:1.25rem;flex-wrap:wrap;}
 .skill-tab-btn{padding:8px 16px;border-radius:10px;border:2px solid var(--border);background:var(--bg2);color:var(--text2);cursor:pointer;font-size:13px;font-weight:600;transition:all var(--transition);}
 .skill-tab-btn.active{background:var(--bg3);color:var(--text);}
@@ -334,6 +345,7 @@ document.addEventListener("DOMContentLoaded",function(){
     <div class="main-sidebar">
       <button class="active" onclick="go('mycards')">🃏 My Cards</button>
       <button onclick="go('packs')">📦 Shop</button>
+      <button onclick="go('wheel')">🎡 Spin Wheel</button>
       <button onclick="go('battle')">⚔️ Battle</button>
       <button onclick="go('trade')">🤝 Trade</button>
       <button onclick="go('training')">🏋️ Training</button>
@@ -378,6 +390,7 @@ document.addEventListener("DOMContentLoaded",function(){
   <div id="screen-packs" class="screen">
     <div id="packs-content"></div>
   </div>
+  <div id="screen-wheel" class="screen"><div id="wheel-content"></div></div>
 
   <!-- BATTLE -->
   <div id="screen-battle" class="screen">
@@ -865,12 +878,13 @@ function allSkillNodes(){return SKILL_TREES.flatMap(t=>t.nodes);}
 function getSkillNode(id){return allSkillNodes().find(n=>n.id===id);}
 
 // Total skill points a player has earned so far (1 per level after level 1)
-function totalSkillPoints(level){return Math.max(0,(level||1)-1);}
+function totalSkillPoints(level,bonusPoints){return Math.max(0,(level||1)-1)+(bonusPoints||0);}
 
-// Returns {used, available} for a player's unlocked node id list
-function skillPointSummary(unlocked,level){
+// Returns {used, available} for a player's unlocked node id list. Includes any
+// bonus_skill_points earned from the Spin Wheel on top of the normal level-based total.
+function skillPointSummary(unlocked,level,bonusPoints){
   const used=(unlocked||[]).reduce((sum,id)=>{const n=getSkillNode(id);return sum+(n?n.cost:0);},0);
-  return{used,available:totalSkillPoints(level)-used};
+  return{used,available:totalSkillPoints(level,bonusPoints)-used};
 }
 
 // Aggregate all unlocked perks into a flat bonus object for battle calculations
@@ -957,6 +971,66 @@ const EVENT_REWARD_TYPES=[
   {id:'pack',label:'📦 Free Pack'},
   {id:'card_xp',label:'⭐ Card XP (all cards)'},
 ];
+
+// ── SPIN WHEEL ──────────────────────────────────────────────────────────
+const WHEEL_TIERS=[
+  {id:0,name:'Normal Wheel',icon:'🎡',color:'#9ca3af',levelReq:1},
+  {id:1,name:'Rare Wheel',icon:'🎰',color:'#60a5fa',levelReq:15},
+  {id:2,name:'Legendary Wheel',icon:'🌟',color:'#f59e0b',levelReq:40},
+];
+
+// Ticket cost to buy in the shop, scaled by tier
+const TICKET_SHOP_COST=[150,600,2000];
+
+// Wheel segments per tier. type: 'gold','pack','player_xp','card_xp','skill_point','utility'
+// weight = relative chance. value/utilId apply depending on type.
+function wheelSegments(tier){
+  if(tier===0)return[
+    {type:'gold',value:80,weight:22,label:'💰 $80',color:'#fbbf24'},
+    {type:'gold',value:150,weight:14,label:'💰 $150',color:'#f59e0b'},
+    {type:'player_xp',value:40,weight:18,label:'⭐ +40 Player XP',color:'#60a5fa'},
+    {type:'card_xp',value:60,weight:18,label:'🃏 +60 Card XP (all)',color:'#4ade80'},
+    {type:'pack',value:0,weight:12,label:'📦 Free Normal Pack',color:'#a78bfa'},
+    {type:'utility',value:1,weight:10,label:'⚡ Random Action Card',color:'#ec4899'},
+    {type:'skill_point',value:1,weight:5,label:'🌳 1 Skill Point',color:'#34d399'},
+    {type:'gold',value:300,weight:1,label:'💰💰 JACKPOT $300',color:'#fde047'},
+  ];
+  if(tier===1)return[
+    {type:'gold',value:250,weight:20,label:'💰 $250',color:'#fbbf24'},
+    {type:'gold',value:450,weight:14,label:'💰 $450',color:'#f59e0b'},
+    {type:'player_xp',value:100,weight:16,label:'⭐ +100 Player XP',color:'#60a5fa'},
+    {type:'card_xp',value:160,weight:16,label:'🃏 +160 Card XP (all)',color:'#4ade80'},
+    {type:'pack',value:1,weight:14,label:'📦 Free Rare Pack',color:'#a78bfa'},
+    {type:'utility',value:1,weight:10,label:'⚡ Random Action Card',color:'#ec4899'},
+    {type:'skill_point',value:1,weight:8,label:'🌳 1 Skill Point',color:'#34d399'},
+    {type:'gold',value:1000,weight:2,label:'💰💰 JACKPOT $1,000',color:'#fde047'},
+  ];
+  return[ // tier 2 — Legendary Wheel
+    {type:'gold',value:600,weight:18,label:'💰 $600',color:'#fbbf24'},
+    {type:'gold',value:1200,weight:14,label:'💰 $1,200',color:'#f59e0b'},
+    {type:'player_xp',value:250,weight:14,label:'⭐ +250 Player XP',color:'#60a5fa'},
+    {type:'card_xp',value:400,weight:14,label:'🃏 +400 Card XP (all)',color:'#4ade80'},
+    {type:'pack',value:2,weight:14,label:'📦 Free Legendary Pack',color:'#a78bfa'},
+    {type:'utility',value:1,weight:12,label:'⚡ Random Action Card',color:'#ec4899'},
+    {type:'skill_point',value:2,weight:10,label:'🌳 2 Skill Points',color:'#34d399'},
+    {type:'gold',value:3500,weight:4,label:'💰💰 JACKPOT $3,500',color:'#fde047'},
+  ];
+}
+
+function rollWheelSegment(tier){
+  const segs=wheelSegments(tier);
+  const totalWeight=segs.reduce((s,x)=>s+x.weight,0);
+  let r=Math.random()*totalWeight;
+  for(const s of segs){r-=s.weight;if(r<=0)return s;}
+  return segs[0];
+}
+
+// Which wheel tier a player's daily spin scales to, based on level
+function dailyWheelTierForLevel(level){
+  if(level>=40)return 2;
+  if(level>=15)return 1;
+  return 0;
+}
 
 const UTILITY_CARDS=[
   {id:'stamina_boost_25',name:'Team Stamina Surge',icon:'⚡',desc:'+25% stamina to your whole team at battle start',cost:300,effect:'team_stamina_pct',value:25,color:'#facc15'},
@@ -1242,6 +1316,13 @@ async function globalNotificationCheck(silent){
   if(currentUser.is_admin)await checkNewFeedback();
   const onTradeTab=document.getElementById('screen-trade')?.classList.contains('active');
   await checkTradeNotifications(silent||onTradeTab);
+  checkDailySpinAvailable();
+}
+
+function checkDailySpinAvailable(){
+  const today=new Date().toISOString().slice(0,10);
+  const lastDailySpin=currentUser.last_daily_spin?String(currentUser.last_daily_spin).slice(0,10):'';
+  setNavBadge('wheel','wheel-nav-badge',lastDailySpin!==today?1:0);
 }
 
 async function checkTradeNotifications(silent){
@@ -1349,10 +1430,11 @@ function go(name){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
   const mc=document.querySelector('.main-content');if(mc)mc.scrollTop=0;
-  const names=['mycards','packs','battle','trade','training','quests','skills','leaderboard','news','events','feedback','players','profile','admin'];
+  const names=['mycards','packs','wheel','battle','trade','training','quests','skills','leaderboard','news','events','feedback','players','profile','admin'];
   document.querySelectorAll('.main-sidebar button').forEach((b,i)=>b.classList.toggle('active',names[i]===name));
   if(name==='mycards')renderMyCards();
   if(name==='packs')renderPacks();
+  if(name==='wheel')renderWheelTab();
   if(name==='battle')renderBattleLobby();
   if(name==='trade')renderTrade();
   if(name==='training')renderTraining();
@@ -1674,7 +1756,7 @@ async function renderSkillTree(){
   const el=document.getElementById('skills-content');
   if(!el)return;
   const unlocked=currentUser.unlocked_skills||[];
-  const{used,available}=skillPointSummary(unlocked,currentUser.level||1);
+  const{used,available}=skillPointSummary(unlocked,currentUser.level||1,currentUser.bonus_skill_points||0);
 
   el.innerHTML=`
     <h3 style="margin-bottom:0.5rem;">🌳 Skill Tree</h3>
@@ -1684,7 +1766,7 @@ async function renderSkillTree(){
         <div style="font-size:13px;color:var(--text3);">Skill Points</div>
         <div style="font-size:22px;font-weight:800;color:${available>0?'#4ade80':'var(--text)'};">${available} <span style="font-size:13px;color:var(--text3);font-weight:500;">available</span></div>
       </div>
-      <div style="font-size:12px;color:var(--text3);text-align:right;">${used} spent · ${totalSkillPoints(currentUser.level||1)} total earned (Lv ${currentUser.level||1})</div>
+      <div style="font-size:12px;color:var(--text3);text-align:right;">${used} spent · ${totalSkillPoints(currentUser.level||1,currentUser.bonus_skill_points||0)} total earned (Lv ${currentUser.level||1})</div>
     </div>
     <div class="skill-tab-row" id="skill-tabs">
       ${SKILL_TREES.map(t=>`<button class="skill-tab-btn${t.id===_skillTab?' active':''}" data-tree="${t.id}" onclick="switchSkillTab('${t.id}')" style="${t.id===_skillTab?`border-color:${t.color};color:${t.color};`:''}">${t.icon} ${t.name}</button>`).join('')}
@@ -1710,7 +1792,7 @@ function renderSkillTreeBody(){
   if(!body)return;
   const tree=SKILL_TREES.find(t=>t.id===_skillTab);
   const unlocked=currentUser.unlocked_skills||[];
-  const{available}=skillPointSummary(unlocked,currentUser.level||1);
+  const{available}=skillPointSummary(unlocked,currentUser.level||1,currentUser.bonus_skill_points||0);
 
   // Group nodes by tier for a clean row-by-row layout
   const tiers=[...new Set(tree.nodes.map(n=>n.tier))].sort((a,b)=>a-b);
@@ -1749,7 +1831,7 @@ async function unlockSkillNode(nodeId){
   const unlocked=[...(currentUser.unlocked_skills||[])];
   if(unlocked.includes(nodeId)){showToast('Already unlocked!');return;}
   if(n.requires&&!unlocked.includes(n.requires)){showToast('Unlock the prerequisite first!');return;}
-  const{available}=skillPointSummary(unlocked,currentUser.level||1);
+  const{available}=skillPointSummary(unlocked,currentUser.level||1,currentUser.bonus_skill_points||0);
   if(available<n.cost){showToast(`Need ${n.cost} skill point${n.cost>1?'s':''}!`);return;}
   unlocked.push(nodeId);
   const{error}=await sb.from('users').update({unlocked_skills:unlocked}).eq('id',currentUser.id);
@@ -1757,6 +1839,217 @@ async function unlockSkillNode(nodeId){
   currentUser.unlocked_skills=unlocked;
   showToast(`${n.icon} ${n.name} unlocked!`);
   renderSkillTree();
+}
+
+let _wheelTab=0,_wheelSpinning=false;
+
+async function renderWheelTab(){
+  const el=document.getElementById('wheel-content');
+  if(!el)return;
+  const lvl=currentUser.level||1;
+  const dailyTier=dailyWheelTierForLevel(lvl);
+  const today=new Date().toISOString().slice(0,10);
+  const lastDailySpin=currentUser.last_daily_spin?String(currentUser.last_daily_spin).slice(0,10):'';
+  const dailyAvailable=lastDailySpin!==today;
+  const tickets=currentUser.spin_tickets||{normal:0,rare:0,legendary:0};
+  const ticketKey=['normal','rare','legendary'][_wheelTab];
+
+  el.innerHTML=`
+    <h3 style="margin-bottom:0.5rem;">🎡 Spin Wheel</h3>
+    <p style="font-size:13px;color:var(--text3);margin-bottom:1rem;">Spin daily for free, or use tickets to spin any unlocked wheel. Tickets can be earned from battles, found rarely in card packs, bought in the Shop, or traded with friends.</p>
+
+    <div class="box" style="text-align:center;margin-bottom:1.25rem;${dailyAvailable?'border-color:#facc15;box-shadow:0 0 16px rgba(250,204,21,0.25);':''}">
+      <div style="font-size:13px;color:var(--text3);margin-bottom:4px;">🗓️ Daily Free Spin</div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:8px;">${WHEEL_TIERS[dailyTier].icon} ${WHEEL_TIERS[dailyTier].name}</div>
+      ${dailyAvailable?
+        `<button class="btn btn-primary" onclick="spinWheel(${dailyTier},'daily')">Spin Now — Free!</button>`:
+        `<div style="font-size:13px;color:var(--text3);">✅ Already claimed today — come back tomorrow!</div>`}
+    </div>
+
+    <div class="tab-row" id="wheel-tabs" style="margin-bottom:1rem;">
+      ${WHEEL_TIERS.map((t,i)=>`<button class="tab-btn${i===_wheelTab?' active':''}" onclick="switchWheelTab(${i})">${t.icon} ${t.name}</button>`).join('')}
+    </div>
+
+    <div style="display:flex;justify-content:center;gap:10px;margin-bottom:1rem;flex-wrap:wrap;">
+      <div class="ticket-badge">🎫 ${WHEEL_TIERS[_wheelTab].name} Tickets: <span style="color:${WHEEL_TIERS[_wheelTab].color};">${tickets[ticketKey]||0}</span></div>
+    </div>
+
+    <div id="wheel-display-wrap"></div>
+
+    <div style="text-align:center;margin-top:1rem;">
+      <button class="btn ${tickets[ticketKey]>0?'btn-green':''}" ${tickets[ticketKey]>0?'':'disabled'} onclick="spinWheel(${_wheelTab},'ticket')">
+        🎫 Use 1 Ticket to Spin
+      </button>
+    </div>
+
+    <div id="wheel-result-box" style="margin-top:1.25rem;"></div>`;
+
+  renderWheelSVG(_wheelTab);
+}
+
+function switchWheelTab(tier){
+  if(_wheelSpinning)return;
+  _wheelTab=tier;
+  renderWheelTab();
+}
+
+// Builds an SVG pie-wheel for the given tier with its segments, ready to be rotated for the spin animation
+function renderWheelSVG(tier){
+  const wrap=document.getElementById('wheel-display-wrap');
+  if(!wrap)return;
+  const segs=wheelSegments(tier);
+  const total=segs.reduce((s,x)=>s+x.weight,0);
+  const cx=140,cy=140,r=130;
+  let angle=0;
+  const paths=segs.map(s=>{
+    const sweep=(s.weight/total)*360;
+    const startAngle=angle;const endAngle=angle+sweep;
+    angle=endAngle;
+    const startRad=(startAngle-90)*Math.PI/180;
+    const endRad=(endAngle-90)*Math.PI/180;
+    const x1=cx+r*Math.cos(startRad),y1=cy+r*Math.sin(startRad);
+    const x2=cx+r*Math.cos(endRad),y2=cy+r*Math.sin(endRad);
+    const largeArc=sweep>180?1:0;
+    const midAngle=(startAngle+endAngle)/2;
+    const midRad=(midAngle-90)*Math.PI/180;
+    const labelX=cx+(r*0.62)*Math.cos(midRad),labelY=cy+(r*0.62)*Math.sin(midRad);
+    return{d:`M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${largeArc} 1 ${x2.toFixed(2)},${y2.toFixed(2)} Z`,
+      color:s.color,labelX,labelY,label:s.label.split(' ')[0],startAngle,endAngle};
+  });
+  wrap.innerHTML=`<div class="wheel-outer">
+    <div class="wheel-pointer">🔻</div>
+    <svg class="wheel-svg" id="wheel-svg-${tier}" viewBox="0 0 280 280">
+      ${paths.map(p=>`<path d="${p.d}" fill="${p.color}" stroke="var(--bg)" stroke-width="2"/>`).join('')}
+      ${paths.map(p=>`<text x="${p.labelX}" y="${p.labelY}" class="wheel-segment-label" text-anchor="middle" dominant-baseline="middle">${p.label}</text>`).join('')}
+    </svg>
+    <div class="wheel-center-btn" id="wheel-center-${tier}">${WHEEL_TIERS[tier].icon}</div>
+  </div>`;
+  wrap.dataset.segs=JSON.stringify(segs.map(s=>({startAngle:0}))); // placeholder, real angles stored via closure below
+  wrap._segAngles=paths.map(p=>({start:p.startAngle,end:p.endAngle}));
+}
+
+async function spinWheel(tier,source){
+  if(_wheelSpinning)return;
+  const today=new Date().toISOString().slice(0,10);
+
+  if(source==='daily'){
+    const lastDailySpin=currentUser.last_daily_spin?String(currentUser.last_daily_spin).slice(0,10):'';
+    if(lastDailySpin===today){showToast('Already claimed your daily spin!');return;}
+  } else if(source==='ticket'){
+    const ticketKey=['normal','rare','legendary'][tier];
+    const tickets=currentUser.spin_tickets||{};
+    if(!(tickets[ticketKey]>0)){showToast('No tickets for this wheel!');return;}
+  }
+
+  _wheelSpinning=true;
+  const resultBox=document.getElementById('wheel-result-box');
+  if(resultBox)resultBox.innerHTML='';
+
+  const segment=rollWheelSegment(tier);
+  const segs=wheelSegments(tier);
+  const totalWeight=segs.reduce((s,x)=>s+x.weight,0);
+  const winningIdx=segs.indexOf(segment);
+
+  // Compute the angle range of the winning segment so we can spin TO it
+  let angle=0;const ranges=[];
+  for(const s of segs){const sweep=(s.weight/totalWeight)*360;ranges.push({start:angle,end:angle+sweep});angle+=sweep;}
+  const winRange=ranges[winningIdx];
+  const targetMid=(winRange.start+winRange.end)/2;
+  // Spin several full rotations, landing the pointer (fixed at top) on the winning segment's middle
+  const extraSpins=5+Math.floor(Math.random()*2);
+  const finalRotation=extraSpins*360+(360-targetMid);
+
+  const svg=document.getElementById('wheel-svg-'+tier);
+  const centerBtn=document.getElementById('wheel-center-'+tier);
+  if(centerBtn)centerBtn.classList.add('disabled');
+  if(svg)svg.style.transform=`rotate(${finalRotation}deg)`;
+
+  await new Promise(r=>setTimeout(r,3600));
+
+  // Deduct cost (daily flag or ticket) and apply the reward
+  const updates={};
+  if(source==='daily'){
+    updates.last_daily_spin=today;
+  } else {
+    const ticketKey=['normal','rare','legendary'][tier];
+    const tickets={...(currentUser.spin_tickets||{})};
+    tickets[ticketKey]=Math.max(0,(tickets[ticketKey]||0)-1);
+    updates.spin_tickets=tickets;
+  }
+
+  const rewardDesc=await applyWheelReward(segment,tier);
+  Object.assign(updates,rewardDesc.updates||{});
+  await sb.from('users').update(updates).eq('id',currentUser.id);
+  Object.assign(currentUser,updates);
+  updateHUD();
+
+  if(resultBox){
+    resultBox.innerHTML=`<div class="box" style="text-align:center;padding:1.5rem;border-color:${segment.color};box-shadow:0 0 20px ${segment.color}55;animation:wheelResultPop 0.5s ease;">
+      <div style="font-size:13px;color:var(--text3);margin-bottom:6px;">🎉 You won:</div>
+      <div style="font-size:20px;font-weight:800;">${segment.label}</div>
+      ${rewardDesc.extra?`<div style="font-size:12px;color:var(--text3);margin-top:6px;">${rewardDesc.extra}</div>`:''}
+    </div>`;
+  }
+
+  _wheelSpinning=false;
+  if(centerBtn)centerBtn.classList.remove('disabled');
+  renderWheelTab();
+}
+
+// Applies a wheel segment's reward to the player and returns {updates, extra} for display
+async function applyWheelReward(segment,tier){
+  if(segment.type==='gold'){
+    const money=(currentUser.money||0)+segment.value;
+    return{updates:{money}};
+  }
+  if(segment.type==='player_xp'){
+    let player_xp=(currentUser.player_xp||0)+segment.value;
+    let level=currentUser.level||1;
+    let leveledUp=false;
+    while(player_xp>=xpForPlayer(level)){player_xp-=xpForPlayer(level);level++;leveledUp=true;}
+    if(leveledUp)await checkMilestones(level);
+    return{updates:{player_xp,level},extra:leveledUp?`🎉 Leveled up to ${level}!`:null};
+  }
+  if(segment.type==='card_xp'){
+    const{data:cards}=await sb.from('player_cards').select('uid,xp').eq('owner',currentUser.id).eq('is_income_card',false);
+    if(cards&&cards.length){
+      await Promise.all(cards.map(c=>sb.from('player_cards').update({xp:(c.xp||0)+segment.value}).eq('uid',c.uid)));
+    }
+    return{updates:{},extra:`Applied to ${cards?cards.length:0} card(s)`};
+  }
+  if(segment.type==='skill_point'){
+    // Skill points are derived from level (totalSkillPoints), so we grant this as bonus_skill_points
+    const bonus=(currentUser.bonus_skill_points||0)+segment.value;
+    return{updates:{bonus_skill_points:bonus}};
+  }
+  if(segment.type==='pack'){
+    const{data:pool}=await sb.from('pool_cards').select('*');
+    if(pool&&pool.length){
+      const rarity=rollRarity(segment.value);
+      const byR=pool.filter(c=>c.rarity===rarity);
+      const src=byR.length?byR:pool;
+      const t=src[Math.floor(Math.random()*src.length)];
+      const startMoves=(t.moves||[]).filter(m=>!m.unlock_level||m.unlock_level<=1).map(m=>m.name);
+      await sb.from('player_cards').insert({
+        uid:`${currentUser.id}-${Date.now()}-wheel`,owner:currentUser.id,name:t.name,
+        cat:t.class_name||t.cat||'Warrior',class_name:t.class_name||t.cat||'Warrior',
+        rarity:t.rarity,element:t.element||'neutral',atk:t.atk||10,def:t.def||10,hp:t.hp||100,max_hp:t.hp||100,
+        stamina:t.stamina_start||50,max_stamina:t.stamina_max||100,stamina_regen:t.stamina_regen||25,
+        crit_chance:t.crit_chance||0.1,dodge_chance:t.dodge_chance||0.05,level:1,xp:0,unlocked_moves:startMoves,
+        image_url:t.image_url||null,pool_card_id:t.id,is_income_card:t.is_income_card||false,
+        income_amount:t.income_amount||0,income_interval_hours:t.income_interval_hours||24
+      });
+      return{updates:{},extra:`${t.name} (${RARITIES[t.rarity]}) added to your cards!`};
+    }
+    return{updates:{}};
+  }
+  if(segment.type==='utility'){
+    const u=UTILITY_CARDS[Math.floor(Math.random()*UTILITY_CARDS.length)];
+    const owned={...(currentUser.utility_cards||{})};
+    owned[u.id]=(owned[u.id]||0)+1;
+    return{updates:{utility_cards:owned},extra:`${u.icon} ${u.name}`};
+  }
+  return{updates:{}};
 }
 
 async function renderPacks(){
@@ -1797,6 +2090,22 @@ async function renderPacks(){
 
     <div id="pack-result" style="margin-bottom:1.5rem;"></div>
 
+    <h4 style="margin-bottom:10px;">🎫 Spin Tickets</h4>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:10px;">Buy tickets to spin the wheels anytime. Higher-tier tickets cost more.</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:1.5rem;">
+      ${WHEEL_TIERS.map((t,i)=>{
+        const locked=lvl<t.levelReq;
+        const owned=(currentUser.spin_tickets||{})[['normal','rare','legendary'][i]]||0;
+        return `<div class="pack-option" style="${locked?'opacity:0.5;':''}">
+          <div style="font-size:32px;margin-bottom:6px;">${t.icon}</div>
+          <h4>${t.name} Ticket</h4>
+          ${locked?`<p style="font-size:12px;color:#ef4444;margin-bottom:8px;">🔒 Unlocks at Level ${t.levelReq}</p>`:
+          `<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Owned: ${owned}</div>
+          <button class="btn btn-sm" style="border-color:${t.color};color:${t.color};" onclick="buyTicket(${i})">Buy — $${TICKET_SHOP_COST[i].toLocaleString()}</button>`}
+        </div>`;
+      }).join('')}
+    </div>
+
     <h4 style="margin-bottom:10px;">⚡ Action Cards</h4>
     <p style="font-size:12px;color:var(--text3);margin-bottom:10px;">One-time use effects. Apply them right before starting a battle from the Battle tab.</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">
@@ -1815,6 +2124,22 @@ async function renderPacks(){
         </div>`;
       }).join('')}
     </div>`;
+}
+
+async function buyTicket(tier){
+  const t=WHEEL_TIERS[tier];
+  if((currentUser.level||1)<t.levelReq){showToast(`Unlocks at Level ${t.levelReq}`);return;}
+  const cost=TICKET_SHOP_COST[tier];
+  if((currentUser.money||0)<cost){showToast(`Need $${cost.toLocaleString()}`);return;}
+  const ticketKey=['normal','rare','legendary'][tier];
+  const tickets={...(currentUser.spin_tickets||{})};
+  tickets[ticketKey]=(tickets[ticketKey]||0)+1;
+  const nm=(currentUser.money||0)-cost;
+  await sb.from('users').update({money:nm,spin_tickets:tickets}).eq('id',currentUser.id);
+  currentUser.money=nm;currentUser.spin_tickets=tickets;
+  updateHUD();
+  showToast(`Bought a ${t.name} ticket!`);
+  renderPacks();
 }
 
 async function buyUtilityCard(id){
@@ -1878,9 +2203,21 @@ async function openPack(pt,sizeIdx){
   spin(spinId,false);
   if(insertErr){showToast('Error saving cards: '+insertErr.message);console.error(insertErr);return;}
   const nm=(currentUser.money||0)-cost;
-  await sb.from('users').update({money:nm}).eq('id',currentUser.id);
-  currentUser.money=nm;updateHUD();
+  // Rare chance per card opened to also find a spin ticket inside the pack
+  let foundTicket=null;
+  for(let i=0;i<count;i++){
+    if(Math.random()<0.02){foundTicket=['normal','rare','legendary'][Math.min(2,pt)];break;}
+  }
+  const updates={money:nm};
+  if(foundTicket){
+    const tickets={...(currentUser.spin_tickets||{})};
+    tickets[foundTicket]=(tickets[foundTicket]||0)+1;
+    updates.spin_tickets=tickets;
+  }
+  await sb.from('users').update(updates).eq('id',currentUser.id);
+  Object.assign(currentUser,updates);updateHUD();
   await revealPackCards(drawn);
+  if(foundTicket)showToast(`🎫 You found a ${foundTicket} spin ticket in the pack!`);
   await updateQuestProgress('packs',1);
   await updateQuestProgress('cards',drawn.length);
 }
@@ -3134,6 +3471,19 @@ async function awardRewards(state,battle){
   const prevWinnerLevel=allUsers.find(u=>u.id===winner)?.level||1;
   const prevLoserLevel=allUsers.find(u=>u.id===loser)?.level||1;
 
+  // Rare chance to earn a spin ticket from battle — winners have better odds, losers get a small chance too
+  let ticketWon=null;
+  const ticketRoll=Math.random();
+  if(currentUser.id===winner&&ticketRoll<0.04)ticketWon='normal';
+  else if(currentUser.id===winner&&ticketRoll<0.05)ticketWon='rare';
+  else if(currentUser.id!==winner&&ticketRoll<0.015)ticketWon='normal';
+  if(ticketWon){
+    const tickets={...(currentUser.spin_tickets||{})};
+    tickets[ticketWon]=(tickets[ticketWon]||0)+1;
+    await sb.from('users').update({spin_tickets:tickets}).eq('id',currentUser.id);
+    currentUser.spin_tickets=tickets;
+  }
+
   let myMoneyGain,myXpGain,myNewLevel,myLeveledUp,myWon;
   if(currentUser.id===winner){
     myWon=true;myMoneyGain=winMoney;myXpGain=winXp;myNewLevel=wlv;myLeveledUp=wlv>prevWinnerLevel;
@@ -3147,6 +3497,7 @@ async function awardRewards(state,battle){
     await checkMilestones(llv);
   }
   updateHUD();
+  if(ticketWon)showToast(`🎫 Lucky! You earned a ${ticketWon} spin ticket!`);
 
   // Capture leaderboard rank AFTER rewards landed
   let newRank=null;
