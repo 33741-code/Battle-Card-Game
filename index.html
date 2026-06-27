@@ -1731,9 +1731,11 @@ function cardTileHTML(c,selectable){
     : `<div class="card-img-placeholder">${classEmoji(c.class_name)}</div>`;
   const incBadge=c.is_income_card?`<div class="income-card-badge">💵</div>`:'';
   const safeUid=btoa(encodeURIComponent(c.uid)).replace(/=/g,'');
-  const action=selectable?`data-selectable="1"`:`data-openmodal="1"`;
   const frameCls=frameClassForCard(c,currentUser?.owned_frames);
-  return `<div class="card-tile${selectable?' selectable':''}${frameCls?' '+frameCls:''}" data-safeuid="${safeUid}" data-action="${selectable?'select':'modal'}" ${action}>
+  // Selectable tiles (battle team picker) use a direct onclick toggle — same pattern as the
+  // Trade tab's card pitch selector — instead of relying on a delegated click handler.
+  const clickAttr=selectable?`onclick="toggleTeam('${c.uid}')"`:`data-safeuid="${safeUid}" data-action="modal" data-openmodal="1"`;
+  return `<div class="card-tile${selectable?' selectable':''}${frameCls?' '+frameCls:''}" data-safeuid="${safeUid}" ${clickAttr}>
     ${incBadge}${imgHTML}
     <div style="font-size:13px;font-weight:700;margin-bottom:3px;">${c.name}</div>
     <span class="cat-badge" style="background:${col.bg};color:${col.fg};">${c.class_name}</span>
@@ -2689,7 +2691,8 @@ async function showTeamPicker(){
   if(!opp){showToast('No opponents available');return;}
   selectedQueue=parseInt(document.getElementById('queue-select').value);
   const size=QUEUE_SIZES[selectedQueue];
-  const{data:myCards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
+  const{data:myCardsRaw}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
+  const myCards=[...(myCardsRaw||[])].sort((a,b)=>cardScore(b)-cardScore(a)); // best to worst
   document.getElementById('team-picker-title').innerHTML=`Select ${size} card${size>1?'s':''} for your team: <span id="team-count-label" style="font-weight:400;color:var(--text3);">Selected: 0 / ${size}</span>`;
   document.getElementById('team-select-grid').innerHTML=(myCards||[]).length?myCards.map(c=>cardTileHTML(c,true)).join(''):`<div class="empty" style="grid-column:1/-1">No battle cards yet!</div>`;
   selectedUtilityCard=null;
@@ -2850,7 +2853,8 @@ async function acceptChallenge(battleId,q){
   selectedQueue=q!==undefined?q:1;const size=QUEUE_SIZES[selectedQueue];
   _pendingAcceptBattleId=battleId;
   selectedTeam=[];
-  const{data:myCards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
+  const{data:myCardsRaw}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
+  const myCards=[...(myCardsRaw||[])].sort((a,b)=>cardScore(b)-cardScore(a)); // best to worst
   if(incomingPoll)clearInterval(incomingPoll);
   selectedUtilityCard=null;
   document.getElementById('battle-lobby').innerHTML=`
