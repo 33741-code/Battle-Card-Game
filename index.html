@@ -235,19 +235,25 @@ body.light .ability-btn{color:#1a1a1a;}
 @keyframes stamFloat{0%{opacity:1;transform:translateX(-50%) translateY(0);}100%{opacity:0;transform:translateX(-50%) translateY(-26px);}}
 
 .battle-card.fx-hit{animation:fxHit 0.35s ease;}
-@keyframes fxHit{0%{transform:translateX(0);}20%{transform:translateX(-6px) rotate(-1.5deg);}40%{transform:translateX(5px) rotate(1deg);}60%{transform:translateX(-3px);}80%{transform:translateX(2px);}100%{transform:translateX(0);}}
+@keyframes fxHit{0%{transform:translateX(0);background-color:transparent;}15%{transform:translateX(-6px) rotate(-1.5deg);background-color:rgba(239,68,68,0.35);}40%{transform:translateX(5px) rotate(1deg);background-color:rgba(239,68,68,0.2);}60%{transform:translateX(-3px);}80%{transform:translateX(2px);}100%{transform:translateX(0);background-color:transparent;}}
 
-.battle-card.fx-crit{animation:fxCrit 0.5s ease;}
-@keyframes fxCrit{0%{transform:scale(1);filter:brightness(1);}30%{transform:scale(1.08);filter:brightness(1.6) drop-shadow(0 0 18px #f59e0b);}100%{transform:scale(1);filter:brightness(1);}}
+.battle-card.fx-crit{animation:fxCrit 0.55s ease;}
+@keyframes fxCrit{0%{transform:scale(1);filter:brightness(1);background-color:transparent;}30%{transform:scale(1.1);filter:brightness(1.7) drop-shadow(0 0 20px #f97316);background-color:rgba(249,115,22,0.4);}60%{background-color:rgba(239,68,68,0.25);}100%{transform:scale(1);filter:brightness(1);background-color:transparent;}}
 
 .battle-card.fx-heal{animation:fxHeal 0.6s ease;}
-@keyframes fxHeal{0%{box-shadow:0 0 0 rgba(34,197,94,0);}40%{box-shadow:0 0 24px rgba(34,197,94,0.7);}100%{box-shadow:0 0 0 rgba(34,197,94,0);}}
+@keyframes fxHeal{0%{box-shadow:0 0 0 rgba(34,197,94,0);background-color:transparent;}40%{box-shadow:0 0 24px rgba(34,197,94,0.7);background-color:rgba(34,197,94,0.25);}100%{box-shadow:0 0 0 rgba(34,197,94,0);background-color:transparent;}}
+
+.battle-card.fx-stamina{animation:fxStamina 0.6s ease;}
+@keyframes fxStamina{0%{box-shadow:0 0 0 rgba(250,204,21,0);}40%{box-shadow:0 0 18px rgba(250,204,21,0.6);}100%{box-shadow:0 0 0 rgba(250,204,21,0);}}
 
 .battle-card.fx-defeat{animation:fxDefeat 0.7s ease forwards;}
 @keyframes fxDefeat{0%{transform:scale(1) rotate(0deg);filter:grayscale(0) brightness(1);opacity:1;}40%{transform:scale(1.05) rotate(-3deg);filter:grayscale(0.6) brightness(0.7);}100%{transform:scale(0.96) rotate(-2deg);filter:grayscale(1) brightness(0.5);opacity:0.18;}}
 
 .battle-card.fx-dodge{animation:fxDodge 0.45s ease;}
-@keyframes fxDodge{0%{transform:translateY(0);}30%{transform:translateY(-10px) translateX(8px);}60%{transform:translateY(-4px) translateX(-4px);}100%{transform:translateY(0) translateX(0);}}
+@keyframes fxDodge{0%{transform:translateX(0);}25%{transform:translateX(18px) rotate(4deg);}55%{transform:translateX(-10px) rotate(-2deg);}100%{transform:translateX(0) rotate(0deg);}}
+
+.battle-card.shielded-card{border-color:#9ca3af!important;box-shadow:0 0 10px rgba(156,163,175,0.4)!important;}
+.shield-badge{position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:18px;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.6));z-index:5;}
 
 .screen-shake{animation:screenShake 0.3s ease;}
 @keyframes screenShake{0%,100%{transform:translateX(0);}20%{transform:translateX(-4px);}40%{transform:translateX(4px);}60%{transform:translateX(-2px);}80%{transform:translateX(2px);}}
@@ -258,6 +264,22 @@ body.light .ability-btn{color:#1a1a1a;}
 .bc-hp-fill,.bc-st-fill{transition:width 0.5s cubic-bezier(.4,0,.2,1);}
 
 @keyframes resultPop{0%{opacity:0;transform:scale(0.3) rotate(-15deg);}60%{opacity:1;transform:scale(1.15) rotate(5deg);}100%{opacity:1;transform:scale(1) rotate(0deg);}}
+
+/* ── BATTLE OPENING SCREEN ── */
+.battle-intro-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:300;display:flex;align-items:center;justify-content:center;flex-direction:column;animation:introFadeIn 0.3s ease;}
+@keyframes introFadeIn{0%{opacity:0;}100%{opacity:1;}}
+.battle-intro-overlay.fade-out{animation:introFadeOut 0.4s ease forwards;}
+@keyframes introFadeOut{0%{opacity:1;}100%{opacity:0;}}
+.battle-intro-vs{display:flex;align-items:center;gap:24px;margin-bottom:1.5rem;}
+.battle-intro-side{text-align:center;opacity:0;animation:introSlideIn 0.5s ease forwards;}
+.battle-intro-side.left{animation-name:introSlideInLeft;}
+.battle-intro-side.right{animation-name:introSlideInRight;}
+@keyframes introSlideInLeft{0%{opacity:0;transform:translateX(-60px);}100%{opacity:1;transform:translateX(0);}}
+@keyframes introSlideInRight{0%{opacity:0;transform:translateX(60px);}100%{opacity:1;transform:translateX(0);}}
+.battle-intro-vstext{font-size:28px;font-weight:900;color:#ef4444;opacity:0;animation:introPop 0.5s ease forwards;animation-delay:0.3s;}
+@keyframes introPop{0%{opacity:0;transform:scale(0.3);}60%{opacity:1;transform:scale(1.3);}100%{opacity:1;transform:scale(1);}}
+.battle-intro-title{font-size:52px;font-weight:900;letter-spacing:0.1em;color:#fde047;text-shadow:0 0 30px rgba(253,224,71,0.6),0 4px 8px rgba(0,0,0,0.8);opacity:0;animation:introTitlePop 0.6s ease forwards;animation-delay:0.7s;}
+@keyframes introTitlePop{0%{opacity:0;transform:scale(2) rotate(-5deg);}50%{opacity:1;transform:scale(0.9) rotate(2deg);}100%{opacity:1;transform:scale(1) rotate(0deg);}}
 @keyframes resultFadeUp{0%{opacity:0;transform:translateY(10px);}100%{opacity:1;transform:translateY(0);}}
 
 @keyframes sparkleFly{0%{opacity:1;transform:translateY(0) scale(0.5);}100%{opacity:0;transform:translateY(-40px) scale(1.4);}}
@@ -2899,6 +2921,36 @@ async function confirmAccept(){
 // ── BATTLE UI ──────────────────────────────────────────
 let battlePoll=null;
 
+let _battleIntroShownFor=null;
+
+function showBattleIntro(battle){
+  if(_battleIntroShownFor===battle.id)return; // only show once per battle
+  _battleIntroShownFor=battle.id;
+  const isP1=battle.player1===currentUser.id;
+  const myName=isP1?battle.player1:battle.player2;
+  const oppName=isP1?battle.player2:battle.player1;
+  const overlay=document.createElement('div');
+  overlay.className='battle-intro-overlay';
+  overlay.innerHTML=`
+    <div class="battle-intro-vs">
+      <div class="battle-intro-side left">
+        <div style="font-size:40px;">🟢</div>
+        <div style="font-size:16px;font-weight:700;color:#93c5fd;margin-top:4px;">${myName}</div>
+      </div>
+      <div class="battle-intro-vstext">VS</div>
+      <div class="battle-intro-side right">
+        <div style="font-size:40px;">🔴</div>
+        <div style="font-size:16px;font-weight:700;color:#fca5a5;margin-top:4px;">${oppName}</div>
+      </div>
+    </div>
+    <div class="battle-intro-title">⚔️ BATTLE! ⚔️</div>`;
+  document.body.appendChild(overlay);
+  setTimeout(()=>{
+    overlay.classList.add('fade-out');
+    setTimeout(()=>overlay.remove(),450);
+  },1800);
+}
+
 function enterBattle(battle){
   document.getElementById('battle-lobby').style.display='none';
   document.getElementById('battle-active').style.display='block';
@@ -2906,6 +2958,11 @@ function enterBattle(battle){
   if(incomingSub)sb.removeChannel(incomingSub);
   if(incomingPoll)clearInterval(incomingPoll);
   currentBattle=battle;_resultsShownForBattleId=null;renderBattleUI();
+  // Show the "Battle!" intro once, only for a freshly-started battle (no moves used yet)
+  try{
+    const st=typeof battle.state==='string'?JSON.parse(battle.state):battle.state;
+    if(battle.status==='active'&&(!st.usedUids||st.usedUids.length===0))showBattleIntro(battle);
+  }catch(e){}
   if(battleSub)sb.removeChannel(battleSub);
   battleSub=sb.channel('battle-'+battle.id)
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'live_battles',filter:`id=eq.${battle.id}`},
@@ -2968,7 +3025,9 @@ function renderBattleUI(){
     if(f.defeated)cls+=' defeated-card';
     else if(isTarget)cls+=' targetable-card';
     if(f.dot>0&&!f.defeated)cls+=' dot-card';
+    if(f.shielded&&!f.defeated)cls+=' shielded-card';
     return `<div class="${cls}" data-safeuid="${safeUid}"${isTarget?' data-target="1"':''} id="fc-${f.uid}">
+      ${f.shielded&&!f.defeated?'<div class="shield-badge">🛡️</div>':''}
       ${f.image_url?`<img class="battle-card-img" src="${f.image_url}">`:`<div class="battle-card-img-ph">${classEmoji(f.class_name)}</div>`}
       <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.name}</div>
       <span class="cat-badge" style="background:${col.bg};color:${col.fg};font-size:9px;">${f.class_name}${typeEmoji(f.element)?' '+typeEmoji(f.element):''}</span>
@@ -2993,7 +3052,9 @@ function renderBattleUI(){
     else if(isSelected)cls+=' selected-attacker';
     else if(isSelectable)cls+=' selectable-fighter';
     if(f.dot>0&&!f.defeated)cls+=' dot-card';
+    if(f.shielded&&!f.defeated)cls+=' shielded-card';
     return `<div class="${cls}" data-safeuid="${safeUid}"${isSelectable?' data-pickfighter="1"':''} id="fc-${f.uid}">
+      ${f.shielded&&!f.defeated?'<div class="shield-badge">🛡️</div>':''}
       ${isSelected?`<div style="position:absolute;top:4px;right:4px;background:#4f8ef7;color:#fff;font-size:9px;padding:1px 6px;border-radius:4px;font-weight:700;z-index:2;">USING</div>`:''}
       ${f.image_url?`<img class="battle-card-img" src="${f.image_url}">`:`<div class="battle-card-img-ph">${classEmoji(f.class_name)}</div>`}
       <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.name}</div>
@@ -3146,6 +3207,7 @@ function showStaminaPopup(targetUid,amount){
   el.style.position='relative';
   el.appendChild(pop);
   setTimeout(()=>pop.remove(),1100);
+  flashCardFx(targetUid,'fx-stamina',600);
 }
 
 function screenFlash(){
@@ -3168,16 +3230,32 @@ function shakeBattleScreen(){
 // visual effects (damage/heal numbers, crit flash, defeat fade, stamina pop, screen shake)
 // for whatever changed — this is what makes battle feedback visible to BOTH players,
 // not just whoever made the move.
+function showTextPopup(targetUid,text,cls){
+  const el=document.getElementById('fc-'+targetUid);
+  if(!el)return;
+  const pop=document.createElement('div');
+  pop.className=cls;
+  pop.textContent=text;
+  el.style.position='relative';
+  el.appendChild(pop);
+  setTimeout(()=>pop.remove(),1400);
+}
+
+// Compares the previous battle state to a freshly received one and triggers every visual
+// effect (damage flash, heal pulse, crit, dodge, defeat, stamina gain, shield badge) for
+// whatever changed — runs identically for BOTH players regardless of who attacked.
 function diffAndShowPopups(oldState,newState){
   if(!oldState||!newState)return;
   const oldFighters=[...(oldState.fighters1||[]),...(oldState.fighters2||[])];
   const newFighters=[...(newState.fighters1||[]),...(newState.fighters2||[])];
 
-  // Inspect newly-added log lines this turn to detect crit / defeat events
+  // Inspect newly-added log lines this turn to detect crit / dodge / defeat events.
+  // Dodge/crit lines name the specific fighter, so we attribute them precisely instead
+  // of guessing from HP deltas alone.
   const newLogLines=(newState.log||[]).slice((oldState.log||[]).length);
   const hadCrit=newLogLines.some(l=>l.includes('CRIT'));
-  const defeatedNamesThisTurn=newLogLines.filter(l=>l.includes('was defeated')).map(l=>{
-    const m=l.match(/💀 (.+?) was defeated!/);return m?m[1]:null;
+  const dodgedNames=newLogLines.filter(l=>l.includes('dodged')).map(l=>{
+    const m=l.match(/💨 (.+?) dodged/);return m?m[1]:null;
   }).filter(Boolean);
 
   let anyBigHit=false;
@@ -3187,34 +3265,26 @@ function diffAndShowPopups(oldState,newState){
     if(!of)return;
     const delta=nf.hp-of.hp;
     const justDefeated=!of.defeated&&nf.defeated;
+    const justDodged=dodgedNames.includes(nf.name);
 
-    if(delta<0){
+    if(justDodged){
+      flashCardFx(nf.uid,'fx-dodge',450);
+      showTextPopup(nf.uid,'MISS!','miss-popup');
+    } else if(delta<0){
       const amount=Math.abs(delta);
       showDmgPopup(nf.uid,amount,false);
-      flashCardFx(nf.uid,'fx-hit',350);
-      if(hadCrit){
-        // Crit popup shown on the fighter that took the hit
-        flashCardFx(nf.uid,'fx-crit',500);
-        const el=document.getElementById('fc-'+nf.uid);
-        if(el){
-          const pop=document.createElement('div');
-          pop.className='crit-popup';
-          pop.textContent='💥 CRITICAL!';
-          el.style.position='relative';
-          el.appendChild(pop);
-          setTimeout(()=>pop.remove(),1300);
-        }
-      }
+      flashCardFx(nf.uid,hadCrit?'fx-crit':'fx-hit',hadCrit?500:350);
+      if(hadCrit)showTextPopup(nf.uid,'CRIT!','crit-popup');
       if(amount>=of.maxHp*0.25)anyBigHit=true;
     } else if(delta>0){
       showDmgPopup(nf.uid,delta,true);
       flashCardFx(nf.uid,'fx-heal',600);
     }
 
-    // Stamina gained (e.g. regen, haste perks) — only show small positive ticks, not the
-    // big jump that happens when a card is first selected (handled by initial render)
+    // Stamina change — shown every turn for any living fighter whose stamina moved
+    // (covers normal turn-start regen as well as perks/effects)
     const stDelta=(nf.stamina||0)-(of.stamina||0);
-    if(stDelta>0&&!justDefeated)showStaminaPopup(nf.uid,stDelta);
+    if(stDelta>0&&!justDefeated&&!nf.defeated)showStaminaPopup(nf.uid,stDelta);
 
     if(justDefeated)flashCardFx(nf.uid,'fx-defeat',700);
   });
@@ -3454,15 +3524,16 @@ async function awardRewards(state,battle){
   let wpx=(wu?.player_xp||0)+winXp;let wlv=wu?.level||1;while(wpx>=xpForPlayer(wlv)){wpx-=xpForPlayer(wlv);wlv++;}
   let lpx=(lu?.player_xp||0)+loseXp;let llv=lu?.level||1;while(lpx>=xpForPlayer(llv)){lpx-=xpForPlayer(llv);llv++;}
 
-  // Capture leaderboard power-rank BEFORE this battle's rewards land, for rank-shift comparison
-  let prevRank=null;
+  // Capture leaderboard power-rank BEFORE this battle's rewards land, for rank-shift comparison.
+  // Computed for BOTH players since only one client ever runs this function.
+  let prevRankWinner=null,prevRankLoser=null;
   try{
     const{data:allUsersForRank}=await sb.from('users').select('*');
     const{data:allCardsForRank}=await sb.from('player_cards').select('*').eq('is_income_card',false);
     if(allUsersForRank&&allCardsForRank){
       const ranked=allUsersForRank.map(p=>({id:p.id,score:powerScore(p,allCardsForRank.filter(c=>c.owner===p.id))})).sort((a,b)=>b.score-a.score);
-      const idx=ranked.findIndex(r=>r.id===currentUser.id);
-      if(idx>=0)prevRank=idx+1;
+      const idxW=ranked.findIndex(r=>r.id===winner);if(idxW>=0)prevRankWinner=idxW+1;
+      const idxL=ranked.findIndex(r=>r.id===loser);if(idxL>=0)prevRankLoser=idxL+1;
     }
   }catch(e){}
 
@@ -3499,15 +3570,15 @@ async function awardRewards(state,battle){
   updateHUD();
   if(ticketWon)showToast(`🎫 Lucky! You earned a ${ticketWon} spin ticket!`);
 
-  // Capture leaderboard rank AFTER rewards landed
-  let newRank=null;
+  // Capture leaderboard rank for BOTH players AFTER rewards landed
+  let newRankWinner=null,newRankLoser=null;
   try{
     const{data:allUsersForRank2}=await sb.from('users').select('*');
     const{data:allCardsForRank2}=await sb.from('player_cards').select('*').eq('is_income_card',false);
     if(allUsersForRank2&&allCardsForRank2){
       const ranked2=allUsersForRank2.map(p=>({id:p.id,score:powerScore(p,allCardsForRank2.filter(c=>c.owner===p.id))})).sort((a,b)=>b.score-a.score);
-      const idx2=ranked2.findIndex(r=>r.id===currentUser.id);
-      if(idx2>=0)newRank=idx2+1;
+      const idxW2=ranked2.findIndex(r=>r.id===winner);if(idxW2>=0)newRankWinner=idxW2+1;
+      const idxL2=ranked2.findIndex(r=>r.id===loser);if(idxL2>=0)newRankLoser=idxL2+1;
     }
   }catch(e){}
 
@@ -3516,14 +3587,19 @@ async function awardRewards(state,battle){
   const resultsPayload={
     [winner]:{won:true,moneyGain:winMoney,xpGain:winXp,newLevel:wlv,leveledUp:wlv>prevWinnerLevel,cardResults:cardResultsWinner},
     [loser]:{won:false,moneyGain:loseMoney,xpGain:loseXp,newLevel:llv,leveledUp:llv>prevLoserLevel,cardResults:cardResultsLoser},
-    ranks:{[currentUser.id]:{prevRank,newRank}}
+    ranks:{
+      [winner]:{prevRank:prevRankWinner,newRank:newRankWinner},
+      [loser]:{prevRank:prevRankLoser,newRank:newRankLoser}
+    }
   };
   await sb.from('live_battles').update({results:JSON.stringify(resultsPayload)}).eq('id',battle.id);
 
   _resultsShownForBattleId=currentBattle.id;
+  const myPrevRank=currentUser.id===winner?prevRankWinner:prevRankLoser;
+  const myNewRank=currentUser.id===winner?newRankWinner:newRankLoser;
   renderBattleResultsSequence({
     won:myWon,moneyGain:myMoneyGain,xpGain:myXpGain,newLevel:myNewLevel,leveledUp:myLeveledUp,
-    cardResults:currentUser.id===winner?cardResultsWinner:cardResultsLoser,prevRank,newRank,log:state.log||[]
+    cardResults:currentUser.id===winner?cardResultsWinner:cardResultsLoser,prevRank:myPrevRank,newRank:myNewRank,log:state.log||[]
   });
 }
 
@@ -3644,42 +3720,50 @@ async function renderBattleResultsSequence(results){
 }
 
 let _resultsShownForBattleId=null;
+let _resultsInProgress=false; // synchronous lock — prevents concurrent realtime+poller calls from racing
 
 // Called whenever renderBattleUI sees state.winner is set. The player whose move ended the
 // battle already triggered awardRewards() directly. The OTHER player needs to read the
 // results payload that awardRewards() stored on the battle row once it's ready.
 async function handleBattleEndForViewer(state){
   if(_resultsShownForBattleId===currentBattle.id)return; // already showing/shown for this battle
+  if(_resultsInProgress)return; // another call is already polling — don't duplicate it
+  _resultsInProgress=true;
 
-  // Poll briefly for the results payload to land on the battle row
-  document.getElementById('battle-active').innerHTML='<div class="empty" style="padding:3rem;">Tallying results...</div>';
-  for(let i=0;i<10;i++){
-    const{data:fresh}=await sb.from('live_battles').select('results').eq('id',currentBattle.id).single();
-    if(fresh&&fresh.results){
-      const results=typeof fresh.results==='string'?JSON.parse(fresh.results):fresh.results;
-      const mine=results[currentUser.id];
-      if(mine){
-        _resultsShownForBattleId=currentBattle.id;
-        const ranks=results.ranks&&results.ranks[currentUser.id];
-        renderBattleResultsSequence({...mine,prevRank:ranks?ranks.prevRank:null,newRank:ranks?ranks.newRank:null,log:state.log||[]});
-        return;
+  try{
+    // Poll briefly for the results payload to land on the battle row
+    document.getElementById('battle-active').innerHTML='<div class="empty" style="padding:3rem;">Tallying results...</div>';
+    for(let i=0;i<14;i++){
+      const{data:fresh}=await sb.from('live_battles').select('results').eq('id',currentBattle.id).single();
+      if(fresh&&fresh.results){
+        const results=typeof fresh.results==='string'?JSON.parse(fresh.results):fresh.results;
+        const mine=results[currentUser.id];
+        if(mine){
+          _resultsShownForBattleId=currentBattle.id;
+          const ranks=results.ranks&&results.ranks[currentUser.id];
+          renderBattleResultsSequence({...mine,prevRank:ranks?ranks.prevRank:null,newRank:ranks?ranks.newRank:null,log:state.log||[]});
+          return;
+        }
       }
+      await new Promise(r=>setTimeout(r,500));
     }
-    await new Promise(r=>setTimeout(r,500));
+    // Fallback if results never arrived (shouldn't normally happen)
+    _resultsShownForBattleId=currentBattle.id;
+    renderBattleOver(state);
+  } finally {
+    _resultsInProgress=false;
   }
-  // Fallback if results never arrived (shouldn't normally happen)
-  _resultsShownForBattleId=currentBattle.id;
-  renderBattleOver(state);
 }
 
 function renderBattleOver(state){
-  // Fallback static view (used if results were already shown, e.g. on reconnect/refresh)
+  // Fallback static view — only used if the results payload never arrived after retrying
+  // (e.g. you reconnected long after the battle ended). Rewards were still applied correctly.
   const iWon=state.winner===currentUser.id;
   document.getElementById('battle-active').innerHTML=`
     <div class="box" style="text-align:center;padding:2rem;">
       <div style="font-size:56px;margin-bottom:1rem;">${iWon?'🏆':'💀'}</div>
       <h2>${iWon?'Victory!':'Defeat'}</h2>
-      <p style="color:var(--text3);margin:0.5rem 0 1.5rem;">Rewards already applied.</p>
+      <p style="color:var(--text3);margin:0.5rem 0 1.5rem;">This battle has already ended — your rewards were applied. (Results screen unavailable after a delay/reconnect.)</p>
       <button class="btn btn-primary" onclick="leaveBattle()">Back to Lobby</button>
     </div>
     <div class="box"><h3>Battle Log</h3>
