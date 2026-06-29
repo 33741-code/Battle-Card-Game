@@ -167,16 +167,32 @@ body.light .ability-btn{color:#1a1a1a;}
 @keyframes bannerShift{0%{background-position:0% 50%;}50%{background-position:100% 50%;}100%{background-position:0% 50%;}}
 .profile-header-with-banner{padding-top:56px!important;}
 
-/* ── SPIN WHEEL ── */
-.wheel-outer{position:relative;width:280px;height:280px;margin:0 auto;}
-.wheel-pointer{position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:28px;z-index:10;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));}
-.wheel-svg{width:100%;height:100%;border-radius:50%;box-shadow:0 0 0 6px var(--bg3),0 0 30px rgba(0,0,0,0.4);transition:transform 3.5s cubic-bezier(.15,.85,.25,1);}
-.wheel-segment-label{font-size:9px;font-weight:700;fill:#0a0a0a;}
-.wheel-center-btn{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:64px;height:64px;border-radius:50%;background:var(--bg2);border:3px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;cursor:pointer;z-index:5;box-shadow:0 2px 10px rgba(0,0,0,0.4);transition:transform 0.15s;}
-.wheel-center-btn:hover{transform:translate(-50%,-50%) scale(1.05);}
-.wheel-center-btn:disabled,.wheel-center-btn.disabled{opacity:0.5;cursor:not-allowed;}
+/* ── SPIN WHEEL (horizontal strip design — large fixed-size slots) ── */
 .ticket-badge{display:inline-flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;}
 @keyframes wheelResultPop{0%{opacity:0;transform:scale(0.5);}60%{opacity:1;transform:scale(1.15);}100%{opacity:1;transform:scale(1);}}
+
+.wheel-strip-outer{position:relative;margin:0 auto;max-width:780px;}
+.wheel-strip-pointer{position:absolute;top:-6px;left:50%;transform:translateX(-50%);font-size:32px;z-index:10;filter:drop-shadow(0 2px 5px rgba(0,0,0,0.6));}
+.wheel-strip-viewport{overflow:hidden;border-radius:16px;border:3px solid var(--border2);background:var(--bg3);box-shadow:inset 0 0 30px rgba(0,0,0,0.4);padding:16px 0;position:relative;}
+.wheel-strip-viewport::before,.wheel-strip-viewport::after{content:'';position:absolute;top:0;bottom:0;width:60px;z-index:3;pointer-events:none;}
+.wheel-strip-viewport::before{left:0;background:linear-gradient(90deg,var(--bg3),transparent);}
+.wheel-strip-viewport::after{right:0;background:linear-gradient(270deg,var(--bg3),transparent);}
+.wheel-strip-viewport::before,.wheel-strip-viewport::after{content:'';}
+.wheel-strip-track{display:flex;gap:14px;padding:0 16px;will-change:transform;}
+
+/* Large fixed-size slot — same dimensions regardless of prize type, matches GCD proportions */
+.wheel-slot{
+  width:180px;min-width:180px;height:230px;flex-shrink:0;
+  background:var(--card-bg);border:3px solid var(--border);border-radius:14px;
+  padding:12px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  position:relative;overflow:hidden;
+}
+.wheel-slot-jackpot{box-shadow:0 0 24px rgba(253,224,71,0.5);}
+.wheel-slot-cardart{width:100%;}
+.wheel-slot-cardart img{width:100%;height:120px;object-fit:contain;border-radius:8px;background:var(--bg3);}
+
+/* Center marker so the pointer visually aligns with whichever slot is selected mid-spin */
+.wheel-strip-viewport{scroll-behavior:smooth;}
 .skill-tab-row{display:flex;gap:6px;margin-bottom:1.25rem;flex-wrap:wrap;}
 .skill-tab-btn{padding:8px 16px;border-radius:10px;border:2px solid var(--border);background:var(--bg2);color:var(--text2);cursor:pointer;font-size:13px;font-weight:600;transition:all var(--transition);}
 .skill-tab-btn.active{background:var(--bg3);color:var(--text);}
@@ -368,6 +384,7 @@ document.addEventListener("DOMContentLoaded",function(){
       <button class="active" onclick="go('mycards')">🃏 My Cards</button>
       <button onclick="go('packs')">📦 Shop</button>
       <button onclick="go('wheel')">🎡 Spin Wheel</button>
+      <button onclick="go('items')">🎒 Items</button>
       <button onclick="go('battle')">⚔️ Battle</button>
       <button onclick="go('trade')">🤝 Trade</button>
       <button onclick="go('training')">🏋️ Training</button>
@@ -413,6 +430,7 @@ document.addEventListener("DOMContentLoaded",function(){
     <div id="packs-content"></div>
   </div>
   <div id="screen-wheel" class="screen"><div id="wheel-content"></div></div>
+  <div id="screen-items" class="screen"><div id="items-content"></div></div>
 
   <!-- BATTLE -->
   <div id="screen-battle" class="screen">
@@ -995,59 +1013,95 @@ const EVENT_REWARD_TYPES=[
 ];
 
 // ── SPIN WHEEL ──────────────────────────────────────────────────────────
+// ── SPIN WHEEL ──────────────────────────────────────────────────────────
 const WHEEL_TIERS=[
   {id:0,name:'Normal Wheel',icon:'🎡',color:'#9ca3af',levelReq:1},
   {id:1,name:'Rare Wheel',icon:'🎰',color:'#60a5fa',levelReq:15},
   {id:2,name:'Legendary Wheel',icon:'🌟',color:'#f59e0b',levelReq:40},
 ];
-
-// Ticket cost to buy in the shop, scaled by tier
 const TICKET_SHOP_COST=[150,600,2000];
 
-// Wheel segments per tier. type: 'gold','pack','player_xp','card_xp','skill_point','utility'
-// weight = relative chance. value/utilId apply depending on type.
-function wheelSegments(tier){
-  if(tier===0)return[
-    {type:'gold',value:80,weight:22,label:'💰 $80',color:'#fbbf24'},
-    {type:'gold',value:150,weight:14,label:'💰 $150',color:'#f59e0b'},
-    {type:'player_xp',value:40,weight:18,label:'⭐ +40 Player XP',color:'#60a5fa'},
-    {type:'card_xp',value:60,weight:18,label:'🃏 +60 Card XP (all)',color:'#4ade80'},
-    {type:'pack',value:0,weight:12,label:'📦 Free Normal Pack',color:'#a78bfa'},
-    {type:'utility',value:1,weight:10,label:'⚡ Random Action Card',color:'#ec4899'},
-    {type:'skill_point',value:1,weight:5,label:'🌳 1 Skill Point',color:'#34d399'},
-    {type:'gold',value:300,weight:1,label:'💰💰 JACKPOT $300',color:'#fde047'},
-  ];
-  if(tier===1)return[
-    {type:'gold',value:250,weight:20,label:'💰 $250',color:'#fbbf24'},
-    {type:'gold',value:450,weight:14,label:'💰 $450',color:'#f59e0b'},
-    {type:'player_xp',value:100,weight:16,label:'⭐ +100 Player XP',color:'#60a5fa'},
-    {type:'card_xp',value:160,weight:16,label:'🃏 +160 Card XP (all)',color:'#4ade80'},
-    {type:'pack',value:1,weight:14,label:'📦 Free Rare Pack',color:'#a78bfa'},
-    {type:'utility',value:1,weight:10,label:'⚡ Random Action Card',color:'#ec4899'},
-    {type:'skill_point',value:1,weight:8,label:'🌳 1 Skill Point',color:'#34d399'},
-    {type:'gold',value:1000,weight:2,label:'💰💰 JACKPOT $1,000',color:'#fde047'},
-  ];
-  return[ // tier 2 — Legendary Wheel
-    {type:'gold',value:600,weight:18,label:'💰 $600',color:'#fbbf24'},
-    {type:'gold',value:1200,weight:14,label:'💰 $1,200',color:'#f59e0b'},
-    {type:'player_xp',value:250,weight:14,label:'⭐ +250 Player XP',color:'#60a5fa'},
-    {type:'card_xp',value:400,weight:14,label:'🃏 +400 Card XP (all)',color:'#4ade80'},
-    {type:'pack',value:2,weight:14,label:'📦 Free Legendary Pack',color:'#a78bfa'},
-    {type:'utility',value:1,weight:12,label:'⚡ Random Action Card',color:'#ec4899'},
-    {type:'skill_point',value:2,weight:10,label:'🌳 2 Skill Points',color:'#34d399'},
-    {type:'gold',value:3500,weight:4,label:'💰💰 JACKPOT $3,500',color:'#fde047'},
-  ];
+// Master pool of every possible wheel prize. A weekly rotation picks a subset of these
+// for each wheel tier, so the lineup changes from week to week while staying themed
+// correctly per tier (legendary wheel skews toward bigger prizes, etc).
+// type: 'gold' | 'card' | 'utility' | 'player_xp' | 'card_xp' | 'skill_point'
+// weightTier: base weight per wheel tier [normal, rare, legendary] — 0 means "never on this wheel"
+const WHEEL_PRIZE_POOL=[
+  {id:'gold_small',type:'gold',value:100,weightTier:[24,0,0],rarityLabel:null},
+  {id:'gold_med',type:'gold',value:300,weightTier:[16,20,0],rarityLabel:null},
+  {id:'gold_big',type:'gold',value:750,weightTier:[6,18,14],rarityLabel:null},
+  {id:'gold_huge',type:'gold',value:2000,weightTier:[0,8,18],rarityLabel:null},
+  {id:'gold_jackpot',type:'gold',value:10000,weightTier:[1,3,8],rarityLabel:'legendary'},
+
+  {id:'pxp_small',type:'player_xp',value:40,weightTier:[18,0,0]},
+  {id:'pxp_med',type:'player_xp',value:120,weightTier:[10,16,0]},
+  {id:'pxp_big',type:'player_xp',value:300,weightTier:[2,12,16]},
+
+  {id:'cxp_small',type:'card_xp',value:60,weightTier:[18,0,0]},
+  {id:'cxp_med',type:'card_xp',value:180,weightTier:[10,16,0]},
+  {id:'cxp_big',type:'card_xp',value:450,weightTier:[2,12,16]},
+
+  {id:'sp_one',type:'skill_point',value:1,weightTier:[5,10,0]},
+  {id:'sp_two',type:'skill_point',value:2,weightTier:[0,4,12]},
+
+  {id:'utility_random',type:'utility',value:1,weightTier:[10,12,10]},
+
+  {id:'card_common',type:'card',rarity:0,weightTier:[14,0,0],rarityLabel:'common'},
+  {id:'card_uncommon',type:'card',rarity:1,weightTier:[10,0,0],rarityLabel:'uncommon'},
+  {id:'card_rare',type:'card',rarity:2,weightTier:[3,16,0],rarityLabel:'rare'},
+  {id:'card_epic',type:'card',rarity:3,weightTier:[1,10,14],rarityLabel:'epic'},
+  {id:'card_legendary',type:'card',rarity:4,weightTier:[1,4,16],rarityLabel:'legendary'},
+  {id:'card_mythic',type:'card',rarity:5,weightTier:[0,1,6],rarityLabel:'mythic'},
+];
+
+const WHEEL_SLOT_COUNT=10;
+
+function currentWheelWeekSeed(){
+  const now=new Date();
+  const jan1=new Date(now.getFullYear(),0,1);
+  const week=Math.ceil((((now-jan1)/86400000)+jan1.getDay()+1)/7);
+  return now.getFullYear()*100+week;
+}
+function seededRandom(seed){
+  let s=seed%2147483647;if(s<=0)s+=2147483646;
+  return function(){s=(s*16807)%2147483647;return (s-1)/2147483646;};
 }
 
-function rollWheelSegment(tier){
-  const segs=wheelSegments(tier);
-  const totalWeight=segs.reduce((s,x)=>s+x.weight,0);
-  let r=Math.random()*totalWeight;
-  for(const s of segs){r-=s.weight;if(r<=0)return s;}
-  return segs[0];
+// Builds this week's fixed-size slot lineup for a given wheel tier.
+function weeklyWheelSlots(tier){
+  const seed=currentWheelWeekSeed()*10+tier;
+  const rng=seededRandom(seed);
+  const candidates=WHEEL_PRIZE_POOL.filter(p=>p.weightTier[tier]>0);
+  const slots=[];
+  const maxRepeats=2;
+  const usedCount={};
+
+  const legendaryCandidates=candidates.filter(p=>p.rarityLabel==='legendary');
+  const guaranteedLegendaryCount=tier===2?0:(tier===0?1:2);
+  for(let i=0;i<guaranteedLegendaryCount&&legendaryCandidates.length;i++){
+    const pick=legendaryCandidates[Math.floor(rng()*legendaryCandidates.length)];
+    slots.push(pick);usedCount[pick.id]=(usedCount[pick.id]||0)+1;
+  }
+
+  while(slots.length<WHEEL_SLOT_COUNT){
+    const pool=candidates.filter(p=>(usedCount[p.id]||0)<maxRepeats);
+    if(!pool.length)break;
+    const totalW=pool.reduce((s,p)=>s+p.weightTier[tier],0);
+    let r=rng()*totalW;
+    let chosen=pool[0];
+    for(const p of pool){r-=p.weightTier[tier];if(r<=0){chosen=p;break;}}
+    slots.push(chosen);usedCount[chosen.id]=(usedCount[chosen.id]||0)+1;
+  }
+  return slots;
 }
 
-// Which wheel tier a player's daily spin scales to, based on level
+function rollWheelSlot(slots,tier){
+  const totalW=slots.reduce((s,p)=>s+p.weightTier[tier],0);
+  let r=Math.random()*totalW;
+  for(const p of slots){r-=p.weightTier[tier];if(r<=0)return p;}
+  return slots[0];
+}
+
 function dailyWheelTierForLevel(level){
   if(level>=40)return 2;
   if(level>=15)return 1;
@@ -1452,11 +1506,12 @@ function go(name){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
   const mc=document.querySelector('.main-content');if(mc)mc.scrollTop=0;
-  const names=['mycards','packs','wheel','battle','trade','training','quests','skills','leaderboard','news','events','feedback','players','profile','admin'];
+  const names=['mycards','packs','wheel','items','battle','trade','training','quests','skills','leaderboard','news','events','feedback','players','profile','admin'];
   document.querySelectorAll('.main-sidebar button').forEach((b,i)=>b.classList.toggle('active',names[i]===name));
   if(name==='mycards')renderMyCards();
   if(name==='packs')renderPacks();
   if(name==='wheel')renderWheelTab();
+  if(name==='items')renderItemsTab();
   if(name==='battle')renderBattleLobby();
   if(name==='trade')renderTrade();
   if(name==='training')renderTraining();
@@ -1865,7 +1920,108 @@ async function unlockSkillNode(nodeId){
   renderSkillTree();
 }
 
-let _wheelTab=0,_wheelSpinning=false;
+let _wheelTab=0,_wheelSpinning=false,_wheelSlotsCache={};
+
+async function renderItemsTab(){
+  const el=document.getElementById('items-content');
+  if(!el)return;
+  el.innerHTML='<div class="empty">Loading...</div>';
+
+  const{count:cardCount}=await sb.from('player_cards').select('*',{count:'exact',head:true}).eq('owner',currentUser.id).eq('is_income_card',false);
+  const tickets=currentUser.spin_tickets||{normal:0,rare:0,legendary:0};
+  const myUtility=currentUser.utility_cards||{};
+  const ownedUtilityIds=Object.keys(myUtility).filter(id=>myUtility[id]>0);
+  const ownedTitles=currentUser.owned_titles||[];
+  const ownedFrames=currentUser.owned_frames||[];
+  const ownedBanners=currentUser.owned_banners||[];
+  const bonusSkillPts=currentUser.bonus_skill_points||0;
+
+  el.innerHTML=`
+    <h3 style="margin-bottom:0.5rem;">🎒 Items</h3>
+    <p style="font-size:13px;color:var(--text3);margin-bottom:1.25rem;">Everything you own, all in one place.</p>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:1.5rem;">
+      <div class="box" style="margin-bottom:0;text-align:center;cursor:pointer;transition:all var(--transition);" onclick="go('mycards')" onmouseover="this.style.borderColor='var(--border2)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="font-size:32px;margin-bottom:6px;">🃏</div>
+        <div style="font-size:20px;font-weight:800;">${cardCount||0}</div>
+        <div style="font-size:12px;color:var(--text3);">Cards</div>
+      </div>
+      <div class="box" style="margin-bottom:0;text-align:center;">
+        <div style="font-size:32px;margin-bottom:6px;">💰</div>
+        <div style="font-size:20px;font-weight:800;color:#fbbf24;">$${(currentUser.money||0).toLocaleString()}</div>
+        <div style="font-size:12px;color:var(--text3);">Gold</div>
+      </div>
+      <div class="box" style="margin-bottom:0;text-align:center;cursor:pointer;transition:all var(--transition);" onclick="go('wheel')" onmouseover="this.style.borderColor='var(--border2)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="font-size:32px;margin-bottom:6px;">🎫</div>
+        <div style="font-size:20px;font-weight:800;">${(tickets.normal||0)+(tickets.rare||0)+(tickets.legendary||0)}</div>
+        <div style="font-size:12px;color:var(--text3);">Spin Tickets</div>
+      </div>
+      <div class="box" style="margin-bottom:0;text-align:center;cursor:pointer;transition:all var(--transition);" onclick="go('battle')" onmouseover="this.style.borderColor='var(--border2)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="font-size:32px;margin-bottom:6px;">⚡</div>
+        <div style="font-size:20px;font-weight:800;">${ownedUtilityIds.reduce((s,id)=>s+myUtility[id],0)}</div>
+        <div style="font-size:12px;color:var(--text3);">Action Cards</div>
+      </div>
+      ${bonusSkillPts>0?`<div class="box" style="margin-bottom:0;text-align:center;cursor:pointer;transition:all var(--transition);" onclick="go('skills')" onmouseover="this.style.borderColor='var(--border2)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="font-size:32px;margin-bottom:6px;">🌳</div>
+        <div style="font-size:20px;font-weight:800;">${bonusSkillPts}</div>
+        <div style="font-size:12px;color:var(--text3);">Bonus Skill Points</div>
+      </div>`:''}
+    </div>
+
+    <h4 style="margin-bottom:10px;">🎫 Spin Tickets</h4>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:1.5rem;">
+      ${WHEEL_TIERS.map((t,i)=>{
+        const key=['normal','rare','legendary'][i];
+        const count=tickets[key]||0;
+        return `<div class="box" style="margin-bottom:0;min-width:140px;text-align:center;${count>0?'cursor:pointer;':'opacity:0.5;'}" ${count>0?`onclick="go('wheel')"`:''}>
+          <div style="font-size:28px;margin-bottom:4px;">${t.icon}</div>
+          <div style="font-size:18px;font-weight:800;color:${t.color};">${count}</div>
+          <div style="font-size:11px;color:var(--text3);">${t.name}</div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <h4 style="margin-bottom:10px;">⚡ Action Cards</h4>
+    ${ownedUtilityIds.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:1.5rem;">
+      ${ownedUtilityIds.map(id=>{
+        const u=UTILITY_CARDS.find(x=>x.id===id);if(!u)return'';
+        return `<div class="box" style="margin-bottom:0;border-color:${u.color}33;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-size:22px;">${u.icon}</span>
+            <div style="font-weight:700;font-size:13px;">${u.name}</div>
+          </div>
+          <p style="font-size:11px;color:var(--text3);margin-bottom:6px;">${u.desc}</p>
+          <div style="font-size:12px;font-weight:700;color:${u.color};">Owned: ${myUtility[id]}</div>
+        </div>`;
+      }).join('')}
+    </div>`:`<div class="empty" style="margin-bottom:1.5rem;">No action cards yet — buy some from the Shop!</div>`}
+
+    ${ownedTitles.length||ownedFrames.length||ownedBanners.length?`
+    <h4 style="margin-bottom:10px;">🎨 Cosmetics</h4>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:1rem;">
+      ${ownedTitles.length?`<div class="box" style="margin-bottom:0;">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">Titles (${ownedTitles.length})</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          ${ownedTitles.map(id=>{const t=getTitleDef(id);if(!t)return'';return `<span style="font-size:12px;font-weight:700;color:${t.color};background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:4px 10px;">${t.name}</span>`;}).join('')}
+        </div>
+      </div>`:''}
+      ${ownedFrames.length?`<div class="box" style="margin-bottom:0;">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">Card Frames (${ownedFrames.length})</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          ${ownedFrames.map(id=>{const f=getFrameDef(id);if(!f)return'';return `<span style="font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:4px 10px;">${f.icon} ${f.name}</span>`;}).join('')}
+        </div>
+      </div>`:''}
+      ${ownedBanners.length?`<div class="box" style="margin-bottom:0;">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">Profile Banners (${ownedBanners.length})</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          ${ownedBanners.map(id=>{const b=getBannerDef(id);if(!b)return'';return `<div class="${b.cls}" title="${b.name}" style="width:60px;height:32px;border-radius:6px;border:1px solid var(--border);"></div>`;}).join('')}
+        </div>
+      </div>`:''}
+    </div>
+    <p style="font-size:12px;color:var(--text3);">Manage equipped title/banner from <span style="cursor:pointer;color:var(--accent);" onclick="go('profile')">My Profile</span>.</p>
+    `:''}
+  `;
+}
 
 async function renderWheelTab(){
   const el=document.getElementById('wheel-content');
@@ -1877,10 +2033,12 @@ async function renderWheelTab(){
   const dailyAvailable=lastDailySpin!==today;
   const tickets=currentUser.spin_tickets||{normal:0,rare:0,legendary:0};
   const ticketKey=['normal','rare','legendary'][_wheelTab];
+  const tierInfo=WHEEL_TIERS[_wheelTab];
+  const locked=lvl<tierInfo.levelReq;
 
   el.innerHTML=`
     <h3 style="margin-bottom:0.5rem;">🎡 Spin Wheel</h3>
-    <p style="font-size:13px;color:var(--text3);margin-bottom:1rem;">Spin daily for free, or use tickets to spin any unlocked wheel. Tickets can be earned from battles, found rarely in card packs, bought in the Shop, or traded with friends.</p>
+    <p style="font-size:13px;color:var(--text3);margin-bottom:1rem;">Spin daily for free, or use tickets to spin any unlocked wheel. The prize lineup rotates weekly. Tickets are earned from battles, found rarely in card packs, bought in the Shop, or traded with friends.</p>
 
     <div class="box" style="text-align:center;margin-bottom:1.25rem;${dailyAvailable?'border-color:#facc15;box-shadow:0 0 16px rgba(250,204,21,0.25);':''}">
       <div style="font-size:13px;color:var(--text3);margin-bottom:4px;">🗓️ Daily Free Spin</div>
@@ -1891,24 +2049,34 @@ async function renderWheelTab(){
     </div>
 
     <div class="tab-row" id="wheel-tabs" style="margin-bottom:1rem;">
-      ${WHEEL_TIERS.map((t,i)=>`<button class="tab-btn${i===_wheelTab?' active':''}" onclick="switchWheelTab(${i})">${t.icon} ${t.name}</button>`).join('')}
+      ${WHEEL_TIERS.map((t,i)=>`<button type="button" class="tab-btn${i===_wheelTab?' active':''}" data-tier="${i}">${t.icon} ${t.name}</button>`).join('')}
     </div>
 
     <div style="display:flex;justify-content:center;gap:10px;margin-bottom:1rem;flex-wrap:wrap;">
-      <div class="ticket-badge">🎫 ${WHEEL_TIERS[_wheelTab].name} Tickets: <span style="color:${WHEEL_TIERS[_wheelTab].color};">${tickets[ticketKey]||0}</span></div>
+      <div class="ticket-badge">🎫 ${tierInfo.name} Tickets: <span style="color:${tierInfo.color};">${tickets[ticketKey]||0}</span></div>
     </div>
 
+    ${locked?`<div class="box" style="text-align:center;padding:2rem;">
+      <div style="font-size:32px;margin-bottom:8px;">🔒</div>
+      <div style="font-size:14px;color:var(--text3);">Unlocks at Level ${tierInfo.levelReq}</div>
+    </div>`:`
     <div id="wheel-display-wrap"></div>
-
     <div style="text-align:center;margin-top:1rem;">
-      <button class="btn ${tickets[ticketKey]>0?'btn-green':''}" ${tickets[ticketKey]>0?'':'disabled'} onclick="spinWheel(${_wheelTab},'ticket')">
+      <button class="btn ${tickets[ticketKey]>0?'btn-green':''}" id="wheel-ticket-spin-btn" ${tickets[ticketKey]>0?'':'disabled'}>
         🎫 Use 1 Ticket to Spin
       </button>
-    </div>
+    </div>`}
 
     <div id="wheel-result-box" style="margin-top:1.25rem;"></div>`;
 
-  renderWheelSVG(_wheelTab);
+  // Wire tab buttons (avoids inline-onclick string-escaping issues with dynamic content)
+  el.querySelectorAll('#wheel-tabs .tab-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>switchWheelTab(parseInt(btn.dataset.tier)));
+  });
+  const ticketBtn=document.getElementById('wheel-ticket-spin-btn');
+  if(ticketBtn)ticketBtn.addEventListener('click',()=>spinWheel(_wheelTab,'ticket'));
+
+  if(!locked)await renderWheelStrip(_wheelTab);
 }
 
 function switchWheelTab(tier){
@@ -1917,39 +2085,110 @@ function switchWheelTab(tier){
   renderWheelTab();
 }
 
-// Builds an SVG pie-wheel for the given tier with its segments, ready to be rotated for the spin animation
-function renderWheelSVG(tier){
+function getWheelSlots(tier){
+  if(!_wheelSlotsCache[tier])_wheelSlotsCache[tier]=weeklyWheelSlots(tier);
+  return _wheelSlotsCache[tier];
+}
+
+// Renders large, fixed-size GCD-style slot cards in a horizontal scrolling strip with a
+// fixed center pointer — the strip slides during the spin so the winning slot lands
+// directly under the pointer. This is far more readable than a tiny pie wheel for cards
+// with full art, rarity, and stats.
+// Cache of one representative pool card per rarity, fetched once per session, used to
+// show real GCD card art on the wheel slots instead of a generic placeholder.
+let _wheelRarityCardCache={};
+async function getRepresentativeCardForRarity(rarity){
+  if(_wheelRarityCardCache[rarity])return _wheelRarityCardCache[rarity];
+  const{data}=await sb.from('pool_cards').select('*').eq('rarity',rarity).limit(20);
+  if(data&&data.length){
+    const pick=data[Math.floor(Math.random()*data.length)];
+    _wheelRarityCardCache[rarity]=pick;
+    return pick;
+  }
+  return null;
+}
+
+async function renderWheelStrip(tier){
   const wrap=document.getElementById('wheel-display-wrap');
   if(!wrap)return;
-  const segs=wheelSegments(tier);
-  const total=segs.reduce((s,x)=>s+x.weight,0);
-  const cx=140,cy=140,r=130;
-  let angle=0;
-  const paths=segs.map(s=>{
-    const sweep=(s.weight/total)*360;
-    const startAngle=angle;const endAngle=angle+sweep;
-    angle=endAngle;
-    const startRad=(startAngle-90)*Math.PI/180;
-    const endRad=(endAngle-90)*Math.PI/180;
-    const x1=cx+r*Math.cos(startRad),y1=cy+r*Math.sin(startRad);
-    const x2=cx+r*Math.cos(endRad),y2=cy+r*Math.sin(endRad);
-    const largeArc=sweep>180?1:0;
-    const midAngle=(startAngle+endAngle)/2;
-    const midRad=(midAngle-90)*Math.PI/180;
-    const labelX=cx+(r*0.62)*Math.cos(midRad),labelY=cy+(r*0.62)*Math.sin(midRad);
-    return{d:`M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${largeArc} 1 ${x2.toFixed(2)},${y2.toFixed(2)} Z`,
-      color:s.color,labelX,labelY,label:s.label.split(' ')[0],startAngle,endAngle};
-  });
-  wrap.innerHTML=`<div class="wheel-outer">
-    <div class="wheel-pointer">🔻</div>
-    <svg class="wheel-svg" id="wheel-svg-${tier}" viewBox="0 0 280 280">
-      ${paths.map(p=>`<path d="${p.d}" fill="${p.color}" stroke="var(--bg)" stroke-width="2"/>`).join('')}
-      ${paths.map(p=>`<text x="${p.labelX}" y="${p.labelY}" class="wheel-segment-label" text-anchor="middle" dominant-baseline="middle">${p.label}</text>`).join('')}
-    </svg>
-    <div class="wheel-center-btn" id="wheel-center-${tier}">${WHEEL_TIERS[tier].icon}</div>
-  </div>`;
-  wrap.dataset.segs=JSON.stringify(segs.map(s=>({startAngle:0}))); // placeholder, real angles stored via closure below
-  wrap._segAngles=paths.map(p=>({start:p.startAngle,end:p.endAngle}));
+  const slots=getWheelSlots(tier);
+  // Pre-fetch representative card art for every rarity featured on this wheel
+  const rarities=[...new Set(slots.filter(p=>p.type==='card').map(p=>p.rarity))];
+  await Promise.all(rarities.map(r=>getRepresentativeCardForRarity(r)));
+
+  // Repeat the slot list several times so the spin animation has plenty of room to scroll through
+  const repeated=[];
+  for(let i=0;i<6;i++)repeated.push(...slots);
+
+  wrap.innerHTML=`
+    <div class="wheel-strip-outer">
+      <div class="wheel-strip-pointer">🔻</div>
+      <div class="wheel-strip-viewport">
+        <div class="wheel-strip-track" id="wheel-track-${tier}">
+          ${repeated.map(p=>wheelSlotHTML(p,tier)).join('')}
+        </div>
+      </div>
+    </div>`;
+}
+
+// Builds one large GCD-style slot card for a wheel prize — cards show real art/name/class
+// exactly like the My Cards tab, so players know exactly what they're aiming for.
+function wheelSlotHTML(prize,tier){
+  if(prize.type==='card'){
+    const rarityColor=RARITY_COLORS[prize.rarity];
+    const sample=_wheelRarityCardCache[prize.rarity];
+    if(sample){
+      const col=classColor(sample.class_name||sample.cat||'Warrior');
+      return `<div class="wheel-slot wheel-slot-card" style="border-color:${rarityColor};">
+        ${sample.image_url?`<img class="wheel-slot-cardart" src="${sample.image_url}" style="width:100%;height:110px;object-fit:contain;border-radius:8px;background:var(--bg3);">`:`<div class="card-img-placeholder" style="width:100%;height:110px;">${classEmoji(sample.class_name||sample.cat)}</div>`}
+        <div style="font-size:12px;font-weight:700;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;">${sample.name||'Mystery Card'}</div>
+        <span class="cat-badge" style="background:${col.bg};color:${col.fg};font-size:9px;margin-top:2px;">${sample.class_name||sample.cat||'Card'}</span>
+        <div style="font-size:12px;font-weight:700;color:${rarityColor};margin-top:2px;">${RARITIES[prize.rarity]}</div>
+      </div>`;
+    }
+    return `<div class="wheel-slot wheel-slot-card" style="border-color:${rarityColor};">
+      <div class="card-img-placeholder" style="width:100%;height:120px;">🃏</div>
+      <div style="font-size:13px;font-weight:700;margin-top:6px;">Random Card</div>
+      <div style="font-size:12px;font-weight:700;color:${rarityColor};">${RARITIES[prize.rarity]}</div>
+    </div>`;
+  }
+  if(prize.type==='utility'){
+    return `<div class="wheel-slot wheel-slot-utility" style="border-color:#ec4899;">
+      <div style="font-size:46px;margin:10px 0;">⚡</div>
+      <div style="font-size:13px;font-weight:700;">Action Card</div>
+      <div style="font-size:11px;color:var(--text3);">Random utility effect</div>
+    </div>`;
+  }
+  if(prize.type==='gold'){
+    const big=prize.value>=5000;
+    return `<div class="wheel-slot wheel-slot-gold${big?' wheel-slot-jackpot':''}" style="border-color:${big?'#fde047':'#f59e0b'};">
+      <div style="font-size:46px;margin:10px 0;">${big?'💰💰':'💰'}</div>
+      <div style="font-size:16px;font-weight:800;color:#fbbf24;">$${prize.value.toLocaleString()}</div>
+      ${big?'<div style="font-size:11px;color:#fde047;font-weight:700;">JACKPOT</div>':''}
+    </div>`;
+  }
+  if(prize.type==='player_xp'){
+    return `<div class="wheel-slot wheel-slot-xp" style="border-color:#60a5fa;">
+      <div style="font-size:46px;margin:10px 0;">⭐</div>
+      <div style="font-size:15px;font-weight:800;color:#93c5fd;">+${prize.value}</div>
+      <div style="font-size:11px;color:var(--text3);">Player XP</div>
+    </div>`;
+  }
+  if(prize.type==='card_xp'){
+    return `<div class="wheel-slot wheel-slot-cardxp" style="border-color:#4ade80;">
+      <div style="font-size:46px;margin:10px 0;">🃏</div>
+      <div style="font-size:15px;font-weight:800;color:#86efac;">+${prize.value}</div>
+      <div style="font-size:11px;color:var(--text3);">Card XP (all)</div>
+    </div>`;
+  }
+  if(prize.type==='skill_point'){
+    return `<div class="wheel-slot wheel-slot-skill" style="border-color:#34d399;">
+      <div style="font-size:46px;margin:10px 0;">🌳</div>
+      <div style="font-size:15px;font-weight:800;color:#6ee7b7;">+${prize.value}</div>
+      <div style="font-size:11px;color:var(--text3);">Skill Point${prize.value>1?'s':''}</div>
+    </div>`;
+  }
+  return `<div class="wheel-slot">${prize.id}</div>`;
 }
 
 async function spinWheel(tier,source){
@@ -1965,30 +2204,36 @@ async function spinWheel(tier,source){
     if(!(tickets[ticketKey]>0)){showToast('No tickets for this wheel!');return;}
   }
 
+  // Make sure the right wheel tab/strip is showing before spinning
+  if(_wheelTab!==tier){_wheelTab=tier;await renderWheelTab();}
+
+  const slots=getWheelSlots(tier);
+  const won=rollWheelSlot(slots,tier);
+  const wonIdx=slots.indexOf(won);
+
   _wheelSpinning=true;
   const resultBox=document.getElementById('wheel-result-box');
   if(resultBox)resultBox.innerHTML='';
 
-  const segment=rollWheelSegment(tier);
-  const segs=wheelSegments(tier);
-  const totalWeight=segs.reduce((s,x)=>s+x.weight,0);
-  const winningIdx=segs.indexOf(segment);
+  const track=document.getElementById('wheel-track-'+tier);
+  const ticketBtn=document.getElementById('wheel-ticket-spin-btn');
+  if(ticketBtn)ticketBtn.disabled=true;
 
-  // Compute the angle range of the winning segment so we can spin TO it
-  let angle=0;const ranges=[];
-  for(const s of segs){const sweep=(s.weight/totalWeight)*360;ranges.push({start:angle,end:angle+sweep});angle+=sweep;}
-  const winRange=ranges[winningIdx];
-  const targetMid=(winRange.start+winRange.end)/2;
-  // Spin several full rotations, landing the pointer (fixed at top) on the winning segment's middle
-  const extraSpins=5+Math.floor(Math.random()*2);
-  const finalRotation=extraSpins*360+(360-targetMid);
+  if(track){
+    const slotWidth=180+14; // wheel-slot width + gap, must match CSS
+    // Land on a copy of the winning slot in the 4th repetition (gives room to spin forward visually)
+    const targetRepeat=3;
+    const targetIndex=targetRepeat*slots.length+wonIdx;
+    const viewportWidth=track.parentElement.offsetWidth;
+    const targetOffset=(targetIndex*slotWidth)+(slotWidth/2)-(viewportWidth/2);
+    track.style.transition='none';
+    track.style.transform='translateX(0px)';
+    void track.offsetWidth;
+    track.style.transition='transform 3.2s cubic-bezier(.12,.85,.2,1)';
+    track.style.transform=`translateX(-${targetOffset}px)`;
+  }
 
-  const svg=document.getElementById('wheel-svg-'+tier);
-  const centerBtn=document.getElementById('wheel-center-'+tier);
-  if(centerBtn)centerBtn.classList.add('disabled');
-  if(svg)svg.style.transform=`rotate(${finalRotation}deg)`;
-
-  await new Promise(r=>setTimeout(r,3600));
+  await new Promise(r=>setTimeout(r,3400));
 
   // Deduct cost (daily flag or ticket) and apply the reward
   const updates={};
@@ -2001,57 +2246,54 @@ async function spinWheel(tier,source){
     updates.spin_tickets=tickets;
   }
 
-  const rewardDesc=await applyWheelReward(segment,tier);
+  const rewardDesc=await applyWheelReward(won,tier);
   Object.assign(updates,rewardDesc.updates||{});
   await sb.from('users').update(updates).eq('id',currentUser.id);
   Object.assign(currentUser,updates);
   updateHUD();
 
   if(resultBox){
-    resultBox.innerHTML=`<div class="box" style="text-align:center;padding:1.5rem;border-color:${segment.color};box-shadow:0 0 20px ${segment.color}55;animation:wheelResultPop 0.5s ease;">
-      <div style="font-size:13px;color:var(--text3);margin-bottom:6px;">🎉 You won:</div>
-      <div style="font-size:20px;font-weight:800;">${segment.label}</div>
-      ${rewardDesc.extra?`<div style="font-size:12px;color:var(--text3);margin-top:6px;">${rewardDesc.extra}</div>`:''}
+    resultBox.innerHTML=`<div class="box" style="text-align:center;padding:1.5rem;animation:wheelResultPop 0.5s ease;">
+      <div style="font-size:13px;color:var(--text3);margin-bottom:8px;">🎉 You won:</div>
+      <div style="display:flex;justify-content:center;">${wheelSlotHTML(won,tier)}</div>
+      ${rewardDesc.extra?`<div style="font-size:13px;color:var(--text2);margin-top:12px;font-weight:600;">${rewardDesc.extra}</div>`:''}
     </div>`;
   }
 
   _wheelSpinning=false;
-  if(centerBtn)centerBtn.classList.remove('disabled');
-  renderWheelTab();
+  if(ticketBtn)ticketBtn.disabled=!((currentUser.spin_tickets||{})[['normal','rare','legendary'][tier]]>0);
 }
 
-// Applies a wheel segment's reward to the player and returns {updates, extra} for display
-async function applyWheelReward(segment,tier){
-  if(segment.type==='gold'){
-    const money=(currentUser.money||0)+segment.value;
+// Applies a wheel prize to the player and returns {updates, extra} for display
+async function applyWheelReward(prize,tier){
+  if(prize.type==='gold'){
+    const money=(currentUser.money||0)+prize.value;
     return{updates:{money}};
   }
-  if(segment.type==='player_xp'){
-    let player_xp=(currentUser.player_xp||0)+segment.value;
+  if(prize.type==='player_xp'){
+    let player_xp=(currentUser.player_xp||0)+prize.value;
     let level=currentUser.level||1;
     let leveledUp=false;
     while(player_xp>=xpForPlayer(level)){player_xp-=xpForPlayer(level);level++;leveledUp=true;}
     if(leveledUp)await checkMilestones(level);
     return{updates:{player_xp,level},extra:leveledUp?`🎉 Leveled up to ${level}!`:null};
   }
-  if(segment.type==='card_xp'){
+  if(prize.type==='card_xp'){
     const{data:cards}=await sb.from('player_cards').select('uid,xp').eq('owner',currentUser.id).eq('is_income_card',false);
     if(cards&&cards.length){
-      await Promise.all(cards.map(c=>sb.from('player_cards').update({xp:(c.xp||0)+segment.value}).eq('uid',c.uid)));
+      await Promise.all(cards.map(c=>sb.from('player_cards').update({xp:(c.xp||0)+prize.value}).eq('uid',c.uid)));
     }
     return{updates:{},extra:`Applied to ${cards?cards.length:0} card(s)`};
   }
-  if(segment.type==='skill_point'){
-    // Skill points are derived from level (totalSkillPoints), so we grant this as bonus_skill_points
-    const bonus=(currentUser.bonus_skill_points||0)+segment.value;
+  if(prize.type==='skill_point'){
+    const bonus=(currentUser.bonus_skill_points||0)+prize.value;
     return{updates:{bonus_skill_points:bonus}};
   }
-  if(segment.type==='pack'){
-    const{data:pool}=await sb.from('pool_cards').select('*');
-    if(pool&&pool.length){
-      const rarity=rollRarity(segment.value);
-      const byR=pool.filter(c=>c.rarity===rarity);
-      const src=byR.length?byR:pool;
+  if(prize.type==='card'){
+    const{data:pool}=await sb.from('pool_cards').select('*').eq('rarity',prize.rarity);
+    const{data:poolAny}=pool&&pool.length?{data:pool}:await sb.from('pool_cards').select('*');
+    const src=pool&&pool.length?pool:(poolAny||[]);
+    if(src.length){
       const t=src[Math.floor(Math.random()*src.length)];
       const startMoves=(t.moves||[]).filter(m=>!m.unlock_level||m.unlock_level<=1).map(m=>m.name);
       await sb.from('player_cards').insert({
@@ -2065,9 +2307,9 @@ async function applyWheelReward(segment,tier){
       });
       return{updates:{},extra:`${t.name} (${RARITIES[t.rarity]}) added to your cards!`};
     }
-    return{updates:{}};
+    return{updates:{},extra:'No cards available in the pool yet.'};
   }
-  if(segment.type==='utility'){
+  if(prize.type==='utility'){
     const u=UTILITY_CARDS[Math.floor(Math.random()*UTILITY_CARDS.length)];
     const owned={...(currentUser.utility_cards||{})};
     owned[u.id]=(owned[u.id]||0)+1;
