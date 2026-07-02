@@ -82,6 +82,15 @@ textarea{resize:vertical;min-height:60px;}
 /* ── CARDS ── */
 .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:12px;margin-bottom:1.5rem;}
 .card-tile{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;cursor:pointer;transition:transform var(--transition),border-color var(--transition),box-shadow var(--transition);position:relative;overflow:hidden;}
+.card-tile.ctx-selected{border-color:#facc15!important;box-shadow:0 0 0 2px #facc1588,0 0 14px #facc1555;}
+.auto-stamp{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%) rotate(-18deg);font-weight:900;font-size:20px;letter-spacing:2px;padding:4px 14px;border:3px solid currentColor;border-radius:6px;pointer-events:none;z-index:5;background:rgba(0,0,0,0.35);text-shadow:0 0 6px currentColor;white-space:nowrap;}
+.auto-stamp.sold{color:#fbbf24;}
+.auto-stamp.combining{color:#60a5fa;font-size:15px;}
+.auto-stamp.deleting{color:#facc15;font-size:16px;}
+.ctx-menu-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:6px;cursor:pointer;}
+.ctx-menu-item:hover{background:var(--bg3);}
+.ctx-menu-item.locked{opacity:0.45;cursor:not-allowed;}
+.ctx-menu-sep{height:1px;background:var(--border);margin:4px 0;}
 .card-tile:hover{border-color:var(--border2);transform:translateY(-2px);box-shadow:var(--shadow);}
 .card-tile.selected{border-color:#16a34a;box-shadow:0 0 0 2px #16a34a44;}
 .card-tile.selected::after{content:'✓';position:absolute;top:6px;right:6px;background:#16a34a;color:#fff;font-size:13px;font-weight:700;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;line-height:22px;text-align:center;}
@@ -814,6 +823,18 @@ document.addEventListener("DOMContentLoaded",function(){
   </div>
 </div>
 
+<!-- PACK AUTO-SETTINGS MODAL -->
+<div class="modal-overlay" id="auto-settings-modal">
+  <div class="modal" style="max-width:480px;">
+    <h3 style="margin-bottom:4px;">⚙️ Pack Auto-Settings</h3>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:14px;">Pick ONE mode to equip. When a pack is opened, any drawn card matching your rules is handled automatically.</p>
+    <div id="auto-settings-body"></div>
+    <button class="btn btn-sm" style="margin-top:14px;" onclick="closeAutoSettingsModal()">Close</button>
+  </div>
+</div>
+
+<!-- CARD RIGHT-CLICK CONTEXT MENU -->
+<div id="card-ctx-menu" style="display:none;position:fixed;z-index:999;background:var(--card-bg,#1c1f26);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.4);padding:8px;min-width:210px;font-size:13px;"></div>
 
 <!-- EMOJI PICKER MODAL -->
 <div class="modal-overlay" id="emoji-modal">
@@ -857,6 +878,35 @@ const PACK_BASE_COST=[80,400,1500]; // per-card base cost for normal/rare/legend
 const PACK_SIZE_MULT=[1,2.8,4.5]; // 3-pack and 5-pack cost slightly less than linear per-card
 const RARITY_XP_MULT=[1.0,1.15,1.35,1.6,1.9,2.2,2.6,3.0];
 const RARITY_STAT_MULT=[1.04,1.07,1.10,1.13,1.16,1.20,1.24,1.28];
+
+// ── PACK AUTO-SETTINGS (auto-delete / auto-sell / auto-combine) ────────
+const AUTO_SELL_VALUES=[5,7,15,50,500,2000,7500,25000]; // per-card sell price by rarity
+const AUTO_SELL_LEVEL_REQ=5;
+const AUTO_COMBINE_LEVEL_REQ=10;
+function defaultAutoSettings(){
+  return{mode:null,
+    delete:{rarities:[],cards:{}},
+    sell:{rarities:[],cards:{}},
+    combine:{rarities:[],cards:{}}};
+}
+function getAutoSettings(){
+  const s=currentUser.pack_auto_settings;
+  if(!s||typeof s!=='object')return defaultAutoSettings();
+  return{mode:s.mode||null,
+    delete:{rarities:s.delete?.rarities||[],cards:s.delete?.cards||{}},
+    sell:{rarities:s.sell?.rarities||[],cards:s.sell?.cards||{}},
+    combine:{rarities:s.combine?.rarities||[],cards:s.combine?.cards||{}}};
+}
+// Does a freshly-drawn pool card (name+rarity) match the currently equipped auto-mode?
+function matchesAutoMode(name,rarity){
+  const s=getAutoSettings();
+  if(!s.mode)return null;
+  const cfg=s[s.mode];
+  if(!cfg||!cfg.rarities.includes(rarity))return null;
+  const specific=cfg.cards[rarity];
+  if(specific&&specific.length&&!specific.includes(name))return null;
+  return s.mode;
+}
 
 // ── UTILITY / ACTION CARDS ────────────────────────────────────────────
 
@@ -1766,7 +1816,9 @@ async function renderMyCards(){
   } else incSec.style.display='none';
 
   el.innerHTML=battleCards.map(c=>cardTileHTML(c)).join('');
+  _myCardsCache=battleCards;
 }
+let _myCardsCache=[];
 
 async function collectIncome(uid,amount,hours,last){
   if(last){const diff=(new Date()-new Date(last))/3600000;if(diff<hours){showToast(`Ready in ${Math.ceil(hours-diff)}h`);return;}}
@@ -1827,6 +1879,129 @@ function rollRarity(packType){
 
 function packCost(pt,sizeIdx){
   return Math.round(PACK_BASE_COST[pt]*PACK_SIZE_MULT[sizeIdx]);
+}
+
+// ── PACK AUTO-SETTINGS MODAL ────────────────────────────
+let _autoSettingsPool=null;   // cached pool_cards [{id,name,rarity}]
+let _autoSettingsDraft=null;  // working copy edited in the modal
+const AUTO_MODE_META={
+  delete:{label:'Auto-Delete',icon:'🗑️',color:'#f87171',levelReq:1},
+  sell:{label:'Auto-Sell',icon:'💰',color:'#fbbf24',levelReq:AUTO_SELL_LEVEL_REQ},
+  combine:{label:'Auto-Combine',icon:'🔗',color:'#60a5fa',levelReq:AUTO_COMBINE_LEVEL_REQ}
+};
+
+async function openAutoSettingsModal(){
+  _autoSettingsDraft=JSON.parse(JSON.stringify(getAutoSettings()));
+  if(!_autoSettingsPool){
+    const{data}=await sb.from('pool_cards').select('id,name,rarity');
+    _autoSettingsPool=data||[];
+  }
+  document.getElementById('auto-settings-modal').classList.add('open');
+  renderAutoSettingsBody();
+}
+function closeAutoSettingsModal(){
+  document.getElementById('auto-settings-modal').classList.remove('open');
+}
+document.getElementById('auto-settings-modal').addEventListener('click',function(e){if(e.target===this)closeAutoSettingsModal();});
+
+function renderAutoSettingsBody(){
+  const body=document.getElementById('auto-settings-body');
+  const lvl=currentUser.level||1;
+  const draft=_autoSettingsDraft;
+
+  const modeButtonsHTML=Object.keys(AUTO_MODE_META).map(m=>{
+    const meta=AUTO_MODE_META[m];
+    const locked=lvl<meta.levelReq;
+    const equipped=draft.mode===m;
+    return `<button class="btn btn-sm" style="border-color:${equipped?meta.color:'var(--border)'};color:${equipped?meta.color:'var(--text2)'};opacity:${locked?0.45:1};" ${locked?'disabled':`onclick="equipAutoMode('${m}')"`}>${meta.icon} ${equipped?'✓ Equipped — ':''}${meta.label}${locked?` (Lv ${meta.levelReq})`:''}</button>`;
+  }).join('');
+
+  if(!draft.mode){
+    body.innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:6px;">${modeButtonsHTML}</div>
+      <p style="font-size:12px;color:var(--text3);margin-top:10px;">Equip a mode above to configure which rarities/cards it applies to.</p>`;
+    return;
+  }
+
+  const cfg=draft[draft.mode];
+  const meta=AUTO_MODE_META[draft.mode];
+  const allSelected=cfg.rarities.length===RARITIES.length;
+
+  const rarityRowsHTML=RARITIES.map((rname,r)=>{
+    const checked=cfg.rarities.includes(r);
+    const poolForRarity=_autoSettingsPool.filter(p=>p.rarity===r);
+    const specific=cfg.cards[r]||[];
+    const customizing=specific.length>0;
+    return `<div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:6px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" ${checked?'checked':''} onchange="toggleAutoRarity(${r},this.checked)">
+        <span style="color:${RARITY_COLORS[r]};font-weight:700;font-size:13px;">${rname}</span>
+        ${draft.mode==='sell'?`<span style="font-size:11px;color:var(--text3);margin-left:auto;">$${AUTO_SELL_VALUES[r].toLocaleString()}/card</span>`:''}
+      </label>
+      ${checked&&poolForRarity.length?`<div style="margin-top:6px;padding-left:22px;">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:4px;cursor:pointer;text-decoration:underline;" onclick="toggleAutoCardPanel(${r})">${customizing?`Customized (${specific.length} card${specific.length>1?'s':''}) — click to edit`:'Applies to all cards of this rarity — click to pick specific cards'}</div>
+        <div id="auto-card-panel-${r}" style="display:none;flex-wrap:wrap;gap:6px;max-height:140px;overflow-y:auto;">
+          ${poolForRarity.map(p=>`<label style="display:flex;align-items:center;gap:4px;font-size:11px;background:var(--bg3);padding:3px 7px;border-radius:6px;cursor:pointer;">
+            <input type="checkbox" ${specific.includes(p.name)?'checked':''} onchange="toggleAutoCard(${r},'${p.name.replace(/'/g,"\\'")}',this.checked)">${p.name}
+          </label>`).join('')}
+        </div>
+      </div>`:''}
+    </div>`;
+  }).join('');
+
+  body.innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">${modeButtonsHTML}</div>
+    <hr class="divider">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <h4 style="margin:0;color:${meta.color};">${meta.icon} ${meta.label} — Rarities</h4>
+      <button class="btn btn-sm" onclick="toggleAutoSelectAll()">${allSelected?'Unselect All':'Select All'}</button>
+    </div>
+    ${rarityRowsHTML}`;
+}
+
+function toggleAutoCardPanel(r){
+  const panel=document.getElementById(`auto-card-panel-${r}`);
+  if(panel)panel.style.display=panel.style.display==='none'?'flex':'none';
+}
+
+async function equipAutoMode(mode){
+  const meta=AUTO_MODE_META[mode];
+  if((currentUser.level||1)<meta.levelReq){showToast(`${meta.label} unlocks at Level ${meta.levelReq}`);return;}
+  _autoSettingsDraft.mode=(_autoSettingsDraft.mode===mode)?null:mode;
+  await persistAutoSettings();
+  renderAutoSettingsBody();
+}
+
+function toggleAutoRarity(r,on){
+  const cfg=_autoSettingsDraft[_autoSettingsDraft.mode];
+  cfg.rarities=cfg.rarities.filter(x=>x!==r);
+  if(on)cfg.rarities.push(r);
+  if(!on)delete cfg.cards[r];
+  persistAutoSettings();
+  renderAutoSettingsBody();
+}
+
+function toggleAutoSelectAll(){
+  const cfg=_autoSettingsDraft[_autoSettingsDraft.mode];
+  const allSelected=cfg.rarities.length===RARITIES.length;
+  cfg.rarities=allSelected?[]:RARITIES.map((_,i)=>i);
+  if(allSelected)cfg.cards={};
+  persistAutoSettings();
+  renderAutoSettingsBody();
+}
+
+function toggleAutoCard(r,name,on){
+  const cfg=_autoSettingsDraft[_autoSettingsDraft.mode];
+  const list=cfg.cards[r]||(cfg.cards[r]=[]);
+  const idx=list.indexOf(name);
+  if(on&&idx===-1)list.push(name);
+  if(!on&&idx!==-1)list.splice(idx,1);
+  if(!list.length)delete cfg.cards[r];
+  persistAutoSettings();
+}
+
+async function persistAutoSettings(){
+  currentUser.pack_auto_settings=_autoSettingsDraft;
+  const{error}=await sb.from('users').update({pack_auto_settings:_autoSettingsDraft}).eq('id',currentUser.id);
+  if(error)console.error('pack_auto_settings save error:',error);
 }
 
 let _skillTab='offense';
@@ -2328,7 +2503,10 @@ async function renderPacks(){
     <h3>🛒 Shop</h3>
     <p style="font-size:13px;color:var(--text3);margin-bottom:14px;">Open packs to collect cards, or buy action cards to use before battle.</p>
 
-    <h4 style="margin-bottom:10px;">📦 Card Packs</h4>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <h4 style="margin:0;">📦 Card Packs</h4>
+      <button class="btn btn-sm" onclick="openAutoSettingsModal()" title="Auto-delete / auto-sell / auto-combine settings">⚙️ Pack Settings${getAutoSettings().mode?` <span style="color:${AUTO_MODE_META[getAutoSettings().mode].color};">(${AUTO_MODE_META[getAutoSettings().mode].icon} ${AUTO_MODE_META[getAutoSettings().mode].label})</span>`:''}</button>
+    </div>
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:1.5rem;" id="pack-options-wrap">
       ${[0,1,2].map(pt=>{
         const locked=lvl<PACK_LEVEL_REQ[pt];
@@ -2462,13 +2640,63 @@ async function openPack(pt,sizeIdx){
       crit_chance:t.crit_chance||0.1,dodge_chance:t.dodge_chance||0.05,
       level:1,xp:0,unlocked_moves:startMoves,image_url:t.image_url||null,
       pool_card_id:t.id,is_income_card:t.is_income_card||false,
-      income_amount:t.income_amount||0,income_interval_hours:t.income_interval_hours||24
+      income_amount:t.income_amount||0,income_interval_hours:t.income_interval_hours||24,
+      autoAction:matchesAutoMode(t.name,t.rarity)
     });
   }
-  const{error:insertErr}=await sb.from('player_cards').insert(drawn);
+
+  // ── Apply auto-delete / auto-sell / auto-combine to freshly drawn cards ──
+  const toInsert=drawn.filter(c=>!c.autoAction);
+  const soldCards=drawn.filter(c=>c.autoAction==='sell');
+  const deletedCards=drawn.filter(c=>c.autoAction==='delete');
+  const combineCards=drawn.filter(c=>c.autoAction==='combine');
+  let sellGain=soldCards.reduce((s,c)=>s+(AUTO_SELL_VALUES[c.rarity]||0),0);
+
+  if(combineCards.length){
+    const names=[...new Set(combineCards.map(c=>c.name))];
+    const{data:existing}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).in('name',names);
+    const existingUids=new Set((existing||[]).map(c=>c.uid));
+    const baseByName={};
+    (existing||[]).forEach(c=>{if(!baseByName[c.name]||c.level>baseByName[c.name].level)baseByName[c.name]=c;});
+    for(const c of combineCards){
+      let base=baseByName[c.name];
+      if(!base){
+        // No duplicate to merge into yet — this pull becomes the base card instead
+        c.autoAction=null;
+        toInsert.push(c);
+        baseByName[c.name]=c;
+        continue;
+      }
+      const xpBonus=Math.round((200+50*base.rarity)*(1+(c.level||1)*0.1));
+      let level=Math.max(base.level,c.level||1);
+      let atk=Math.max(base.atk,c.atk);
+      let def=Math.max(base.def,c.def);
+      let max_hp=Math.max(base.max_hp||base.hp,c.max_hp||c.hp);
+      let unlocked_moves=[...new Set([...(base.unlocked_moves||[]),...(c.unlocked_moves||[])])];
+      let xp=(base.xp||0)+xpBonus;
+      while(xp>=xpForCard(level)){
+        xp-=xpForCard(level);level++;
+        atk=Math.round(atk*RARITY_STAT_MULT[base.rarity]);
+        def=Math.round(def*RARITY_STAT_MULT[base.rarity]);
+        max_hp=Math.round(max_hp*(1+(RARITY_STAT_MULT[base.rarity]-1)*0.7));
+      }
+      Object.assign(base,{level,atk,def,max_hp,xp,unlocked_moves});
+    }
+    // Persist merges for bases that already existed in the DB before this pack was opened
+    for(const name in baseByName){
+      const base=baseByName[name];
+      if(existingUids.has(base.uid)){
+        await sb.from('player_cards').update({level:base.level,atk:base.atk,def:base.def,max_hp:base.max_hp,xp:base.xp,unlocked_moves:base.unlocked_moves}).eq('uid',base.uid);
+      }
+    }
+  }
+
+  if(toInsert.length){
+    const{error:insertErr}=await sb.from('player_cards').insert(toInsert);
+    if(insertErr){spin(spinId,false);showToast('Error saving cards: '+insertErr.message);console.error(insertErr);return;}
+  }
   spin(spinId,false);
-  if(insertErr){showToast('Error saving cards: '+insertErr.message);console.error(insertErr);return;}
-  const nm=(currentUser.money||0)-cost;
+  const nm=(currentUser.money||0)-cost+sellGain;
   // Rare chance per card opened to also find a spin ticket inside the pack
   let foundTicket=null;
   for(let i=0;i<count;i++){
@@ -2483,6 +2711,11 @@ async function openPack(pt,sizeIdx){
   await sb.from('users').update(updates).eq('id',currentUser.id);
   Object.assign(currentUser,updates);updateHUD();
   await revealPackCards(drawn);
+  const summaryBits=[];
+  if(deletedCards.length)summaryBits.push(`🗑️ ${deletedCards.length} auto-deleted`);
+  if(soldCards.length)summaryBits.push(`💰 ${soldCards.length} auto-sold for $${sellGain.toLocaleString()}`);
+  if(combineCards.length)summaryBits.push(`🔗 ${combineCards.length} auto-combined`);
+  if(summaryBits.length)showToast(summaryBits.join(' · '));
   if(foundTicket)showToast(`🎫 You found a ${foundTicket} spin ticket in the pack!`);
   await updateQuestProgress('packs',1);
   await updateQuestProgress('cards',drawn.length);
@@ -2499,7 +2732,7 @@ async function revealPackCards(drawn){
     const fx=RARITY_FX[c.rarity]||RARITY_FX[0];
     const col=classColor(c.class_name);
     const slot=document.createElement('div');
-    slot.style.cssText=`flex:1;min-width:130px;background:var(--bg3);border:2px solid ${fx.glow};border-radius:12px;padding:12px;text-align:center;opacity:0;transform:scale(0.5) rotateY(90deg);transition:all ${fx.dur}ms cubic-bezier(.2,1.4,.4,1);box-shadow:0 0 0px ${fx.glow};`;
+    slot.style.cssText=`position:relative;flex:1;min-width:130px;background:var(--bg3);border:2px solid ${fx.glow};border-radius:12px;padding:12px;text-align:center;opacity:0;transform:scale(0.5) rotateY(90deg);transition:all ${fx.dur}ms cubic-bezier(.2,1.4,.4,1);box-shadow:0 0 0px ${fx.glow};`;
     slot.innerHTML=`<div style="font-size:32px;margin-bottom:6px;">❓</div><div style="font-size:11px;color:var(--text3);">...</div>`;
     row.appendChild(slot);
     await new Promise(r=>setTimeout(r,80));
@@ -2519,7 +2752,10 @@ async function revealPackCards(drawn){
       ${c.image_url?`<img style="width:100%;height:140px;object-fit:contain;border-radius:8px;margin-bottom:6px;background:var(--bg3);" src="${c.image_url}">`:`<div style="font-size:32px;margin-bottom:6px;">${classEmoji(c.class_name)}</div>`}
       <div style="font-size:13px;font-weight:700;">${c.name}</div>
       <div style="font-size:11px;font-weight:800;color:${RARITY_COLORS[c.rarity]};margin:3px 0;${c.rarity>=5?'text-shadow:0 0 8px '+RARITY_COLORS[c.rarity]+';':''}">${RARITIES[c.rarity]}${c.rarity>=6?' ✨':''}</div>
-      <span class="cat-badge" style="background:${col.bg};color:${col.fg};">${c.class_name}</span>`;
+      <span class="cat-badge" style="background:${col.bg};color:${col.fg};">${c.class_name}</span>
+      ${c.autoAction==='sell'?'<div class="auto-stamp sold">SOLD</div>':''}
+      ${c.autoAction==='combine'?'<div class="auto-stamp combining">Combining…</div>':''}
+      ${c.autoAction==='delete'?'<div class="auto-stamp deleting">Deleting</div>':''}`;
     if(c.rarity>=5){
       // Extra sparkle burst for Mythic+
       for(let s=0;s<fx.burst+2;s++){
@@ -5042,6 +5278,141 @@ document.addEventListener('click',function(e){
   if(tile.dataset.selectable)toggleTeam(uid);
   else if(tile.dataset.openmodal)openModal(uid);
 });
+
+// ── MY CARDS RIGHT-CLICK CONTEXT MENU (bulk delete/sell/combine) ──────
+document.getElementById('mycards-grid').addEventListener('contextmenu',function(e){
+  const tile=e.target.closest('.card-tile');
+  if(!tile)return;
+  e.preventDefault();
+  const safeUid=tile.dataset.safeuid;
+  if(!safeUid)return;
+  let uid;try{uid=decodeURIComponent(atob(safeUid));}catch(err){return;}
+  const card=_myCardsCache.find(c=>c.uid===uid);
+  if(!card)return;
+  document.querySelectorAll('#mycards-grid .card-tile.ctx-selected').forEach(t=>t.classList.remove('ctx-selected'));
+  tile.classList.add('ctx-selected');
+  openCardCtxMenu(e.pageX,e.pageY,card);
+});
+
+function openCardCtxMenu(x,y,card){
+  const menu=document.getElementById('card-ctx-menu');
+  const lvl=currentUser.level||1;
+  const dupeCount=_myCardsCache.filter(c=>c.name===card.name).length;
+  const sellLocked=lvl<AUTO_SELL_LEVEL_REQ;
+  const combineLocked=lvl<AUTO_COMBINE_LEVEL_REQ;
+  const safeName=card.name.replace(/'/g,"\\'");
+  menu.innerHTML=`
+    <div style="font-size:12px;font-weight:700;padding:4px 10px 8px;color:var(--text3);">${card.name} (${dupeCount} owned)</div>
+    <div class="ctx-menu-item" onclick="ctxDeleteAll('${safeName}')">🗑️ Delete all? <span style="font-size:10px;color:var(--text4);margin-left:auto;">${dupeCount}</span></div>
+    <div class="ctx-menu-sep"></div>
+    <div class="ctx-menu-item${sellLocked?' locked':''}" ${sellLocked?'':`onclick="ctxSellAll('${safeName}')"`}>💰 Sell All? ${sellLocked?`<span style="font-size:10px;">🔒 Lv ${AUTO_SELL_LEVEL_REQ}</span>`:''}</div>
+    <div class="ctx-menu-sep"></div>
+    <div style="padding:6px 10px;${combineLocked?'opacity:0.45;':''}">
+      <div style="font-size:12px;margin-bottom:4px;">🔗 Combine ${combineLocked?`<span style="font-size:10px;">🔒 Lv ${AUTO_COMBINE_LEVEL_REQ}</span>`:''}</div>
+      <div style="display:flex;gap:6px;">
+        <input type="number" id="ctx-combine-n" min="2" max="${dupeCount}" placeholder="#" ${combineLocked?'disabled':''} style="width:56px;padding:4px 6px;font-size:12px;">
+        <button class="btn btn-sm" ${combineLocked||dupeCount<2?'disabled':''} onclick="ctxCombine('${safeName}',false)">Combine</button>
+        <button class="btn btn-sm" ${combineLocked||dupeCount<2?'disabled':''} onclick="ctxCombine('${safeName}',true)">ALL</button>
+      </div>
+    </div>`;
+  menu.style.display='block';
+  const menuW=220,menuH=220;
+  menu.style.left=Math.min(x,window.innerWidth-menuW-10)+'px';
+  menu.style.top=Math.min(y,window.innerHeight-menuH-10)+'px';
+}
+
+function closeCardCtxMenu(){
+  document.getElementById('card-ctx-menu').style.display='none';
+  document.querySelectorAll('#mycards-grid .card-tile.ctx-selected').forEach(t=>t.classList.remove('ctx-selected'));
+}
+document.addEventListener('click',function(e){
+  const menu=document.getElementById('card-ctx-menu');
+  if(menu.style.display==='block'&&!menu.contains(e.target))closeCardCtxMenu();
+});
+
+async function stampCardsByName(name,stampClass,stampText,ms){
+  const uidsSet=new Set(_myCardsCache.filter(c=>c.name===name).map(c=>c.uid));
+  document.querySelectorAll('#mycards-grid .card-tile').forEach(tile=>{
+    let uid;try{uid=decodeURIComponent(atob(tile.dataset.safeuid));}catch(err){return;}
+    if(uidsSet.has(uid)){
+      const stamp=document.createElement('div');
+      stamp.className='auto-stamp '+stampClass;
+      stamp.textContent=stampText;
+      tile.appendChild(stamp);
+    }
+  });
+  await new Promise(r=>setTimeout(r,ms));
+}
+
+async function ctxDeleteAll(name){
+  if(!confirm(`Delete all ${name} cards? This cannot be undone.`))return;
+  closeCardCtxMenu();
+  await stampCardsByName(name,'deleting','Deleting',550);
+  await sb.from('player_cards').delete().eq('owner',currentUser.id).eq('name',name);
+  showToast(`Deleted all ${name} cards.`);
+  await renderMyCards();
+}
+
+async function ctxSellAll(name){
+  const lvl=currentUser.level||1;
+  if(lvl<AUTO_SELL_LEVEL_REQ){showToast(`Selling unlocks at Level ${AUTO_SELL_LEVEL_REQ}`);return;}
+  const cards=_myCardsCache.filter(c=>c.name===name);
+  if(!cards.length)return;
+  const total=cards.reduce((s,c)=>s+(AUTO_SELL_VALUES[c.rarity]||0),0);
+  if(!confirm(`Sell all ${cards.length} ${name} cards for $${total.toLocaleString()}?`))return;
+  closeCardCtxMenu();
+  await stampCardsByName(name,'sold','SOLD',550);
+  await sb.from('player_cards').delete().eq('owner',currentUser.id).eq('name',name);
+  const nm=(currentUser.money||0)+total;
+  await sb.from('users').update({money:nm}).eq('id',currentUser.id);
+  currentUser.money=nm;updateHUD();
+  showToast(`Sold ${cards.length} ${name} cards for $${total.toLocaleString()}!`);
+  await renderMyCards();
+}
+
+async function ctxCombine(name,useAll){
+  const lvl=currentUser.level||1;
+  if(lvl<AUTO_COMBINE_LEVEL_REQ){showToast(`Combining unlocks at Level ${AUTO_COMBINE_LEVEL_REQ}`);return;}
+  const{data:cards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('name',name);
+  if(!cards||cards.length<2){showToast('No duplicates to combine.');return;}
+  let n=useAll?cards.length:parseInt(document.getElementById('ctx-combine-n')?.value||'0');
+  n=Math.max(2,Math.min(n||0,cards.length));
+  if(n<2){showToast('Enter at least 2 to combine.');return;}
+  const sorted=[...cards].sort((a,b)=>b.level-a.level);
+  const base={...sorted[0]};
+  const sacrifices=sorted.slice(1,n);
+  const cost=sacrifices.reduce((s)=>s+COMBINE_COSTS[base.rarity]+base.level*10,0);
+  if((currentUser.money||0)<cost){showToast(`Need $${cost.toLocaleString()} to combine ${n} cards`);return;}
+  if(!confirm(`Combine ${n} ${name} cards into 1 for $${cost.toLocaleString()}?`))return;
+  closeCardCtxMenu();
+  await stampCardsByName(name,'combining','Combining…',550);
+
+  let level=base.level,atk=base.atk,def=base.def,max_hp=base.max_hp||base.hp,xp=base.xp||0;
+  let unlocked_moves=[...(base.unlocked_moves||[])];
+  for(const s of sacrifices){
+    const xpBonus=Math.round((200+50*base.rarity)*(1+s.level*0.1));
+    level=Math.max(level,s.level);
+    atk=Math.max(atk,s.atk);
+    def=Math.max(def,s.def);
+    max_hp=Math.max(max_hp,s.max_hp||s.hp);
+    unlocked_moves=[...new Set([...unlocked_moves,...(s.unlocked_moves||[])])];
+    xp+=xpBonus;
+    while(xp>=xpForCard(level)){
+      xp-=xpForCard(level);level++;
+      atk=Math.round(atk*RARITY_STAT_MULT[base.rarity]);
+      def=Math.round(def*RARITY_STAT_MULT[base.rarity]);
+      max_hp=Math.round(max_hp*(1+(RARITY_STAT_MULT[base.rarity]-1)*0.7));
+    }
+  }
+  await sb.from('player_cards').update({level,atk,def,max_hp,xp,unlocked_moves}).eq('uid',base.uid);
+  for(const s of sacrifices)await sb.from('player_cards').delete().eq('uid',s.uid);
+  const nm=(currentUser.money||0)-cost;
+  await sb.from('users').update({money:nm}).eq('id',currentUser.id);
+  currentUser.money=nm;updateHUD();
+  showToast(`Combined ${n} ${name} cards! Now Lv ${level}.`);
+  await updateQuestProgress('combine',1);
+  await renderMyCards();
+}
 
 
 // ── MILESTONES ────────────────────────────────────────
