@@ -1203,21 +1203,52 @@ const MILESTONES={
   100:{title:'Transcendent',reward:'special',amount:0,desc:'Unlock gold name color + $25,000 + all cards get 1000 XP',icon:'👑',color:'#fbbf24',cardXp:1000,extraGold:25000}
 };
 
+const QUESTS_ACTIVE_COUNT=5;
 const QUEST_TEMPLATES=[
-  {id:'win3',desc:'Win 3 battles',icon:'⚔️',type:'wins',target:3,reward:300},
-  {id:'win10',desc:'Win 10 battles',icon:'🏆',type:'wins',target:10,reward:1000},
-  {id:'open3packs',desc:'Open 3 packs',icon:'📦',type:'packs',target:3,reward:250},
-  {id:'open10packs',desc:'Open 10 packs',icon:'💎',type:'packs',target:10,reward:800},
-  {id:'reach5',desc:'Reach player level 5',icon:'⭐',type:'level',target:5,reward:500},
-  {id:'reach10',desc:'Reach player level 10',icon:'🌟',type:'level',target:10,reward:1500},
-  {id:'collect10',desc:'Collect 10 cards',icon:'🃏',type:'cards',target:10,reward:400},
-  {id:'collect25',desc:'Collect 25 cards',icon:'🃏',type:'cards',target:25,reward:1200},
-  {id:'win1v1',desc:'Win a 1v1 battle',icon:'🥊',type:'win_mode',target:1,mode:0,reward:350},
-  {id:'win3v3',desc:'Win a 3v3 battle',icon:'⚔️',type:'win_mode',target:1,mode:1,reward:500},
-  {id:'win5v5',desc:'Win a 5v5 battle',icon:'💥',type:'win_mode',target:1,mode:2,reward:750},
-  {id:'combine',desc:'Combine 2 duplicate cards',icon:'🔗',type:'combine',target:1,reward:300},
-  {id:'login7',desc:'Log in 7 days in a row',icon:'📅',type:'login_streak',target:7,reward:700},
+  // ── Wins (repeatable — progress tracked as wins since the quest was assigned) ──
+  {id:'win3',desc:'Win 3 battles',icon:'⚔️',type:'wins',target:3,reward:300,repeatable:true},
+  {id:'win5',desc:'Win 5 battles',icon:'⚔️',type:'wins',target:5,reward:500,repeatable:true},
+  {id:'win10',desc:'Win 10 battles',icon:'🏆',type:'wins',target:10,reward:1000,repeatable:true},
+  {id:'win15',desc:'Win 15 battles',icon:'🏆',type:'wins',target:15,reward:1600,repeatable:true},
+  {id:'win25',desc:'Win 25 battles',icon:'👑',type:'wins',target:25,reward:3000,repeatable:true},
+
+  // ── Pack openings (repeatable) ──
+  {id:'open3packs',desc:'Open 3 packs',icon:'📦',type:'packs',target:3,reward:250,repeatable:true},
+  {id:'open5packs',desc:'Open 5 packs',icon:'📦',type:'packs',target:5,reward:450,repeatable:true},
+  {id:'open10packs',desc:'Open 10 packs',icon:'💎',type:'packs',target:10,reward:800,repeatable:true},
+  {id:'open20packs',desc:'Open 20 packs',icon:'💎',type:'packs',target:20,reward:1800,repeatable:true},
+
+  // ── Player level milestones (one-time — reaching a fixed level only happens once) ──
+  {id:'reach5',desc:'Reach player level 5',icon:'⭐',type:'level',target:5,reward:500,repeatable:false},
+  {id:'reach10',desc:'Reach player level 10',icon:'🌟',type:'level',target:10,reward:1500,repeatable:false},
+  {id:'reach20',desc:'Reach player level 20',icon:'🌠',type:'level',target:20,reward:2500,repeatable:false},
+  {id:'reach30',desc:'Reach player level 30',icon:'🌌',type:'level',target:30,reward:4000,repeatable:false},
+  {id:'reach50',desc:'Reach player level 50',icon:'☄️',type:'level',target:50,reward:7500,repeatable:false},
+
+  // ── Collect cards (repeatable — progress tracked as cards gained since assigned) ──
+  {id:'collect5',desc:'Collect 5 more cards',icon:'🃏',type:'cards',target:5,reward:200,repeatable:true},
+  {id:'collect10',desc:'Collect 10 more cards',icon:'🃏',type:'cards',target:10,reward:400,repeatable:true},
+  {id:'collect25',desc:'Collect 25 more cards',icon:'🃏',type:'cards',target:25,reward:1200,repeatable:true},
+  {id:'collect50',desc:'Collect 50 more cards',icon:'🃏',type:'cards',target:50,reward:2500,repeatable:true},
+
+  // ── Win by battle mode (repeatable) ──
+  {id:'win1v1',desc:'Win a 1v1 battle',icon:'🥊',type:'win_mode',target:1,mode:0,reward:350,repeatable:true},
+  {id:'win3v3',desc:'Win a 3v3 battle',icon:'⚔️',type:'win_mode',target:1,mode:1,reward:500,repeatable:true},
+  {id:'win5v5',desc:'Win a 5v5 battle',icon:'💥',type:'win_mode',target:1,mode:2,reward:750,repeatable:true},
+  {id:'win3_1v1',desc:'Win 3 1v1 battles',icon:'🥊',type:'win_mode',target:3,mode:0,reward:900,repeatable:true},
+  {id:'win3_5v5',desc:'Win 3 5v5 battles',icon:'💥',type:'win_mode',target:3,mode:2,reward:2200,repeatable:true},
+
+  // ── Combine duplicate cards (repeatable) ──
+  {id:'combine',desc:'Combine 2 duplicate cards',icon:'🔗',type:'combine',target:1,reward:300,repeatable:true},
+  {id:'combine3',desc:'Combine duplicates 3 times',icon:'🔗',type:'combine',target:3,reward:800,repeatable:true},
+  {id:'combine5',desc:'Combine duplicates 5 times',icon:'🔗',type:'combine',target:5,reward:1400,repeatable:true},
+
+  // ── Login streaks (repeatable) ──
+  {id:'login3',desc:'Log in 3 days in a row',icon:'📅',type:'login_streak',target:3,reward:300,repeatable:true},
+  {id:'login7',desc:'Log in 7 days in a row',icon:'📅',type:'login_streak',target:7,reward:700,repeatable:true},
+  {id:'login14',desc:'Log in 14 days in a row',icon:'📅',type:'login_streak',target:14,reward:1500,repeatable:true},
 ];
+
 
 const TITLE_COLORS={
   'Elite':'#a78bfa','Mythic':'#ec4899','Celestial':'#c7d2fe','Transcendent':'#fbbf24'
@@ -1467,6 +1498,7 @@ async function globalNotificationCheck(silent){
   const onTradeTab=document.getElementById('screen-trade')?.classList.contains('active');
   await checkTradeNotifications(silent||onTradeTab);
   checkDailySpinAvailable();
+  checkQuestsBadge();
 }
 
 function checkDailySpinAvailable(){
@@ -5496,6 +5528,7 @@ async function ctxCombine(name,useAll){
 
 // ── MILESTONES ────────────────────────────────────────
 async function checkMilestones(level){
+  await updateQuestProgress('level',level);
   const claimed=currentUser.claimed_milestones||[];
   const newMilestones=Object.keys(MILESTONES).map(Number).filter(lv=>lv<=level&&!claimed.includes(lv));
   if(!newMilestones.length)return;
@@ -5600,32 +5633,21 @@ async function renderMilestonesPanel(){
 
 // ── QUESTS ────────────────────────────────────────────
 async function renderQuestsPanel(){
-  const quests=currentUser.active_quests||[];
-  const completed=currentUser.completed_quests||[];
+  let quests=currentUser.active_quests||[];
 
-  // Assign quests if none active
-  if(quests.length===0){
+  // Top up to QUESTS_ACTIVE_COUNT if we're short (first-time players, or migrating from the old 3-slot system)
+  if(quests.length<QUESTS_ACTIVE_COUNT){
     await assignQuests();
-    return renderQuestsPanel();
+    quests=currentUser.active_quests||[];
   }
-
-  const{data:cards}=await sb.from('player_cards').select('uid').eq('owner',currentUser.id);
-  const cardCount=(cards||[]).length;
 
   const questHTML=quests.map(q=>{
     const template=QUEST_TEMPLATES.find(t=>t.id===q.id);
     if(!template)return'';
-    let progress=0;
-    if(template.type==='wins')progress=currentUser.wins||0;
-    else if(template.type==='level')progress=currentUser.level||1;
-    else if(template.type==='cards')progress=cardCount;
-    else if(template.type==='packs')progress=q.progress||0;
-    else if(template.type==='combine')progress=q.progress||0;
-    else if(template.type==='win_mode')progress=q.progress||0;
-    else if(template.type==='login_streak')progress=q.progress||0;
+    const progress=Math.min(template.target,q.progress||0);
     const pct=Math.min(100,Math.round((progress/template.target)*100));
     const done=progress>=template.target;
-    return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;">
+    return `<div style="background:var(--bg3);border:1px solid ${done?'#16a34a':'var(--border)'};border-radius:10px;padding:12px;margin-bottom:8px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:18px;">${template.icon}</span>
@@ -5646,34 +5668,78 @@ async function renderQuestsPanel(){
   return `<div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
       <h3 style="margin:0;">📋 Quests</h3>
-      <button class="btn btn-sm" onclick="refreshQuestPanel()">🔄 Refresh</button>
     </div>
-    <p style="font-size:12px;color:var(--text3);margin-bottom:12px;">Complete quests to earn gold. New quests assigned when you finish all 3.</p>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:12px;">Complete a quest to instantly get a fresh one in its place — always ${QUESTS_ACTIVE_COUNT} active.</p>
     ${questHTML}
-    ${completed.length?`<div style="font-size:12px;color:var(--text3);margin-top:8px;">Completed: ${completed.length} quest${completed.length!==1?'s':''}</div>`:''}
+    ${currentUser.total_quests_completed?`<div style="font-size:12px;color:var(--text3);margin-top:8px;">Total quests completed: ${currentUser.total_quests_completed}</div>`:''}
   </div>`;
 }
 
+// Builds a fresh active-quest instance from a template, snapshotting a baseline for
+// stat types (wins/cards) that are tracked as "progress since this quest was assigned".
+async function buildQuestInstance(t){
+  const inst={id:t.id,progress:0};
+  if(t.type==='wins')inst.baseline=currentUser.wins||0;
+  else if(t.type==='cards'){
+    const{data:cards}=await sb.from('player_cards').select('uid').eq('owner',currentUser.id);
+    inst.baseline=(cards||[]).length;
+  }
+  return inst;
+}
+
+// Fills active_quests back up to QUESTS_ACTIVE_COUNT, skipping templates already active
+// or (for one-time templates) already completed.
 async function assignQuests(){
   const completed=currentUser.completed_quests||[];
-  const available=QUEST_TEMPLATES.filter(t=>!completed.includes(t.id));
+  const active=currentUser.active_quests||[];
+  const activeIds=new Set(active.map(q=>q.id));
+  const need=QUESTS_ACTIVE_COUNT-active.length;
+  if(need<=0)return;
+  const available=QUEST_TEMPLATES.filter(t=>!activeIds.has(t.id)&&!completed.includes(t.id));
   if(!available.length)return;
-  const shuffled=[...available].sort(()=>Math.random()-0.5).slice(0,3);
-  const quests=shuffled.map(t=>({id:t.id,progress:0}));
+  const shuffled=[...available].sort(()=>Math.random()-0.5).slice(0,need);
+  const newInstances=[];
+  for(const t of shuffled)newInstances.push(await buildQuestInstance(t));
+  const quests=[...active,...newInstances];
   await sb.from('users').update({active_quests:quests}).eq('id',currentUser.id);
   currentUser.active_quests=quests;
+  checkQuestsBadge();
 }
 
 async function claimQuest(questId,reward){
-  const quests=(currentUser.active_quests||[]).filter(q=>q.id!==questId);
-  const completed=[...(currentUser.completed_quests||[]),questId];
+  const template=QUEST_TEMPLATES.find(t=>t.id===questId);
+  const remaining=(currentUser.active_quests||[]).filter(q=>q.id!==questId);
+  const completed=template&&!template.repeatable
+    ? [...(currentUser.completed_quests||[]),questId]
+    : (currentUser.completed_quests||[]);
   const money=(currentUser.money||0)+reward;
-  await sb.from('users').update({active_quests:quests,completed_quests:completed,money}).eq('id',currentUser.id);
-  currentUser={...currentUser,active_quests:quests,completed_quests:completed,money};
-  if(quests.length===0)await assignQuests();
+  const total_quests_completed=(currentUser.total_quests_completed||0)+1;
+
+  // Immediately top this quest up with a fresh replacement instead of waiting for the panel to refill
+  const activeIds=new Set(remaining.map(q=>q.id));
+  const availableForRefill=QUEST_TEMPLATES.filter(t=>!activeIds.has(t.id)&&!completed.includes(t.id)&&t.id!==questId);
+  let replacement=null;
+  if(remaining.length<QUESTS_ACTIVE_COUNT&&availableForRefill.length){
+    const pick=availableForRefill[Math.floor(Math.random()*availableForRefill.length)];
+    replacement=await buildQuestInstance(pick);
+  }
+  const active_quests=replacement?[...remaining,replacement]:remaining;
+
+  await sb.from('users').update({active_quests,completed_quests:completed,money,total_quests_completed}).eq('id',currentUser.id);
+  currentUser={...currentUser,active_quests,completed_quests:completed,money,total_quests_completed};
   updateHUD();
-  showToast(`Quest complete! +$${reward} 💰`);
+  showToast(`✅ Quest complete! +$${reward} 💰`);
+  checkQuestsBadge();
   refreshQuestPanel();
+}
+
+function checkQuestsBadge(){
+  const quests=currentUser.active_quests||[];
+  const claimable=quests.filter(q=>{
+    const t=QUEST_TEMPLATES.find(x=>x.id===q.id);
+    return t&&(q.progress||0)>=t.target;
+  }).length;
+  setNavBadge('quests','quests-nav-badge',claimable);
 }
 
 async function refreshQuestPanel(){
@@ -5730,27 +5796,38 @@ async function renderQuestsTab(){
 async function updateQuestProgress(type, amount, mode){
   const quests=currentUser.active_quests||[];
   if(!quests.length)return;
-  let updated=false;
+  const relevant=quests.some(q=>{
+    const t=QUEST_TEMPLATES.find(x=>x.id===q.id);
+    return t&&t.type===type&&(type!=='win_mode'||t.mode===mode);
+  });
+  if(!relevant)return;
+
+  let liveCardTotal=null;
+  if(type==='cards'){
+    const{data:cards}=await sb.from('player_cards').select('uid').eq('owner',currentUser.id);
+    liveCardTotal=(cards||[]).length;
+  }
+
+  const newlyCompleted=[];
   const newQuests=quests.map(q=>{
     const template=QUEST_TEMPLATES.find(t=>t.id===q.id);
     if(!template||template.type!==type)return q;
     if(type==='win_mode'&&template.mode!==mode)return q;
-    if(type==='wins'||type==='level'||type==='cards'){
-      // Absolute value — just set to current amount
-      return{...q,progress:Math.max(q.progress||0,amount)};
-    }
-    // Incremental
-    const newProgress=(q.progress||0)+amount;
-    updated=true;
+    const wasDone=(q.progress||0)>=template.target;
+    let newProgress;
+    if(type==='wins')newProgress=Math.max(0,amount-(q.baseline||0));
+    else if(type==='level')newProgress=amount;
+    else if(type==='cards')newProgress=Math.max(0,liveCardTotal-(q.baseline||0));
+    else newProgress=(q.progress||0)+amount;
+    if(!wasDone&&newProgress>=template.target)newlyCompleted.push(template);
     return{...q,progress:newProgress};
   });
-  if(!updated&&(type==='wins'||type==='level'||type==='cards')){
-    // Check if any changed
-    const changed=newQuests.some((q,i)=>q.progress!==quests[i].progress);
-    if(!changed)return;
-  }
+
   await sb.from('users').update({active_quests:newQuests}).eq('id',currentUser.id);
   currentUser.active_quests=newQuests;
+  checkQuestsBadge();
+  newlyCompleted.forEach(t=>showToast(`🎯 Quest ready! "${t.desc}" — claim +$${t.reward} in Quests`));
+  refreshQuestPanel();
 }
 
 // ── TRAINING ──────────────────────────────────────────
@@ -6020,6 +6097,7 @@ async function renderProfile(uid){
         <!-- Completed quests -->
         <div class="box" style="margin-bottom:0;">
           <h4 style="margin-bottom:8px;">🎯 Achievements</h4>
+          ${u.total_quests_completed?`<div style="font-size:11px;color:var(--text3);margin-bottom:6px;">📋 ${u.total_quests_completed} quest${u.total_quests_completed!==1?'s':''} completed total</div>`:''}
           ${completedQuests.length?completedQuests.map(q=>`
             <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);">
               <span style="font-size:16px;">${q.icon}</span>
@@ -6159,7 +6237,7 @@ function ownedEmojiSet(u){return new Set((u&&u.owned_emojis)||[]);}
 function isEmojiUnlocked(def,u){
   if(def.tier===0)return true;
   if(def.tier===1)return (u.level||1)>=def.levelReq;
-  if(def.tier===4)return ((u.completed_quests||[]).length)>=def.questReq;
+  if(def.tier===4)return (u.total_quests_completed||0)>=def.questReq;
   return ownedEmojiSet(u).has(def.e); // tier 2 (wheel) & tier 3 (battle drop) are randomly granted
 }
 function unlockHintForEmoji(def){
