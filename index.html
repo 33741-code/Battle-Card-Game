@@ -1490,6 +1490,7 @@ async function globalNotificationCheck(silent){
   // Avoid double-toasting battle challenges while already on the Battle tab (it polls itself)
   const onBattleTab=document.getElementById('screen-battle')?.classList.contains('active');
   await fetchIncomingChallenges(silent||onBattleTab);
+  await checkMyQueueMatched(silent||onBattleTab);
   // Avoid double-toasting friend requests while already on the Profile tab
   const onProfileTab=document.getElementById('screen-profile')?.classList.contains('active');
   await checkFriendRequests(silent||onProfileTab);
@@ -3164,6 +3165,27 @@ async function renderBattleLobby(){
     return;
   }
 
+  // If my open queue just got matched by someone, jump straight to picking my team
+  const{data:myMatchedQueue}=await sb.from('live_battles').select('*').eq('player1',currentUser.id).eq('status','queue_matched').order('created_at',{ascending:false}).limit(1);
+  if(myMatchedQueue&&myMatchedQueue.length){
+    showQueueHostPicker(myMatchedQueue[0]);
+    return;
+  }
+
+  // If I still have an unmatched open queue out there, show the waiting screen
+  const{data:myOpenQueue}=await sb.from('live_battles').select('*').eq('player1',currentUser.id).eq('status','open_queue').order('created_at',{ascending:false}).limit(1);
+  if(myOpenQueue&&myOpenQueue.length){
+    renderWaitingForQueueJoin(myOpenQueue[0]);
+    return;
+  }
+
+  // If I joined someone else's queue and I'm waiting on the host to pick their team
+  const{data:myJoinedQueue}=await sb.from('live_battles').select('*').eq('player2',currentUser.id).eq('status','queue_matched').order('created_at',{ascending:false}).limit(1);
+  if(myJoinedQueue&&myJoinedQueue.length){
+    renderWaitingForHost(myJoinedQueue[0]);
+    return;
+  }
+
   const opponents=allUsers.filter(u=>u.id!==currentUser.id);
   const el=document.getElementById('battle-lobby');
   el.innerHTML=`
@@ -3191,6 +3213,22 @@ async function renderBattleLobby(){
       </div>
     </div>
     <div class="box">
+      <h3>🎲 Create a Battle Queue</h3>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:10px;">Open a queue that any player can jump into — no need to pick an opponent.</p>
+      <div class="field-row" style="margin-bottom:12px;">
+        <div class="field"><label>Queue</label>
+          <select id="create-queue-select">
+            <option value="0">1v1</option><option value="1" selected>3v3</option><option value="2">5v5</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="createBattleQueue()">🎲 Create Queue</button>
+    </div>
+    <div class="box">
+      <h3>📋 Open Queues</h3>
+      <div id="open-queues-list"><div class="empty">Loading...</div></div>
+    </div>
+    <div class="box">
       <h3>📥 Incoming Challenges</h3>
       <div id="incoming-list"><div class="empty">No challenges</div></div>
       <div id="incoming-debug" style="font-size:11px;color:var(--text3);margin-top:6px;padding:6px;background:var(--bg3);border-radius:6px;">Waiting for first check...</div>
@@ -3199,10 +3237,11 @@ async function renderBattleLobby(){
       <button class="btn btn-sm" style="margin-top:8px;margin-left:6px;color:#dc2626;" onclick="clearStaleBattles()">🗑️ Clear Stale</button>
     </div>`;
   loadIncoming();
+  renderOpenQueuesList();
 
-  // Poll every 4 seconds for incoming challenges
+  // Poll every 4 seconds for incoming challenges, queue matches, and the open queue list
   if(incomingPoll)clearInterval(incomingPoll);
-  incomingPoll=setInterval(loadIncoming, 4000);
+  incomingPoll=setInterval(()=>{loadIncoming();renderOpenQueuesList();checkMyQueueMatched();}, 4000);
 }
 
 function utilityPickerHTML(){
@@ -3365,11 +3404,12 @@ async function debugAllBattles(){
 // Returns the data array (or null on error) so callers can decide whether to render the list.
 async function fetchIncomingChallenges(silent){
   const{data,error}=await sb.from('live_battles').select('*').eq('player2',currentUser.id).eq('status','waiting');
-  if(error){updateBattleBadge(0);return null;}
-  if(!data||!data.length){updateBattleBadge(0);_lastIncomingCount=0;return[];}
+  if(error){_incomingChallengeCount=0;refreshBattleBadge();return null;}
+  if(!data||!data.length){_incomingChallengeCount=0;refreshBattleBadge();_lastIncomingCount=0;return[];}
   if(!silent&&data.length>_lastIncomingCount&&_lastIncomingCount>=0)showToast('⚔️ New battle challenge!');
   _lastIncomingCount=data.length;
-  updateBattleBadge(data.length);
+  _incomingChallengeCount=data.length;
+  refreshBattleBadge();
   return data;
 }
 
@@ -3441,22 +3481,21 @@ async function acceptChallenge(battleId,q){
     </div>`;
 }
 
-async function confirmAccept(){
-  const battleId=_pendingAcceptBattleId;
-  if(!battleId){showToast('No pending battle');return;}
-  const size=QUEUE_SIZES[selectedQueue];
-  if(selectedTeam.length!==size){showToast(`Select exactly ${size} card${size>1?'s':''}`);return;}
-  const{data:b}=await sb.from('live_battles').select('*').eq('id',battleId).single();
-  if(!b){showToast('Battle not found');return;}
-  const{data:t1}=await sb.from('player_cards').select('*').in('uid',b.team1);
-  const{data:t2}=await sb.from('player_cards').select('*').in('uid',selectedTeam);
+// Shared by confirmAccept (challenge flow) and confirmQueueHostJoin (queue flow) — builds full
+// battle fighters/state from both sides' chosen teams+utility, regardless of who is currentUser.
+async function buildBattleState(b, team1Uids, util1Id, team2Uids, util2Id){
+  const{data:t1}=await sb.from('player_cards').select('*').in('uid',team1Uids);
+  const{data:t2}=await sb.from('player_cards').select('*').in('uid',team2Uids);
   const poolIds=[...new Set([...(t1||[]),...(t2||[])].map(c=>c.pool_card_id).filter(Boolean))];
   const poolMovesMap={};
   if(poolIds.length){const{data:pcs}=await sb.from('pool_cards').select('id,moves').in('id',poolIds);(pcs||[]).forEach(pc=>{poolMovesMap[pc.id]=pc.moves||[];});}
-  // Fetch each player's permanent skill tree perks (player1 from DB, player2 is currentUser already in memory)
-  const{data:p1User}=await sb.from('users').select('unlocked_skills').eq('id',b.player1).single();
-  const skillsP1=aggregateSkillBonuses(p1User?.unlocked_skills||[]);
-  const skillsP2=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
+  const skillsFor=async(pid)=>{
+    if(pid===currentUser.id)return aggregateSkillBonuses(currentUser.unlocked_skills||[]);
+    const{data:u}=await sb.from('users').select('unlocked_skills').eq('id',pid).single();
+    return aggregateSkillBonuses(u?.unlocked_skills||[]);
+  };
+  const skillsP1=await skillsFor(b.player1);
+  const skillsP2=await skillsFor(b.player2);
   const buildF=(c,skills)=>{
     const f={uid:c.uid,name:c.name,class_name:c.class_name,rarity:c.rarity,element:c.element||'neutral',atk:c.atk,def:c.def,hp:c.max_hp||c.hp,maxHp:c.max_hp||c.hp,stamina:c.stamina||50,maxStamina:c.max_stamina||100,staminaRegen:c.stamina_regen||25,crit:c.crit_chance||0.1,dodge:c.dodge_chance||0.05,unlockedMoves:c.unlocked_moves||[],level:c.level,pool_card_id:c.pool_card_id||null,image_url:c.image_url||null,dot:0,dotTurns:0,shielded:false,shieldPct:0,speedBuff:false,defeated:false};
     if(skills){
@@ -3480,18 +3519,233 @@ async function confirmAccept(){
   const fighters2=(t2||[]).map(c=>buildF(c,skillsP2));
   // Apply each player's chosen utility card (if any) to their own team
   const log=[`🏟️ Match: ${b.player1} vs ${b.player2}`];
-  let goFirst=b.player2; // default: challenged player goes first
-  const u1=applyUtilityEffect(fighters1,b.util1);
+  let goFirst=b.player2; // default: the second-committing player goes first
+  const u1=applyUtilityEffect(fighters1,util1Id);
   if(u1){log.push(`⚡ ${b.player1} used ${u1.name}!`);if(u1.effect==='go_first')goFirst=b.player1;}
-  const u2=applyUtilityEffect(fighters2,selectedUtilityCard);
+  const u2=applyUtilityEffect(fighters2,util2Id);
   if(u2){log.push(`⚡ ${b.player2} used ${u2.name}!`);if(u2.effect==='go_first')goFirst=b.player2;}
-  if(selectedUtilityCard)await consumeUtilityCard(selectedUtilityCard);
   log.push(`${goFirst} goes first!`);
-  const state={fighters1,fighters2,turn:goFirst,phase:goFirst===b.player1?'action1':'action2',log,winner:null,usedUids:[],poolMoves:poolMovesMap,queue:st.queue!==undefined?st.queue:1};
+  return{fighters1,fighters2,turn:goFirst,phase:goFirst===b.player1?'action1':'action2',log,winner:null,usedUids:[],poolMoves:poolMovesMap,queue:st.queue!==undefined?st.queue:1};
+}
+
+async function confirmAccept(){
+  const battleId=_pendingAcceptBattleId;
+  if(!battleId){showToast('No pending battle');return;}
+  const size=QUEUE_SIZES[selectedQueue];
+  if(selectedTeam.length!==size){showToast(`Select exactly ${size} card${size>1?'s':''}`);return;}
+  const{data:b}=await sb.from('live_battles').select('*').eq('id',battleId).single();
+  if(!b){showToast('Battle not found');return;}
+  const state=await buildBattleState(b,b.team1,b.util1,selectedTeam,selectedUtilityCard);
+  if(selectedUtilityCard)await consumeUtilityCard(selectedUtilityCard);
   await sb.from('live_battles').update({team2:selectedTeam,util2:selectedUtilityCard,state:JSON.stringify(state),status:'active'}).eq('id',battleId);
   selectedTeam=[];_pendingAcceptBattleId=null;selectedUtilityCard=null;
   const{data:updated}=await sb.from('live_battles').select('*').eq('id',battleId).single();
   currentBattle=updated;enterBattle(updated);
+}
+
+// ── OPEN BATTLE QUEUES ─────────────────────────────────
+let _pendingJoinQueueBattleId=null;
+let _pendingQueueHostBattleId=null;
+
+async function createBattleQueue(){
+  const size=parseInt(document.getElementById('create-queue-select').value);
+  const bid=`q-${Date.now()}-${currentUser.id}`;
+  const{error}=await sb.from('live_battles').insert({
+    id:bid,player1:currentUser.id,player2:'',team1:[],team2:[],util1:null,util2:null,
+    state:JSON.stringify({log:[`🎲 ${currentUser.id} opened a ${QUEUE_SIZES[size]}v${QUEUE_SIZES[size]} queue!`],phase:'open_queue',turn:null,winner:null,queue:size}),
+    status:'open_queue'
+  });
+  if(error){showToast('Error creating queue: '+error.message);return;}
+  showToast('Queue created! Waiting for someone to join...');
+  renderBattleLobby();
+}
+
+async function deleteBattleQueue(battleId){
+  if(incomingPoll){clearInterval(incomingPoll);incomingPoll=null;}
+  await sb.from('live_battles').delete().eq('id',battleId).eq('player1',currentUser.id);
+  showToast('Queue deleted.');
+  renderBattleLobby();
+}
+
+// A player backing out after joining someone else's queue — reopens the host's queue rather than deleting it
+async function leaveJoinedQueue(battleId){
+  if(incomingPoll){clearInterval(incomingPoll);incomingPoll=null;}
+  await sb.from('live_battles').update({player2:'',team2:[],util2:null,status:'open_queue'}).eq('id',battleId).eq('player2',currentUser.id);
+  showToast('Left the queue.');
+  renderBattleLobby();
+}
+
+async function fetchOpenQueues(){
+  const{data,error}=await sb.from('live_battles').select('*').eq('status','open_queue').order('created_at',{ascending:false}).limit(20);
+  if(error)return[];
+  return data||[];
+}
+
+async function renderOpenQueuesList(){
+  const el=document.getElementById('open-queues-list');if(!el)return;
+  const queues=await fetchOpenQueues();
+  if(!queues.length){el.innerHTML='<div class="empty">No open queues right now.</div>';return;}
+  el.innerHTML=queues.map(b=>{
+    const st=typeof b.state==='string'?JSON.parse(b.state):b.state;
+    const size=QUEUE_SIZES[st.queue!==undefined?st.queue:1];
+    const mine=b.player1===currentUser.id;
+    return `<div class="row-item" style="gap:8px;">
+      <div>
+        <div style="font-size:14px;font-weight:600;">🎲 ${b.player1}${mine?' (you)':''}</div>
+        <div style="font-size:12px;color:var(--text3);">${size}v${size} open queue</div>
+      </div>
+      ${mine
+        ?`<button class="btn btn-sm" style="color:#dc2626;" onclick="deleteBattleQueue('${b.id}')">🗑️ Delete</button>`
+        :`<button class="btn btn-green btn-sm" onclick="enterQueue('${b.id}')">Enter Queue</button>`}
+    </div>`;
+  }).join('');
+}
+
+async function enterQueue(battleId){
+  const{data:b}=await sb.from('live_battles').select('*').eq('id',battleId).single();
+  if(!b||b.status!=='open_queue'){showToast('That queue is no longer available.');renderOpenQueuesList();return;}
+  const st=typeof b.state==='string'?JSON.parse(b.state):b.state;
+  selectedQueue=st.queue!==undefined?st.queue:1;
+  const size=QUEUE_SIZES[selectedQueue];
+  _pendingJoinQueueBattleId=battleId;
+  selectedTeam=[];selectedUtilityCard=null;
+  const{data:myCardsRaw}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
+  const myCards=[...(myCardsRaw||[])].sort((a,b)=>cardScore(b)-cardScore(a));
+  if(incomingPoll)clearInterval(incomingPoll);
+  document.getElementById('battle-lobby').innerHTML=`
+    <div class="box">
+      <h3>Pick your ${size} card${size>1?'s':''} to join ${b.player1}'s queue</h3>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:10px;">Tap cards to select them, then join.</p>
+      <div class="card-grid">${(myCards||[]).map(c=>cardTileHTML(c,true)).join('')}</div>
+      <div style="margin-top:4px;font-size:13px;color:var(--text3);" id="team-count-label">Selected: 0 / ${size}</div>
+      <div id="util-picker-wrap">${utilityPickerHTML()}</div>
+      <button class="btn btn-primary" style="margin-top:12px;" onclick="confirmJoinQueue()">🎲 Join Queue</button>
+      <button class="btn btn-sm" style="margin-left:8px;margin-top:12px;" onclick="renderBattleLobby()">Cancel</button>
+    </div>`;
+}
+
+async function confirmJoinQueue(){
+  const battleId=_pendingJoinQueueBattleId;
+  if(!battleId){showToast('No pending queue');return;}
+  const size=QUEUE_SIZES[selectedQueue];
+  if(selectedTeam.length!==size){showToast(`Select exactly ${size} card${size>1?'s':''}`);return;}
+  const{data:b}=await sb.from('live_battles').select('*').eq('id',battleId).single();
+  if(!b||b.status!=='open_queue'){showToast('That queue is no longer available.');renderBattleLobby();return;}
+  const st=typeof b.state==='string'?JSON.parse(b.state):b.state;
+  st.log=[...(st.log||[]),`🎲 ${currentUser.id} joined the queue!`];
+  st.phase='queue_matched';
+  await sb.from('live_battles').update({player2:currentUser.id,team2:selectedTeam,util2:selectedUtilityCard,state:JSON.stringify(st),status:'queue_matched'}).eq('id',battleId).eq('status','open_queue');
+  const{data:updated}=await sb.from('live_battles').select('*').eq('id',battleId).single();
+  if(!updated||updated.player2!==currentUser.id){showToast('Someone else just joined that queue first!');renderBattleLobby();return;}
+  if(selectedUtilityCard)await consumeUtilityCard(selectedUtilityCard);
+  showToast(`Joined ${b.player1}'s queue! Waiting for them to pick their team...`);
+  selectedTeam=[];_pendingJoinQueueBattleId=null;selectedUtilityCard=null;
+  renderWaitingForHost(updated);
+}
+
+function renderWaitingForQueueJoin(battle){
+  const st=typeof battle.state==='string'?JSON.parse(battle.state):battle.state;
+  const size=QUEUE_SIZES[st.queue!==undefined?st.queue:1];
+  const el=document.getElementById('battle-lobby');
+  el.innerHTML=`
+    <div class="box" style="text-align:center;padding:2.5rem 1.5rem;">
+      <div class="spinner" style="width:28px;height:28px;border-width:3px;margin:0 auto 1rem;"></div>
+      <h3 style="margin-bottom:8px;">Waiting for someone to join your ${size}v${size} queue...</h3>
+      <p style="font-size:13px;color:var(--text3);margin-bottom:1.5rem;">Your open queue is visible to everyone on the Battle tab. This screen updates automatically once someone joins.</p>
+      <button class="btn btn-sm" style="color:#dc2626;border-color:#7f1d1d;" onclick="deleteBattleQueue('${battle.id}')">✕ Delete Queue</button>
+    </div>`;
+
+  if(incomingPoll)clearInterval(incomingPoll);
+  incomingPoll=setInterval(async()=>{
+    const{data:b}=await sb.from('live_battles').select('*').eq('id',battle.id).single();
+    if(!b){clearInterval(incomingPoll);incomingPoll=null;renderBattleLobby();return;}
+    if(b.status==='queue_matched'){
+      clearInterval(incomingPoll);incomingPoll=null;
+      showToast(`🎲 ${b.player2} joined your queue!`);
+      showQueueHostPicker(b);
+    }
+  },3000);
+}
+
+function renderWaitingForHost(battle){
+  const el=document.getElementById('battle-lobby');
+  el.innerHTML=`
+    <div class="box" style="text-align:center;padding:2.5rem 1.5rem;">
+      <div class="spinner" style="width:28px;height:28px;border-width:3px;margin:0 auto 1rem;"></div>
+      <h3 style="margin-bottom:8px;">Waiting for ${battle.player1} to pick their team...</h3>
+      <p style="font-size:13px;color:var(--text3);margin-bottom:1.5rem;">You joined their queue. This screen updates automatically once they're ready.</p>
+      <button class="btn btn-sm" style="color:#dc2626;border-color:#7f1d1d;" onclick="leaveJoinedQueue('${battle.id}')">✕ Leave Queue</button>
+    </div>`;
+
+  if(incomingPoll)clearInterval(incomingPoll);
+  incomingPoll=setInterval(async()=>{
+    const{data:b}=await sb.from('live_battles').select('*').eq('id',battle.id).single();
+    if(!b){clearInterval(incomingPoll);incomingPoll=null;renderBattleLobby();return;}
+    if(b.status==='active'){
+      clearInterval(incomingPoll);incomingPoll=null;
+      currentBattle=b;enterBattle(b);
+    } else if(b.status==='open_queue'){
+      // Host cancelled or someone reset the match — go back to the lobby
+      clearInterval(incomingPoll);incomingPoll=null;
+      renderBattleLobby();
+    }
+  },3000);
+}
+
+async function showQueueHostPicker(battle){
+  _pendingQueueHostBattleId=battle.id;
+  const st=typeof battle.state==='string'?JSON.parse(battle.state):battle.state;
+  selectedQueue=st.queue!==undefined?st.queue:1;
+  const size=QUEUE_SIZES[selectedQueue];
+  selectedTeam=[];selectedUtilityCard=null;
+  if(incomingPoll){clearInterval(incomingPoll);incomingPoll=null;}
+  const{data:myCardsRaw}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
+  const myCards=[...(myCardsRaw||[])].sort((a,b)=>cardScore(b)-cardScore(a));
+  document.getElementById('battle-lobby').innerHTML=`
+    <div class="box" style="text-align:center;margin-bottom:12px;">
+      <h3 style="margin-bottom:4px;">🎉 ${battle.player2} joined your queue!</h3>
+      <p style="font-size:12px;color:var(--text3);">Pick your ${size} card${size>1?'s':''} to start the battle.</p>
+    </div>
+    <div class="box">
+      <div class="card-grid">${(myCards||[]).map(c=>cardTileHTML(c,true)).join('')}</div>
+      <div style="margin-top:4px;font-size:13px;color:var(--text3);" id="team-count-label">Selected: 0 / ${size}</div>
+      <div id="util-picker-wrap">${utilityPickerHTML()}</div>
+      <button class="btn btn-primary" style="margin-top:12px;" onclick="confirmQueueHostJoin()">🎲 Join & Start Battle</button>
+      <button class="btn btn-sm" style="margin-left:8px;margin-top:12px;color:#dc2626;" onclick="deleteBattleQueue('${battle.id}')">✕ Cancel Queue</button>
+    </div>`;
+}
+
+async function confirmQueueHostJoin(){
+  const battleId=_pendingQueueHostBattleId;
+  if(!battleId){showToast('No pending queue');return;}
+  const size=QUEUE_SIZES[selectedQueue];
+  if(selectedTeam.length!==size){showToast(`Select exactly ${size} card${size>1?'s':''}`);return;}
+  const{data:b}=await sb.from('live_battles').select('*').eq('id',battleId).single();
+  if(!b){showToast('Queue not found');return;}
+  const state=await buildBattleState(b,selectedTeam,selectedUtilityCard,b.team2,b.util2);
+  if(selectedUtilityCard)await consumeUtilityCard(selectedUtilityCard);
+  await sb.from('live_battles').update({team1:selectedTeam,util1:selectedUtilityCard,state:JSON.stringify(state),status:'active'}).eq('id',battleId);
+  selectedTeam=[];_pendingQueueHostBattleId=null;selectedUtilityCard=null;
+  const{data:updated}=await sb.from('live_battles').select('*').eq('id',battleId).single();
+  currentBattle=updated;enterBattle(updated);
+}
+
+// Notifies a queue creator (from anywhere in the app) that someone has joined their queue
+let _lastQueueMatchedIds=new Set();
+let _incomingChallengeCount=0,_queueMatchedCount=0;
+function refreshBattleBadge(){updateBattleBadge(_incomingChallengeCount+_queueMatchedCount);}
+async function checkMyQueueMatched(silent){
+  const{data,error}=await sb.from('live_battles').select('id,player2').eq('player1',currentUser.id).eq('status','queue_matched');
+  if(error){_queueMatchedCount=0;refreshBattleBadge();return;}
+  const rows=data||[];
+  if(!silent){
+    rows.forEach(r=>{
+      if(!_lastQueueMatchedIds.has(r.id))showToast(`🎲 ${r.player2} joined your queue! Head to the Battle tab.`);
+    });
+  }
+  _lastQueueMatchedIds=new Set(rows.map(r=>r.id));
+  _queueMatchedCount=rows.length;
+  refreshBattleBadge();
 }
 
 // ── BATTLE UI ──────────────────────────────────────────
