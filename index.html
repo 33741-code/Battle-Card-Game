@@ -2753,7 +2753,8 @@ async function openPack(pt,sizeIdx){
   }
 
   if(toInsert.length){
-    const{error:insertErr}=await sb.from('player_cards').insert(toInsert);
+    const insertPayload=toInsert.map(({autoAction,...rest})=>rest);
+    const{error:insertErr}=await sb.from('player_cards').insert(insertPayload);
     if(insertErr){spin(spinId,false);showToast('Error saving cards: '+insertErr.message);console.error(insertErr);return;}
   }
   spin(spinId,false);
