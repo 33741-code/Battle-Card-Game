@@ -4015,6 +4015,9 @@ async function useMove(fighterUid,moveName,targetUid){
   if(a1===0||a2===0){
     state.winner=a1>0?currentBattle.player1:currentBattle.player2;state.phase='over';
     state.log.push(`🏆 ${state.winner} wins!`);
+    // Lock this out immediately so the realtime/poll echo of the write below can't race
+    // handleBattleEndForViewer() into rendering the results a second time on this same client.
+    _resultsShownForBattleId=currentBattle.id;
     await sb.from('live_battles').update({state:JSON.stringify(state),status:'complete'}).eq('id',currentBattle.id);
     currentBattle={...currentBattle,state:JSON.stringify(state)};
     diffAndShowPopups(_preMoveState,state);
