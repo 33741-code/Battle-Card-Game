@@ -314,6 +314,21 @@ body.light .ability-btn{color:#1a1a1a;}
 @keyframes adminShine{0%{background-position:0% center;}100%{background-position:200% center;}}
 .admin-badge-glow{box-shadow:0 0 10px rgba(255,215,0,0.55),0 0 2px rgba(255,215,0,0.8);}
 
+/* ── Title name effects (wheel prizes / milestones) ───────────────── */
+@keyframes titlePulseGlow{0%,100%{text-shadow:0 0 6px currentColor;}50%{text-shadow:0 0 16px currentColor,0 0 4px currentColor;}}
+.title-glow{animation:titlePulseGlow 1.8s ease-in-out infinite;}
+@keyframes titleRainbowShift{0%{background-position:0% center;}100%{background-position:200% center;}}
+.title-rainbow{background:linear-gradient(90deg,#f87171,#facc15,#4ade80,#60a5fa,#a78bfa,#f87171);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent!important;animation:titleRainbowShift 3s linear infinite;}
+@keyframes titleShimmerSweep{0%{background-position:-120% center;}100%{background-position:220% center;}}
+.title-shimmer{background:linear-gradient(100deg,currentColor 40%,#ffffff 50%,currentColor 60%);background-size:250% auto;-webkit-background-clip:text;background-clip:text;animation:titleShimmerSweep 2.4s linear infinite;}
+
+/* ── Emoji tier borders (avatar picker) ─────────────────────────── */
+.emoji-tile{position:relative;font-size:24px;text-align:center;cursor:pointer;padding:6px;border-radius:8px;border:2px solid transparent;transition:all 0.15s;}
+.emoji-tile.locked{opacity:0.28;cursor:not-allowed;filter:grayscale(1);}
+.emoji-tile.selected{box-shadow:0 0 0 2px var(--accent);}
+@keyframes emojiTierGlow{0%,100%{box-shadow:0 0 4px currentColor;}50%{box-shadow:0 0 10px currentColor;}}
+.emoji-tile.tier-glow{animation:emojiTierGlow 1.8s ease-in-out infinite;}
+
 .yours{background:#0a1e3a;color:#93c5fd;}
 .theirs{background:#2a0a0a;color:#fca5a5;}
 .move-block{background:var(--move-block);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:10px;}
@@ -838,14 +853,11 @@ document.addEventListener("DOMContentLoaded",function(){
 
 <!-- EMOJI PICKER MODAL -->
 <div class="modal-overlay" id="emoji-modal">
-  <div class="modal" style="max-width:360px;">
-    <h3 style="margin-bottom:12px;">Choose your avatar</h3>
-    <div id="emoji-grid" style="display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-bottom:16px;"></div>
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-      <input type="text" id="emoji-custom" placeholder="Or type any emoji..." style="flex:1;" maxlength="4">
-      <button class="btn btn-primary btn-sm" onclick="setCustomEmoji()">Use</button>
-    </div>
-    <button class="btn btn-sm" onclick="closeEmojiModal()">Cancel</button>
+  <div class="modal" style="max-width:440px;">
+    <h3 style="margin-bottom:4px;">Choose your avatar</h3>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:14px;">Higher tiers are earned through leveling up, spin wheel luck, rare battle drops, and quest milestones.</p>
+    <div id="emoji-grid"></div>
+    <button class="btn btn-sm" style="margin-top:12px;" onclick="closeEmojiModal()">Cancel</button>
   </div>
 </div>
 
@@ -1006,14 +1018,19 @@ function getFeedbackCategory(id){return FEEDBACK_CATEGORIES.find(c=>c.id===id);}
 // ── COSMETICS: TITLES, CARD FRAMES, PROFILE BANNERS ─────────────────────
 // These are granted as rewards from events (or milestones already grant titles).
 const TITLE_CATALOG=[
-  {id:'grandmaster',name:'Grandmaster',color:'#fbbf24'},
-  {id:'firelord',name:'Firelord',color:'#f97316'},
-  {id:'shadow_duelist',name:'Shadow Duelist',color:'#7c3aed'},
-  {id:'frostbringer',name:'Frostbringer',color:'#38bdf8'},
-  {id:'stormcaller',name:'Stormcaller',color:'#facc15'},
-  {id:'voidwalker',name:'Voidwalker',color:'#6366f1'},
-  {id:'dragonslayer',name:'Dragonslayer',color:'#ef4444'},
-  {id:'celestial_envoy',name:'Celestial Envoy',color:'#c7d2fe'},
+  {id:'grandmaster',name:'Grandmaster',color:'#fbbf24',effect:'glow'},
+  {id:'firelord',name:'Firelord',color:'#f97316',effect:'glow'},
+  {id:'shadow_duelist',name:'Shadow Duelist',color:'#7c3aed',effect:null},
+  {id:'frostbringer',name:'Frostbringer',color:'#38bdf8',effect:'shimmer'},
+  {id:'stormcaller',name:'Stormcaller',color:'#facc15',effect:'glow'},
+  {id:'voidwalker',name:'Voidwalker',color:'#6366f1',effect:null},
+  {id:'dragonslayer',name:'Dragonslayer',color:'#ef4444',effect:'glow'},
+  {id:'celestial_envoy',name:'Celestial Envoy',color:'#c7d2fe',effect:'shimmer'},
+  // Wheel-exclusive titles — only obtainable as a spin wheel prize
+  {id:'wheel_jackpot',name:'Jackpot Royalty',color:'#fde047',effect:'rainbow',wheelOnly:true},
+  {id:'wheel_fortune',name:"Fortune's Favorite",color:'#34d399',effect:'shimmer',wheelOnly:true},
+  {id:'wheel_luckstruck',name:'Luckstruck',color:'#f472b6',effect:'glow',wheelOnly:true},
+  {id:'wheel_starbound',name:'Starbound',color:'#a5b4fc',effect:'rainbow',wheelOnly:true},
 ];
 
 // Element-themed animated card frames. `cls` maps to a CSS class added to .card-tile
@@ -1102,6 +1119,10 @@ const WHEEL_PRIZE_POOL=[
   {id:'card_epic',type:'card',rarity:3,weightTier:[1,10,14],rarityLabel:'epic'},
   {id:'card_legendary',type:'card',rarity:4,weightTier:[1,4,16],rarityLabel:'legendary'},
   {id:'card_mythic',type:'card',rarity:5,weightTier:[0,1,6],rarityLabel:'mythic'},
+
+  // Rare cosmetic prizes — wheel-exclusive titles & emojis
+  {id:'title_random',type:'title',weightTier:[2,4,6],rarityLabel:'rare'},
+  {id:'emoji_random',type:'emoji',weightTier:[3,5,4],rarityLabel:'rare'},
 ];
 
 const WHEEL_SLOT_COUNT=10;
@@ -1200,6 +1221,9 @@ const QUEST_TEMPLATES=[
 
 const TITLE_COLORS={
   'Elite':'#a78bfa','Mythic':'#ec4899','Celestial':'#c7d2fe','Transcendent':'#fbbf24'
+};
+const TITLE_EFFECTS={
+  'Elite':null,'Mythic':'glow','Celestial':'shimmer','Transcendent':'rainbow'
 };
 
 const TYPE_CHART={fire:{ice:1.5,earth:1.3,wind:1.2,water:0.5,fire:0.7},ice:{earth:1.4,fire:0.5,lightning:0.8,ice:0.7,wind:1.2},lightning:{water:1.6,ice:1.2,earth:0.6,lightning:0.7},earth:{fire:1.3,lightning:1.4,ice:0.8,earth:0.7,wind:0.8},dark:{light:1.5,neutral:1.1,dark:0.5,void:0.8},light:{dark:1.5,void:1.3,light:0.6},water:{fire:1.5,earth:1.2,lightning:0.8,water:0.7},wind:{earth:1.3,lightning:1.2,wind:0.7},void:{light:1.4,neutral:1.2,void:0.5},neutral:{}};
@@ -2363,6 +2387,20 @@ function wheelSlotHTML(prize,tier){
       <div style="font-size:11px;color:var(--text3);">Skill Point${prize.value>1?'s':''}</div>
     </div>`;
   }
+  if(prize.type==='title'){
+    return `<div class="wheel-slot wheel-slot-title" style="border-color:#a78bfa;">
+      <div style="font-size:46px;margin:10px 0;">🏷️</div>
+      <div style="font-size:13px;font-weight:800;color:#c4b5fd;">Mystery Title</div>
+      <div style="font-size:11px;color:var(--text3);">Wheel-exclusive name title</div>
+    </div>`;
+  }
+  if(prize.type==='emoji'){
+    return `<div class="wheel-slot wheel-slot-emoji" style="border-color:${RARITY_COLORS[2]};">
+      <div style="font-size:46px;margin:10px 0;">😀</div>
+      <div style="font-size:13px;font-weight:800;color:${RARITY_COLORS[2]};">Mystery Emoji</div>
+      <div style="font-size:11px;color:var(--text3);">Rare profile avatar</div>
+    </div>`;
+  }
   return `<div class="wheel-slot">${prize.id}</div>`;
 }
 
@@ -2489,6 +2527,29 @@ async function applyWheelReward(prize,tier){
     const owned={...(currentUser.utility_cards||{})};
     owned[u.id]=(owned[u.id]||0)+1;
     return{updates:{utility_cards:owned},extra:`${u.icon} ${u.name}`};
+  }
+  if(prize.type==='title'){
+    const owned=currentUser.owned_titles||[];
+    const wheelTitles=TITLE_CATALOG.filter(t=>t.wheelOnly&&!owned.includes(t.id));
+    if(!wheelTitles.length){
+      // Already own every wheel title — consolation gold instead
+      const money=(currentUser.money||0)+500;
+      return{updates:{money},extra:'Already own every wheel title — $500 instead!'};
+    }
+    const won=wheelTitles[Math.floor(Math.random()*wheelTitles.length)];
+    const newOwned=[...owned,won.id];
+    return{updates:{owned_titles:newOwned},extra:`🏷️ "${won.name}" title unlocked! Equip it from your Profile.`};
+  }
+  if(prize.type==='emoji'){
+    const owned=currentUser.owned_emojis||[];
+    const wheelEmojis=EMOJI_CATALOG.filter(e=>e.tier===2&&!owned.includes(e.e));
+    if(!wheelEmojis.length){
+      const money=(currentUser.money||0)+500;
+      return{updates:{money},extra:'Already own every rare emoji — $500 instead!'};
+    }
+    const won=wheelEmojis[Math.floor(Math.random()*wheelEmojis.length)];
+    const newOwned=[...owned,won.e];
+    return{updates:{owned_emojis:newOwned},extra:`${won.e} Rare emoji unlocked! Pick it from your avatar picker.`};
   }
   return{updates:{}};
 }
@@ -4037,6 +4098,19 @@ async function awardRewards(state,battle){
     currentUser.spin_tickets=tickets;
   }
 
+  // Rare chance for the winner to unlock a locked Epic-tier profile emoji
+  let emojiWon=null;
+  if(currentUser.id===winner&&Math.random()<EMOJI_WIN_DROP_CHANCE){
+    const owned=currentUser.owned_emojis||[];
+    const locked=EMOJI_CATALOG.filter(d=>d.tier===3&&!owned.includes(d.e));
+    if(locked.length){
+      emojiWon=locked[Math.floor(Math.random()*locked.length)].e;
+      const newOwned=[...owned,emojiWon];
+      await sb.from('users').update({owned_emojis:newOwned}).eq('id',currentUser.id);
+      currentUser.owned_emojis=newOwned;
+    }
+  }
+
   let myMoneyGain,myXpGain,myNewLevel,myLeveledUp,myWon;
   if(currentUser.id===winner){
     myWon=true;myMoneyGain=winMoney;myXpGain=winXp;myNewLevel=wlv;myLeveledUp=wlv>prevWinnerLevel;
@@ -4051,6 +4125,7 @@ async function awardRewards(state,battle){
   }
   updateHUD();
   if(ticketWon)showToast(`🎫 Lucky! You earned a ${ticketWon} spin ticket!`);
+  if(emojiWon)showToast(`${emojiWon} Rare battle drop! New Epic emoji unlocked!`);
 
   // Capture leaderboard rank for BOTH players AFTER rewards landed
   let newRankWinner=null,newRankLoser=null;
@@ -5452,6 +5527,7 @@ async function claimMilestone(lv){
   if(m.reward==='title'||m.title){
     updates.title=m.title;
     updates.title_color=TITLE_COLORS[m.title]||null;
+    updates.title_effect=TITLE_EFFECTS[m.title]||null;
   }
   if(m.cardXp){
     const{data:cards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id);
@@ -5986,7 +6062,7 @@ function customizeBoxHTML(u){
       <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">Titles</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
         <div onclick="equipCosmetic('title',null)" style="cursor:pointer;padding:6px 12px;border-radius:8px;border:2px solid ${!u.equipped_title?'var(--accent)':'var(--border)'};font-size:12px;background:var(--bg3);">None</div>
-        ${ownedTitles.map(id=>{const t=getTitleDef(id);if(!t)return'';return `<div onclick="equipCosmetic('title','${id}')" style="cursor:pointer;padding:6px 12px;border-radius:8px;border:2px solid ${u.equipped_title===id?t.color:'var(--border)'};font-size:12px;background:var(--bg3);color:${t.color};font-weight:600;">${t.name}</div>`;}).join('')}
+        ${ownedTitles.map(id=>{const t=getTitleDef(id);if(!t)return'';const effClass=t.effect?` title-${t.effect}`:'';return `<div onclick="equipCosmetic('title','${id}')" class="title-tag${effClass}" style="cursor:pointer;padding:6px 12px;border-radius:8px;border:2px solid ${u.equipped_title===id?t.color:'var(--border)'};font-size:12px;background:var(--bg3);color:${t.color};font-weight:600;">${t.name}</div>`;}).join('')}
       </div>
     </div>`:''}
     ${ownedFrames.length?`<div style="margin-bottom:14px;">
@@ -6050,22 +6126,66 @@ async function declineFriendRequest(reqId){
   await checkFriendRequests(true);
 }
 
-// ── EMOJI AVATAR ────────────────────────────────────────────────────────
-const AVATAR_EMOJIS = [
-  '🧑','👤','😎','🤠','🧙','🧛','🧟','🧜','🧝','🧞',
-  '🧚','🦸','🦹','🧑‍🚀','🧑‍💻','🧑‍🎤','🧑‍🎨','🥷','🤖','👻',
-  '💀','👽','🦊','🐺','🐲','🦁','🐯','🦅','🦉','🐙',
-  '🌟','💫','⚡','🔥','❄️','🌊','🌪️','🌑','☀️','🌀',
-  '💎','👑','⚔️','🛡️','🔮','🎯','🏹','🗡️','🔱','✨'
+// ── EMOJI AVATAR (tiered) ──────────────────────────────────────────────
+// tier 0 Common: always available from Lv 1
+// tier 1 Uncommon: unlocks as the player levels up
+// tier 2 Rare: wheel-spin exclusive (border: blue, RARITY_COLORS[2])
+// tier 3 Epic: rare drop chance after winning a battle (border: purple, RARITY_COLORS[3])
+// tier 4 Legendary: unlocked by total completed-quest milestones (border: gold, RARITY_COLORS[4])
+const EMOJI_TIER_NAMES=['Common','Uncommon','Rare','Epic','Legendary'];
+const EMOJI_CATALOG=[
+  // Common — 10 emojis, everyone has these from level 1
+  {e:'🧑',tier:0},{e:'👤',tier:0},{e:'😎',tier:0},{e:'🤠',tier:0},{e:'🥷',tier:0},
+  {e:'🤖',tier:0},{e:'👻',tier:0},{e:'💀',tier:0},{e:'👽',tier:0},{e:'🦊',tier:0},
+  // Uncommon — unlock progressively with player level
+  {e:'🧙',tier:1,levelReq:5},{e:'🧛',tier:1,levelReq:10},{e:'🧟',tier:1,levelReq:15},
+  {e:'🧜',tier:1,levelReq:20},{e:'🧝',tier:1,levelReq:25},{e:'🧞',tier:1,levelReq:30},
+  {e:'🧚',tier:1,levelReq:35},{e:'🦸',tier:1,levelReq:40},{e:'🦹',tier:1,levelReq:45},{e:'🐺',tier:1,levelReq:50},
+  // Rare — spin wheel exclusive
+  {e:'🐲',tier:2},{e:'🦁',tier:2},{e:'🦅',tier:2},{e:'🐙',tier:2},
+  {e:'🌊',tier:2},{e:'🌪️',tier:2},{e:'☀️',tier:2},{e:'🌀',tier:2},
+  // Epic — rare drop after winning a battle
+  {e:'💎',tier:3},{e:'🔮',tier:3},{e:'🎯',tier:3},{e:'🏹',tier:3},{e:'🗡️',tier:3},{e:'🔱',tier:3},
+  // Legendary — unlocked by total completed quests
+  {e:'👑',tier:4,questReq:10},{e:'⚔️',tier:4,questReq:25},{e:'🛡️',tier:4,questReq:50},{e:'✨',tier:4,questReq:100},
 ];
+const EMOJI_WIN_DROP_CHANCE=0.03; // 3% chance per battle win to unlock a random locked Epic emoji
+
+function ownedEmojiSet(u){return new Set((u&&u.owned_emojis)||[]);}
+function isEmojiUnlocked(def,u){
+  if(def.tier===0)return true;
+  if(def.tier===1)return (u.level||1)>=def.levelReq;
+  if(def.tier===4)return ((u.completed_quests||[]).length)>=def.questReq;
+  return ownedEmojiSet(u).has(def.e); // tier 2 (wheel) & tier 3 (battle drop) are randomly granted
+}
+function unlockHintForEmoji(def){
+  if(def.tier===1)return `Unlocks at player level ${def.levelReq}`;
+  if(def.tier===2)return 'Wheel-exclusive — win it as a spin prize';
+  if(def.tier===3)return 'Rare drop chance after winning a battle';
+  if(def.tier===4)return `Unlocks after completing ${def.questReq} quests`;
+  return '';
+}
 
 function openEmojiPicker(){
-  const grid = document.getElementById('emoji-grid');
-  const current = currentUser.avatar || '🧑';
-  grid.innerHTML = AVATAR_EMOJIS.map(e =>
-    `<div onclick="selectAvatar('${e}')" style="font-size:24px;text-align:center;cursor:pointer;padding:6px;border-radius:8px;border:2px solid ${e===current?'var(--accent)':'transparent'};transition:all 0.15s;" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">${e}</div>`
-  ).join('');
-  document.getElementById('emoji-custom').value = '';
+  const grid=document.getElementById('emoji-grid');
+  const current=currentUser.avatar||'🧑';
+  grid.innerHTML=[0,1,2,3,4].map(tier=>{
+    const defs=EMOJI_CATALOG.filter(d=>d.tier===tier);
+    const color=RARITY_COLORS[tier];
+    return `<div style="margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:${color};margin-bottom:5px;">${EMOJI_TIER_NAMES[tier]}</div>
+      <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:6px;">
+        ${defs.map(d=>{
+          const unlocked=isEmojiUnlocked(d,currentUser);
+          const selected=d.e===current;
+          const cls=`emoji-tile${unlocked?'':' locked'}${selected?' selected':''}${unlocked&&tier>=2?' tier-glow':''}`;
+          const clickAttr=unlocked?`onclick="selectAvatar('${d.e}')"`:'';
+          const title=unlocked?d.e:unlockHintForEmoji(d);
+          return `<div class="${cls}" style="color:${unlocked?color:'var(--text4)'};border-color:${unlocked?color:'transparent'};" ${clickAttr} title="${title}">${unlocked?d.e:'🔒'}</div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
   document.getElementById('emoji-modal').classList.add('open');
 }
 
@@ -6075,12 +6195,6 @@ function closeEmojiModal(){
 
 async function selectAvatar(emoji){
   await saveAvatar(emoji);
-}
-
-async function setCustomEmoji(){
-  const val = document.getElementById('emoji-custom').value.trim();
-  if(!val){showToast('Enter an emoji first');return;}
-  await saveAvatar(val);
 }
 
 async function saveAvatar(emoji){
@@ -6109,6 +6223,11 @@ function displayTitleColor(u){
   if(u&&u.equipped_title){const t=getTitleDef(u.equipped_title);if(t)return t.color;}
   return (u&&u.title_color)||null;
 }
+function displayTitleEffect(u){
+  if(isAdminUser(u))return null; // admin already has its own gradient treatment
+  if(u&&u.equipped_title){const t=getTitleDef(u.equipped_title);if(t)return t.effect||null;}
+  return (u&&u.title_effect)||null;
+}
 function displayAvatar(u){return isAdminUser(u)?ADMIN_AVATAR:(u&&u.avatar)||'🧑';}
 function displayBanner(u){return u&&u.equipped_banner?getBannerDef(u.equipped_banner):null;}
 // Returns HTML for a player's name, gold/animated if admin, with title prefix
@@ -6116,9 +6235,11 @@ function nameHTML(u,opts){
   opts=opts||{};
   const t=displayTitle(u);
   const tc=displayTitleColor(u);
+  const eff=displayTitleEffect(u);
   const id=u&&u.id||'';
   const namePart=isAdminUser(u)?`<span class="admin-name">${id}</span>`:id;
-  const titlePart=t?`<span style="color:${tc};font-weight:700;">[${t}]</span> `:'';
+  const effClass=eff?` title-${eff}`:'';
+  const titlePart=t?`<span class="title-tag${effClass}" style="color:${tc};font-weight:700;">[${t}]</span> `:'';
   return `${titlePart}${namePart}`;
 }
 
