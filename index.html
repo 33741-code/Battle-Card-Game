@@ -3910,7 +3910,7 @@ async function buildBattleState(b, team1Uids, util1Id, team2Uids, util2Id){
   const u2=applyUtilityEffect(fighters2,util2Id);
   if(u2){log.push(`⚡ ${b.player2} used ${u2.name}!`);if(u2.effect==='go_first')goFirst=b.player2;}
   log.push(`${goFirst} goes first!`);
-  return{fighters1,fighters2,turn:goFirst,phase:goFirst===b.player1?'action1':'action2',log,winner:null,usedUids:[],poolMoves:poolMovesMap,queue:st.queue!==undefined?st.queue:1};
+  return{fighters1,fighters2,turn:goFirst,phase:goFirst===b.player1?'action1':'action2',log,winner:null,usedUids:[],poolMoves:poolMovesMap,queue:st.queue!==undefined?st.queue:1,lastMoveFx:[]};
 }
 
 async function confirmAccept(){
@@ -4464,34 +4464,46 @@ function diffAndShowPopups(oldState,newState){
   const oldFighters=[...(oldState.fighters1||[]),...(oldState.fighters2||[])];
   const newFighters=[...(newState.fighters1||[]),...(newState.fighters2||[])];
 
-  // Inspect newly-added log lines this turn to detect crit / dodge / defeat events.
-  // Dodge/crit lines name the specific fighter, so we attribute them precisely instead
-  // of guessing from HP deltas alone.
   const newLogLines=(newState.log||[]).slice((oldState.log||[]).length);
-  const hadCrit=newLogLines.some(l=>l.includes('CRIT'));
-  const dodgedNames=newLogLines.filter(l=>l.includes('dodged')).map(l=>{
-    const m=l.match(/💨 (.+?) dodged/);return m?m[1]:null;
-  }).filter(Boolean);
+  if(!newLogLines.length)return; // nothing actually happened between these two states — don't re-flash stale effects
 
-  let anyBigHit=false;
+  // lastMoveFx is set by useMove() with the exact uid(s) the move targeted (attacker/defender/aoe
+  // targets), each tagged with whether THAT specific hit crit or dodged. This is what lets us scope
+  // crit/dodge/hit visuals to only the cards actually acted on — including correctly telling apart
+  // multiple copies of the same card, since it's keyed by uid rather than by name or a global flag.
+  const moveFx=newState.lastMoveFx||[];
+  const fxByUid={};
+  moveFx.forEach(fx=>{fxByUid[fx.uid]=fx;});
+
+  let anyBigHit=false,anyCrit=false;
 
   newFighters.forEach(nf=>{
     const of=oldFighters.find(f=>f.uid===nf.uid);
     if(!of)return;
     const delta=nf.hp-of.hp;
     const justDefeated=!of.defeated&&nf.defeated;
-    const justDodged=dodgedNames.includes(nf.name);
+    const fx=fxByUid[nf.uid];
 
-    if(justDodged){
+    if(fx&&fx.type==='dodge'){
       flashCardFx(nf.uid,'fx-dodge',450);
       showTextPopup(nf.uid,'MISS!','miss-popup');
-    } else if(delta<0){
-      const amount=Math.abs(delta);
-      showDmgPopup(nf.uid,amount,false);
-      flashCardFx(nf.uid,hadCrit?'fx-crit':'fx-hit',hadCrit?500:350);
-      if(hadCrit)showTextPopup(nf.uid,'CRIT!','crit-popup');
+    } else if(fx&&fx.type==='hit'){
+      const amount=fx.amount!=null?fx.amount:Math.max(0,-delta);
+      if(amount>0)showDmgPopup(nf.uid,amount,false);
+      flashCardFx(nf.uid,fx.crit?'fx-crit':'fx-hit',fx.crit?500:350);
+      if(fx.crit){showTextPopup(nf.uid,'CRIT!','crit-popup');anyCrit=true;}
       if(amount>=of.maxHp*0.25)anyBigHit=true;
+    } else if(fx&&fx.type==='heal'){
+      const amount=fx.amount!=null?fx.amount:Math.max(0,delta);
+      if(amount>0)showDmgPopup(nf.uid,amount,true);
+      flashCardFx(nf.uid,'fx-heal',600);
+    } else if(delta<0){
+      // Incidental HP loss this turn NOT caused by the acting move (e.g. a damage-over-time tick) —
+      // show a plain hit, deliberately without crit flair since the move itself didn't land here.
+      showDmgPopup(nf.uid,Math.abs(delta),false);
+      flashCardFx(nf.uid,'fx-hit',350);
     } else if(delta>0){
+      // Incidental healing (e.g. a passive turn-regen perk)
       showDmgPopup(nf.uid,delta,true);
       flashCardFx(nf.uid,'fx-heal',600);
     }
@@ -4504,7 +4516,7 @@ function diffAndShowPopups(oldState,newState){
     if(justDefeated)flashCardFx(nf.uid,'fx-defeat',700);
   });
 
-  if(hadCrit){screenFlash();shakeBattleScreen();}
+  if(anyCrit){screenFlash();shakeBattleScreen();}
   else if(anyBigHit){shakeBattleScreen();}
 }
 
@@ -4541,6 +4553,7 @@ async function useMove(fighterUid,moveName,targetUid){
   const effectiveStaminaCost=Math.round((move?.stamina_cost||0)*(1-((attacker.staminaCostReductionPct||0)/100)));
   if(!move||attacker.stamina<effectiveStaminaCost){showToast('Not enough stamina!');return;}
   const log=[];
+  const moveFx=[]; // precise per-uid visual targeting for this move — {uid,type:'hit'|'dodge'|'heal',crit,amount}
   [...state.fighters1,...state.fighters2].forEach(f=>{
     if(f.dot>0&&f.dotTurns>0&&!f.defeated){f.hp=Math.max(0,f.hp-f.dot);log.push(`🔥 ${f.name} takes ${f.dot} damage-over-time (${f.dotTurns-1} turns left)`);f.dotTurns--;if(f.dotTurns<=0)f.dot=0;if(f.hp<=0){f.hp=0;f.defeated=true;log.push(`💀 ${f.name} was defeated!`);}}
   });
@@ -4561,7 +4574,7 @@ async function useMove(fighterUid,moveName,targetUid){
   if(move.type==='heal'){
     const h=move.value||30;attacker.hp=Math.min(attacker.maxHp,attacker.hp+h);
     log.push(`💚 ${attacker.name} used ${moveName} and restored ${h} HP!`);
-    setTimeout(()=>showDmgPopup(attacker.uid,h,true),100);
+    moveFx.push({uid:attacker.uid,type:'heal',amount:h});
   } else if(move.type==='shield'){
     attacker.shielded=true;attacker.shieldPct=(move.value||75)/100;
     log.push(`🛡️ ${attacker.name} used ${moveName} — shields ${move.value||75}% of the next hit!`);
@@ -4569,68 +4582,76 @@ async function useMove(fighterUid,moveName,targetUid){
     attacker.speedBuff=true;log.push(`💨 ${attacker.name} used ${moveName} — dodge chance doubled next turn!`);
   } else if(defender){
     const dodged=Math.random()<(attacker.speedBuff?defender.dodge*2:defender.dodge||0.05);
-    if(dodged){log.push(`💨 ${defender.name} dodged ${attacker.name}'s ${moveName}!`);}
+    if(dodged){log.push(`💨 ${defender.name} dodged ${attacker.name}'s ${moveName}!`);moveFx.push({uid:defender.uid,type:'dodge'});}
     else{
       let dmg=0;
       if(move.type==='dot'){
         const dpt=Math.max(1,Math.round(((move.value||30)+(attacker.atk*0.15))/3));defender.dot=dpt;defender.dotTurns=move.dot_turns||3;
         log.push(`🔥 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${defender.name} burns for ${dpt} dmg/turn × ${defender.dotTurns} turns!`);
+        moveFx.push({uid:defender.uid,type:'hit',crit,amount:0});
       } else if(move.type==='multi'){
         const hits=rand(move.hits_min||2,move.hits_max||3);let tot=0;
         for(let i=0;i<hits;i++){const d=Math.max(1,Math.round(((move.value||30)/hits+(attacker.atk*0.2)-defender.def*0.3)*typeMult*critMult));tot+=d;}
         if(defender.shielded){const bl=Math.round(tot*defender.shieldPct);tot=Math.max(1,tot-bl);log.push(`🛡️ Shield absorbed ${bl} damage!`);defender.shielded=false;}
         defender.hp=Math.max(0,defender.hp-tot);
         log.push(`🌀 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${hits} hits for ${tot} total!${typeMult>1?' ⚡ Super effective!':''}`);
+        moveFx.push({uid:defender.uid,type:'hit',crit,amount:tot});
         if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
       } else if(move.type==='combo'){
-        setTimeout(()=>showDmgPopup(defender.uid,tot,false),100);
         const triggered=Math.random()<0.4;
         dmg=Math.max(1,Math.round((move.value-defender.def*0.4)*typeMult*critMult*(triggered?1.5:1)));
         if(defender.shielded){const bl=Math.round(dmg*defender.shieldPct);dmg=Math.max(1,dmg-bl);log.push(`🛡️ Shield absorbed ${bl} damage!`);defender.shielded=false;}
         defender.hp=Math.max(0,defender.hp-dmg);
         log.push(`🎯 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''}${triggered?' COMBO!':''} — ${dmg} damage!`);
+        moveFx.push({uid:defender.uid,type:'hit',crit,amount:dmg});
         if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
       } else {
         dmg=Math.max(1,Math.round((move.value+(attacker.atk*0.3)-defender.def*0.5)*typeMult*critMult*firstHitMult));
         if(defender.shielded){const bl=Math.round(dmg*defender.shieldPct);dmg=Math.max(1,dmg-bl);log.push(`🛡️ Shield absorbed ${bl} damage!`);defender.shielded=false;}
         defender.hp=Math.max(0,defender.hp-dmg);
         log.push(`${MOVE_ICONS[move.type]||'⚔️'} ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${dmg} damage!${typeMult>1?' ⚡ Super effective!':''}`);
+        moveFx.push({uid:defender.uid,type:'hit',crit,amount:dmg});
         if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
-        setTimeout(()=>showDmgPopup(defender.uid,dmg,false),100);
       }
     }
     attacker.speedBuff=false;
   } else if(move.type==='aoe'){
-    // Hits ALL opponents not just one
+    // Hits ALL opponents not just one — each target rolls and displays its own crit independently
     const targets=state[oppKey].filter(f=>!f.defeated);
-    let totalDealt=0;
+    let totalDealt=0,anyTargetCrit=false;
     targets.forEach(t=>{
       const tm=getTypeMult(attacker.element,t.element||'neutral');
       const crit2=Math.random()<(attacker.crit||0.1);
+      if(crit2)anyTargetCrit=true;
       const dmg=Math.max(1,Math.round((move.value-t.def*0.4)*tm*(crit2?1.5:1)));
-      if(t.shielded){const bl=Math.round(dmg*t.shieldPct);t.hp=Math.max(0,t.hp-(dmg-bl));t.shielded=false;log.push(`🛡️ ${t.name} shield absorbed ${bl}!`);}
+      let dealt=dmg;
+      if(t.shielded){const bl=Math.round(dmg*t.shieldPct);t.hp=Math.max(0,t.hp-(dmg-bl));t.shielded=false;log.push(`🛡️ ${t.name} shield absorbed ${bl}!`);dealt=dmg-bl;}
       else t.hp=Math.max(0,t.hp-dmg);
       totalDealt+=dmg;
+      moveFx.push({uid:t.uid,type:'hit',crit:crit2,amount:dealt});
       if(t.hp<=0){t.hp=0;t.defeated=true;log.push(`💀 ${t.name} was defeated!`);}
     });
-    log.push(`💣 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — hit ${targets.length} enemies for ${totalDealt} total damage!`);
+    log.push(`💣 ${attacker.name} used ${moveName}${anyTargetCrit?' 💥 CRIT!':''} — hit ${targets.length} enemies for ${totalDealt} total damage!`);
   } else if(move.type==='scatter'){
-    // Pick up to scatter_targets enemies, deal damage to each
+    // Pick up to scatter_targets enemies, deal damage to each — each rolls its own crit independently
     const targets=state[oppKey].filter(f=>!f.defeated);
     const numTargets=Math.min(move.scatter_targets||2,targets.length);
     // Shuffle and pick
     const picked=[...targets].sort(()=>Math.random()-0.5).slice(0,numTargets);
-    let totalDealt=0;
+    let totalDealt=0,anyTargetCrit=false;
     picked.forEach(t=>{
       const tm=getTypeMult(attacker.element,t.element||'neutral');
       const crit2=Math.random()<(attacker.crit||0.1);
+      if(crit2)anyTargetCrit=true;
       const dmg=Math.max(1,Math.round((move.value+(attacker.atk*0.3)-t.def*0.5)*tm*(crit2?1.5:1)));
-      if(t.shielded){const bl=Math.round(dmg*t.shieldPct);t.hp=Math.max(0,t.hp-(dmg-bl));t.shielded=false;}
+      let dealt=dmg;
+      if(t.shielded){const bl=Math.round(dmg*t.shieldPct);t.hp=Math.max(0,t.hp-(dmg-bl));t.shielded=false;dealt=dmg-bl;}
       else t.hp=Math.max(0,t.hp-dmg);
       totalDealt+=dmg;
+      moveFx.push({uid:t.uid,type:'hit',crit:crit2,amount:dealt});
       if(t.hp<=0){t.hp=0;t.defeated=true;log.push(`💀 ${t.name} was defeated!`);}
     });
-    log.push(`🎯💥 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — hit ${picked.map(t=>t.name).join(' & ')} for ${totalDealt} total damage!`);
+    log.push(`🎯💥 ${attacker.name} used ${moveName}${anyTargetCrit?' 💥 CRIT!':''} — hit ${picked.map(t=>t.name).join(' & ')} for ${totalDealt} total damage!`);
   } else if(move.type==='lifesteal'){
     if(defender){
       const tm=getTypeMult(attacker.element,defender.element||'neutral');
@@ -4640,6 +4661,8 @@ async function useMove(fighterUid,moveName,targetUid){
       else defender.hp=Math.max(0,defender.hp-dmg);
       attacker.hp=Math.min(attacker.maxHp,attacker.hp+stolen);
       log.push(`🩸 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${dmg} dmg, stole ${stolen} HP!`);
+      moveFx.push({uid:defender.uid,type:'hit',crit,amount:dmg});
+      if(stolen>0)moveFx.push({uid:attacker.uid,type:'heal',amount:stolen});
       if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
     }
   } else if(move.type==='stamina_steal'){
@@ -4652,6 +4675,7 @@ async function useMove(fighterUid,moveName,targetUid){
       defender.stamina=Math.max(0,defender.stamina-actualSteal);
       attacker.stamina=Math.min(attacker.maxStamina,attacker.stamina+actualSteal);
       log.push(`⚡🔻 ${attacker.name} used ${moveName} — ${dmg} dmg + stole ${actualSteal} stamina from ${defender.name}!`);
+      moveFx.push({uid:defender.uid,type:'hit',crit,amount:dmg});
       if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
     }
   } else if(move.type==='taunt'){
@@ -4678,9 +4702,11 @@ async function useMove(fighterUid,moveName,targetUid){
       }
       defender.hp=Math.max(0,defender.hp-dmg);
       log.push(`💀 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${dmg} damage!`);
+      moveFx.push({uid:defender.uid,type:'hit',crit,amount:dmg});
       if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
     }
   }
+  state.lastMoveFx=moveFx;
   state.log.push(...log);
   const a1=state.fighters1.filter(f=>!f.defeated).length;const a2=state.fighters2.filter(f=>!f.defeated).length;
   if(a1===0||a2===0){
