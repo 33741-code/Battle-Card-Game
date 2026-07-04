@@ -43,6 +43,17 @@ h4{font-size:13px;font-weight:600;margin-bottom:0.5rem;}
 /* ── SIDEBAR NAV ── */
 .nav{display:flex;flex-direction:column;gap:2px;}
 .nav button,.main-sidebar button{font-size:13px;padding:8px 12px;border-radius:var(--radius-sm);border:none;background:transparent;color:var(--text3);cursor:pointer;text-align:left;width:100%;transition:background var(--transition),color var(--transition);font-weight:500;}
+
+/* ── Onboarding tutorial ── */
+.tutorial-overlay{position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;padding:16px;animation:tutorialFadeIn 0.2s ease;}
+@keyframes tutorialFadeIn{0%{opacity:0;}100%{opacity:1;}}
+.tutorial-card{background:var(--modal-bg);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:1.5rem;width:420px;max-width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 12px 48px rgba(0,0,0,0.5);animation:tutorialPop 0.3s cubic-bezier(.2,1.4,.4,1);}
+@keyframes tutorialPop{0%{opacity:0;transform:scale(0.92) translateY(10px);}100%{opacity:1;transform:scale(1) translateY(0);}}
+.tutorial-dots{display:flex;gap:5px;justify-content:center;margin:14px 0;}
+.tutorial-dot{width:6px;height:6px;border-radius:50%;background:var(--border2);transition:background 0.2s,transform 0.2s;}
+.tutorial-dot.active{background:var(--accent);transform:scale(1.4);}
+.main-sidebar button.tutorial-highlight,.theme-btn.tutorial-highlight,.level-badge.tutorial-highlight{box-shadow:0 0 0 3px var(--accent),0 0 16px var(--accent);animation:tutorialHighlightPulse 1.2s ease-in-out infinite;position:relative;z-index:5001;}
+@keyframes tutorialHighlightPulse{0%,100%{box-shadow:0 0 0 3px var(--accent),0 0 12px var(--accent);}50%{box-shadow:0 0 0 3px var(--accent),0 0 22px var(--accent);}}
 .nav button.active,.main-sidebar button.active{background:var(--bg4);color:var(--text);font-weight:600;}
 .nav button:hover:not(.active),.main-sidebar button:hover:not(.active){background:var(--bg3);color:var(--text2);}
 
@@ -873,6 +884,9 @@ document.addEventListener("DOMContentLoaded",function(){
 <!-- CARD RIGHT-CLICK CONTEXT MENU -->
 <div id="card-ctx-menu" style="display:none;position:fixed;z-index:999;background:var(--card-bg,#1c1f26);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.4);padding:8px;min-width:210px;font-size:13px;"></div>
 
+<!-- ONBOARDING TUTORIAL -->
+<div id="tutorial-overlay" style="display:none;"></div>
+
 <!-- EMOJI PICKER MODAL -->
 <div class="modal-overlay" id="emoji-modal">
   <div class="modal" style="max-width:440px;">
@@ -1537,9 +1551,102 @@ async function signup(){
   spin('li-spin',false);
   if(error){setErr('Error: '+error.message);return;}
   currentUser=data;await handleDailyLogin();enterApp();
+  startTutorial();
 }
 
 function setErr(msg){const e=document.getElementById('li-err');e.textContent=msg;e.style.display='block';}
+
+// ── ONBOARDING TUTORIAL ─────────────────────────────────────────────────
+// Shown automatically after signup; can also be replayed from My Profile.
+// Steps group related tabs together so the tour stays quick, and highlight
+// the real sidebar/header elements they describe rather than using mockups.
+const TUTORIAL_STEPS=[
+  {title:'Welcome to Untitled Card Game! 🎉',icon:'⚔️',
+    desc:"Let's take a quick tour so you know where everything is — it only takes a minute. Feel free to skip if you'd rather just dive in."},
+  {title:'My Cards',icon:'🃏',navTabs:['mycards'],
+    desc:'This is your card collection — your home base. Tap a card for details, or right-click one to bulk delete, sell, or combine duplicates.'},
+  {title:'Shop',icon:'📦',navTabs:['packs'],
+    desc:'Spend gold on card packs to grow your collection. Set up Pack Auto-Settings here too, so unwanted pulls get handled automatically.'},
+  {title:'Spin Wheel & Items',icon:'🎡',navTabs:['wheel','items'],
+    desc:'Spin daily for free, or use tickets to spin again. You can win gold, XP, cosmetics, and Boosts — activate any Boosts you win from the Items tab.'},
+  {title:'Battle & Training',icon:'⚔️',navTabs:['battle','training'],
+    desc:"Challenge another player directly, or open a Battle Queue for anyone to join. Not ready for a real match yet? Practice risk-free in Training."},
+  {title:'Trade',icon:'🤝',navTabs:['trade'],
+    desc:'Swap cards and gold with other players through a simple request-and-confirm trade session.'},
+  {title:'Quests',icon:'📋',navTabs:['quests'],
+    desc:"Complete quests for gold rewards. You'll always have 5 active — finishing one instantly brings in a fresh one to replace it."},
+  {title:'Skill Tree',icon:'🌳',navTabs:['skills'],
+    desc:'Spend skill points here on permanent perks that make your cards stronger in battle.'},
+  {title:'Leaderboard, Players & News',icon:'🏆',navTabs:['leaderboard','players','news','events'],
+    desc:'Check the Leaderboard for rankings, browse other Players, and catch announcements or limited-time Events in News.'},
+  {title:'My Profile',icon:'🪪',navTabs:['profile'],
+    desc:'Customize your avatar, title, banner, and card frame here. You can also send feedback to the developer from the Feedback tab.'},
+  {title:'Levels & Milestones',icon:'⭐',headerEls:['level-badge'],
+    desc:"Your level badge is always visible up top — click it anytime to see the milestone rewards you've earned and what's coming next."},
+  {title:'Light / Dark Mode',icon:'🌙',headerEls:['theme-btn'],
+    desc:'Prefer a brighter look? Click this button anytime to switch between dark and light mode.'},
+  {title:"You're all set!",icon:'🚀',
+    desc:"That's the full tour. Good luck out there, and have fun battling!"},
+];
+let _tutorialStep=0;
+
+function startTutorial(){
+  _tutorialStep=0;
+  document.getElementById('tutorial-overlay').style.display='block';
+  renderTutorialStep();
+}
+function clearTutorialHighlights(){
+  document.querySelectorAll('.tutorial-highlight').forEach(el=>el.classList.remove('tutorial-highlight'));
+}
+function renderTutorialStep(){
+  clearTutorialHighlights();
+  const step=TUTORIAL_STEPS[_tutorialStep];
+  const total=TUTORIAL_STEPS.length;
+  const isFirst=_tutorialStep===0;
+  const isLast=_tutorialStep===total-1;
+  const overlay=document.getElementById('tutorial-overlay');
+  overlay.innerHTML=`<div class="tutorial-overlay">
+    <div class="tutorial-card">
+      ${isFirst?'':`<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-align:center;">Step ${_tutorialStep} of ${total-1}</div>`}
+      <div style="font-size:40px;text-align:center;margin-bottom:8px;">${step.icon}</div>
+      <h3 style="text-align:center;margin-bottom:10px;">${step.title}</h3>
+      <p style="font-size:14px;color:var(--text2);line-height:1.5;text-align:center;">${step.desc}</p>
+      <div class="tutorial-dots">${TUTORIAL_STEPS.map((_,i)=>`<div class="tutorial-dot${i===_tutorialStep?' active':''}"></div>`).join('')}</div>
+      <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:6px;">
+        <button class="btn btn-sm" onclick="skipTutorial()" style="color:var(--text3);">Skip Tutorial</button>
+        <div style="display:flex;gap:8px;">
+          ${isFirst?'':`<button class="btn btn-sm" onclick="prevTutorialStep()">← Back</button>`}
+          <button class="btn btn-primary btn-sm" onclick="${isLast?'finishTutorial()':'nextTutorialStep()'}">${isFirst?'Start Tour':isLast?"Let's go!":'Next →'}</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  (step.navTabs||[]).forEach(tab=>{
+    const btn=document.querySelector(`.main-sidebar button[onclick="go('${tab}')"]`);
+    if(btn)btn.classList.add('tutorial-highlight');
+  });
+  (step.headerEls||[]).forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.classList.add('tutorial-highlight');
+  });
+}
+function nextTutorialStep(){
+  if(_tutorialStep<TUTORIAL_STEPS.length-1){_tutorialStep++;renderTutorialStep();}
+}
+function prevTutorialStep(){
+  if(_tutorialStep>0){_tutorialStep--;renderTutorialStep();}
+}
+async function skipTutorial(){await endTutorial();}
+async function finishTutorial(){await endTutorial();showToast('🎉 Tutorial complete — have fun!');}
+async function endTutorial(){
+  clearTutorialHighlights();
+  const overlay=document.getElementById('tutorial-overlay');
+  overlay.style.display='none';overlay.innerHTML='';
+  if(currentUser&&!currentUser.tutorial_seen){
+    currentUser.tutorial_seen=true;
+    await sb.from('users').update({tutorial_seen:true}).eq('id',currentUser.id);
+  }
+}
 
 async function handleDailyLogin(){
   const today=new Date().toISOString().slice(0,10);
@@ -6663,6 +6770,10 @@ async function renderProfile(uid){
       </div>
 
       ${isSelf?customizeBoxHTML(u):''}
+      ${isSelf?`<div class="box" style="text-align:center;">
+        <div style="font-size:13px;color:var(--text3);margin-bottom:8px;">New to the game, or just want a refresher?</div>
+        <button class="btn btn-sm" onclick="startTutorial()">🎓 Replay Tutorial</button>
+      </div>`:''}
     </div>`;
 }
 
