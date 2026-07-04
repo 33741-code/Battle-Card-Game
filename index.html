@@ -162,6 +162,22 @@ body.light .ability-btn{color:#1a1a1a;}
 @keyframes frameDarkPulse{0%,100%{box-shadow:0 0 12px rgba(124,58,237,0.35);}50%{box-shadow:0 0 22px rgba(124,58,237,0.65);}}
 @keyframes frameLightGlow{0%,100%{box-shadow:0 0 12px rgba(253,224,71,0.4);}50%{box-shadow:0 0 24px rgba(253,224,71,0.7);}}
 
+/* ── UNIVERSAL COSMETIC CARD FRAMES (manually equipped) ── */
+.card-tile.frame-crystal{border-color:#67e8f9;box-shadow:0 0 14px rgba(103,232,249,0.4);animation:frameIceShimmer 2.6s ease-in-out infinite;}
+.card-tile.frame-blood{border-color:#991b1b;box-shadow:0 0 14px rgba(153,27,27,0.5);animation:frameFirePulse 2.8s ease-in-out infinite;}
+.card-tile.frame-toxic{border-color:#84cc16;box-shadow:0 0 14px rgba(132,204,22,0.45);animation:frameToxicPulse 2.2s ease-in-out infinite;}
+.card-tile.frame-cosmic{border-color:#c084fc;box-shadow:0 0 16px rgba(192,132,252,0.5);animation:frameCosmicShift 4s ease-in-out infinite;}
+.card-tile.frame-royal{border-color:#eab308;box-shadow:0 0 16px rgba(234,179,8,0.5);animation:frameLightGlow 2.4s ease-in-out infinite;}
+.card-tile.frame-abyss{border-color:#082f49;box-shadow:0 0 16px rgba(8,47,73,0.6);animation:frameDarkPulse 3.2s ease-in-out infinite;}
+.card-tile.frame-lava{border-color:#ea580c;box-shadow:0 0 16px rgba(234,88,12,0.5);animation:frameFirePulse 2s ease-in-out infinite;}
+.card-tile.frame-arctic{border-color:#e0f2fe;box-shadow:0 0 12px rgba(224,242,254,0.45);animation:frameIceShimmer 3.4s ease-in-out infinite;}
+.card-tile.frame-thunder{border-color:#8b5cf6;box-shadow:0 0 12px rgba(139,92,246,0.45);animation:frameBoltFlicker 1.6s steps(6) infinite;}
+.card-tile.frame-holo{border-color:#f472b6;box-shadow:0 0 16px rgba(244,114,182,0.5);animation:frameHoloShift 3s linear infinite;}
+.card-tile.frame-obsidian{border-color:#18181b;box-shadow:0 0 16px rgba(220,38,38,0.4);animation:frameDarkPulse 3s ease-in-out infinite;}
+@keyframes frameToxicPulse{0%,100%{box-shadow:0 0 10px rgba(132,204,22,0.35);}50%{box-shadow:0 0 20px rgba(132,204,22,0.65);}}
+@keyframes frameCosmicShift{0%,100%{box-shadow:0 0 12px rgba(192,132,252,0.4);}33%{box-shadow:0 0 18px rgba(99,102,241,0.55);}66%{box-shadow:0 0 18px rgba(244,114,182,0.55);}}
+@keyframes frameHoloShift{0%{box-shadow:0 0 14px rgba(244,114,182,0.5);}25%{box-shadow:0 0 14px rgba(250,204,21,0.5);}50%{box-shadow:0 0 14px rgba(74,222,128,0.5);}75%{box-shadow:0 0 14px rgba(96,165,250,0.5);}100%{box-shadow:0 0 14px rgba(244,114,182,0.5);}}
+
 /* ── PROFILE BANNERS ── */
 .profile-banner{position:relative;height:100px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;overflow:hidden;margin-bottom:-44px;}
 .profile-banner-content{width:100%;height:100%;}
@@ -179,6 +195,12 @@ body.light .ability-btn{color:#1a1a1a;}
 /* ── SPIN WHEEL (horizontal strip design — large fixed-size slots) ── */
 .ticket-badge{display:inline-flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;}
 @keyframes wheelResultPop{0%{opacity:0;transform:scale(0.5);}60%{opacity:1;transform:scale(1.15);}100%{opacity:1;transform:scale(1);}}
+
+/* ── Centered wheel-win popup (replaces the easy-to-miss under-wheel result box) ── */
+@keyframes wheelPopupFadeIn{0%{opacity:0;}100%{opacity:1;}}
+@keyframes wheelPopupFadeOut{0%{opacity:1;}100%{opacity:0;}}
+@keyframes wheelPopupPop{0%{opacity:0;transform:scale(0.4) translateY(20px);}60%{opacity:1;}100%{opacity:1;transform:scale(var(--wp-scale,1)) translateY(0);}}
+@keyframes wheelConfettiFall{0%{opacity:1;transform:translateY(0) rotate(0deg);}100%{opacity:0;transform:translateY(100vh) rotate(360deg);}}
 
 .wheel-strip-outer{position:relative;margin:0 auto;max-width:780px;}
 .wheel-strip-pointer{position:absolute;top:-6px;left:50%;transform:translateX(-50%);font-size:32px;z-index:10;filter:drop-shadow(0 2px 5px rgba(0,0,0,0.6));}
@@ -1035,6 +1057,7 @@ const TITLE_CATALOG=[
 
 // Element-themed animated card frames. `cls` maps to a CSS class added to .card-tile
 const CARD_FRAME_CATALOG=[
+  // Element-themed — auto-apply to cards of the matching element when no frame is manually equipped
   {id:'frame_fire',name:'Inferno Frame',cls:'frame-fire',element:'fire',icon:'🔥'},
   {id:'frame_ice',name:'Glacial Frame',cls:'frame-ice',element:'ice',icon:'❄️'},
   {id:'frame_lightning',name:'Storm Frame',cls:'frame-lightning',element:'lightning',icon:'⚡'},
@@ -1044,6 +1067,18 @@ const CARD_FRAME_CATALOG=[
   {id:'frame_water',name:'Tidal Frame',cls:'frame-water',element:'water',icon:'💧'},
   {id:'frame_wind',name:'Gale Frame',cls:'frame-wind',element:'wind',icon:'🌪️'},
   {id:'frame_void',name:'Void Frame',cls:'frame-void',element:'void',icon:'🌀'},
+  // Universal cosmetic frames — element:null, must be manually equipped from the profile (overrides auto-matching for every card)
+  {id:'frame_crystal',name:'Crystal Frame',cls:'frame-crystal',element:null,icon:'💎'},
+  {id:'frame_blood',name:'Blood Frame',cls:'frame-blood',element:null,icon:'🩸'},
+  {id:'frame_toxic',name:'Toxic Frame',cls:'frame-toxic',element:null,icon:'☣️'},
+  {id:'frame_cosmic',name:'Cosmic Frame',cls:'frame-cosmic',element:null,icon:'🌌'},
+  {id:'frame_royal',name:'Royal Frame',cls:'frame-royal',element:null,icon:'👑'},
+  {id:'frame_abyss',name:'Abyssal Frame',cls:'frame-abyss',element:null,icon:'🕳️'},
+  {id:'frame_lava',name:'Molten Frame',cls:'frame-lava',element:null,icon:'🌋'},
+  {id:'frame_arctic',name:'Arctic Frame',cls:'frame-arctic',element:null,icon:'🧊'},
+  {id:'frame_thunder',name:'Thunder Frame',cls:'frame-thunder',element:null,icon:'🌩️'},
+  {id:'frame_holo',name:'Holographic Frame',cls:'frame-holo',element:null,icon:'🌈'},
+  {id:'frame_obsidian',name:'Obsidian Frame',cls:'frame-obsidian',element:null,icon:'⚫'},
 ];
 
 // Profile banners — earned from events or ranked seasons
@@ -1061,8 +1096,14 @@ const BANNER_CATALOG=[
 function getTitleDef(id){return TITLE_CATALOG.find(t=>t.id===id);}
 function getFrameDef(id){return CARD_FRAME_CATALOG.find(f=>f.id===id);}
 function getBannerDef(id){return BANNER_CATALOG.find(b=>b.id===id);}
-// Auto-pick a frame by a card's element if the player owns the matching frame
-function frameClassForCard(card,ownedFrameIds){
+// Auto-pick a frame by a card's element if the player owns the matching frame — unless
+// they've manually equipped a universal frame, which takes priority for every card.
+function frameClassForCard(card,owner){
+  if(owner&&owner.equipped_frame){
+    const f=getFrameDef(owner.equipped_frame);
+    if(f&&(owner.owned_frames||[]).includes(f.id))return f.cls;
+  }
+  const ownedFrameIds=owner&&owner.owned_frames;
   if(!card||!card.element||!ownedFrameIds||!ownedFrameIds.length)return'';
   const match=CARD_FRAME_CATALOG.find(f=>f.element===card.element&&ownedFrameIds.includes(f.id));
   return match?match.cls:'';
@@ -1094,24 +1135,25 @@ const TICKET_SHOP_COST=[150,600,2000];
 // type: 'gold' | 'card' | 'utility' | 'player_xp' | 'card_xp' | 'skill_point'
 // weightTier: base weight per wheel tier [normal, rare, legendary] — 0 means "never on this wheel"
 const WHEEL_PRIZE_POOL=[
-  {id:'gold_small',type:'gold',value:100,weightTier:[24,0,0],rarityLabel:null},
-  {id:'gold_med',type:'gold',value:300,weightTier:[16,20,0],rarityLabel:null},
-  {id:'gold_big',type:'gold',value:750,weightTier:[6,18,14],rarityLabel:null},
-  {id:'gold_huge',type:'gold',value:2000,weightTier:[0,8,18],rarityLabel:null},
+  {id:'gold_small',type:'gold',value:100,weightTier:[24,0,0],rarityLabel:'common'},
+  {id:'gold_med',type:'gold',value:300,weightTier:[16,20,0],rarityLabel:'uncommon'},
+  {id:'gold_big',type:'gold',value:750,weightTier:[6,18,14],rarityLabel:'rare'},
+  {id:'gold_huge',type:'gold',value:2000,weightTier:[0,8,18],rarityLabel:'epic'},
   {id:'gold_jackpot',type:'gold',value:10000,weightTier:[1,3,8],rarityLabel:'legendary'},
 
-  {id:'pxp_small',type:'player_xp',value:40,weightTier:[18,0,0]},
-  {id:'pxp_med',type:'player_xp',value:120,weightTier:[10,16,0]},
-  {id:'pxp_big',type:'player_xp',value:300,weightTier:[2,12,16]},
+  {id:'pxp_small',type:'player_xp',value:40,weightTier:[18,0,0],rarityLabel:'common'},
+  {id:'pxp_med',type:'player_xp',value:120,weightTier:[10,16,0],rarityLabel:'uncommon'},
+  {id:'pxp_big',type:'player_xp',value:300,weightTier:[2,12,16],rarityLabel:'rare'},
 
-  {id:'cxp_small',type:'card_xp',value:60,weightTier:[18,0,0]},
-  {id:'cxp_med',type:'card_xp',value:180,weightTier:[10,16,0]},
-  {id:'cxp_big',type:'card_xp',value:450,weightTier:[2,12,16]},
+  {id:'cxp_small',type:'card_xp',value:60,weightTier:[18,0,0],rarityLabel:'common'},
+  {id:'cxp_med',type:'card_xp',value:180,weightTier:[10,16,0],rarityLabel:'uncommon'},
+  {id:'cxp_big',type:'card_xp',value:450,weightTier:[2,12,16],rarityLabel:'rare'},
 
-  {id:'sp_one',type:'skill_point',value:1,weightTier:[5,10,0]},
-  {id:'sp_two',type:'skill_point',value:2,weightTier:[0,4,12]},
+  {id:'sp_one',type:'skill_point',value:1,weightTier:[5,10,0],rarityLabel:'uncommon'},
+  {id:'sp_two',type:'skill_point',value:2,weightTier:[0,4,12],rarityLabel:'rare'},
 
-  {id:'utility_random',type:'utility',value:1,weightTier:[10,12,10]},
+  {id:'utility_random',type:'utility',value:1,weightTier:[10,12,10],rarityLabel:'uncommon'},
+  {id:'boost_random',type:'boost',weightTier:[8,10,10],rarityLabel:'uncommon'},
 
   {id:'card_common',type:'card',rarity:0,weightTier:[14,0,0],rarityLabel:'common'},
   {id:'card_uncommon',type:'card',rarity:1,weightTier:[10,0,0],rarityLabel:'uncommon'},
@@ -1120,9 +1162,11 @@ const WHEEL_PRIZE_POOL=[
   {id:'card_legendary',type:'card',rarity:4,weightTier:[1,4,16],rarityLabel:'legendary'},
   {id:'card_mythic',type:'card',rarity:5,weightTier:[0,1,6],rarityLabel:'mythic'},
 
-  // Rare cosmetic prizes — wheel-exclusive titles & emojis
+  // Rare cosmetic prizes — wheel-exclusive titles, emojis, card frames & profile banners
   {id:'title_random',type:'title',weightTier:[2,4,6],rarityLabel:'rare'},
   {id:'emoji_random',type:'emoji',weightTier:[3,5,4],rarityLabel:'rare'},
+  {id:'frame_random',type:'frame',weightTier:[2,5,5],rarityLabel:'rare'},
+  {id:'banner_random',type:'banner',weightTier:[1,3,5],rarityLabel:'epic'},
 ];
 
 const WHEEL_SLOT_COUNT=10;
@@ -1188,6 +1232,51 @@ const UTILITY_CARDS=[
   {id:'team_def_10',name:'Iron Banner',icon:'🛡️',desc:'+10% DEF to your whole team for the battle',cost:500,effect:'team_def_pct',value:10,color:'#60a5fa'},
   {id:'first_strike',name:"Scout's Edge",icon:'🎯',desc:'Guarantees you go first regardless of who was challenged',cost:600,effect:'go_first',value:1,color:'#a78bfa'},
 ];
+
+// ── BOOSTS ────────────────────────────────────────────────────────────
+// Temporary player-wide perks, won from the spin wheel and activated from the Items tab.
+// Only one boost can be active at a time. effectType is checked by getActiveBoostMultiplier()
+// at the relevant point in the code (pack cost, pack rarity roll, XP awards).
+const BOOST_CATALOG=[
+  {id:'boost_xp',name:'XP Surge',icon:'⭐',color:'#60a5fa',desc:'+50% player XP from every source',durationMin:15,effectType:'player_xp',magnitude:1.5},
+  {id:'boost_cardxp',name:'Card XP Surge',icon:'🃏',color:'#a78bfa',desc:'+50% card XP from every source',durationMin:15,effectType:'card_xp',magnitude:1.5},
+  {id:'boost_luck',name:'Lucky Charm',icon:'🍀',color:'#4ade80',desc:'Better odds at rare+ cards when opening packs',durationMin:20,effectType:'pack_luck',magnitude:1.6},
+  {id:'boost_discount',name:"Merchant's Favor",icon:'🏷️',color:'#fbbf24',desc:'20% off every pack purchase in the Shop',durationMin:15,effectType:'shop_discount',magnitude:0.8},
+];
+function getBoostDef(id){return BOOST_CATALOG.find(b=>b.id===id);}
+// Returns the active boost's definition if one is running and hasn't expired yet, else null.
+function getActiveBoost(){
+  const ab=currentUser.active_boost;
+  if(!ab||!ab.id||!ab.expiresAt)return null;
+  if(Date.now()>=ab.expiresAt)return null;
+  return getBoostDef(ab.id);
+}
+// The multiplier to apply for a given effect type — 1 (no-op) if no matching boost is active.
+function getActiveBoostMultiplier(effectType){
+  const active=getActiveBoost();
+  return(active&&active.effectType===effectType)?active.magnitude:1;
+}
+// Same idea but scoped to an arbitrary user record (not necessarily currentUser) — needed in
+// awardRewards(), which computes both players' rewards from a single client.
+function boostMultiplierFor(user,effectType){
+  const ab=user&&user.active_boost;
+  if(!ab||!ab.id||!ab.expiresAt||Date.now()>=ab.expiresAt)return 1;
+  const def=getBoostDef(ab.id);
+  return(def&&def.effectType===effectType)?def.magnitude:1;
+}
+async function activateBoost(boostId){
+  const owned={...(currentUser.owned_boosts||{})};
+  if(!(owned[boostId]>0)){showToast("You don't own that boost.");return;}
+  if(getActiveBoost()){showToast('A boost is already active — wait for it to run out first.');return;}
+  const def=getBoostDef(boostId);if(!def)return;
+  owned[boostId]=Math.max(0,owned[boostId]-1);
+  if(owned[boostId]===0)delete owned[boostId];
+  const active_boost={id:boostId,expiresAt:Date.now()+def.durationMin*60000};
+  await sb.from('users').update({owned_boosts:owned,active_boost}).eq('id',currentUser.id);
+  currentUser.owned_boosts=owned;currentUser.active_boost=active_boost;
+  showToast(`${def.icon} ${def.name} activated! Lasts ${def.durationMin} minutes.`);
+  renderItemsTab();
+}
 
 // ── MILESTONES & QUESTS ───────────────────────────────
 const MILESTONES={
@@ -1895,7 +1984,7 @@ function cardTileHTML(c,selectable){
     : `<div class="card-img-placeholder">${classEmoji(c.class_name)}</div>`;
   const incBadge=c.is_income_card?`<div class="income-card-badge">💵</div>`:'';
   const safeUid=btoa(encodeURIComponent(c.uid)).replace(/=/g,'');
-  const frameCls=frameClassForCard(c,currentUser?.owned_frames);
+  const frameCls=frameClassForCard(c,currentUser);
   // Selectable tiles (battle team picker) use a direct onclick toggle — same pattern as the
   // Trade tab's card pitch selector — instead of relying on a delegated click handler.
   const clickAttr=selectable?`onclick="toggleTeam('${c.uid}')"`:`data-safeuid="${safeUid}" data-action="modal" data-openmodal="1"`;
@@ -1928,14 +2017,17 @@ function rollRarity(packType){
   const odds=PACK_ODDS[packType];const r=Math.random();let cum=0;
   let result=odds.findIndex(o=>o>0);
   for(let i=0;i<odds.length;i++){cum+=odds[i];if(r<cum){result=i;break;}}
-  // Lucky Pulls perk: chance to bump the roll up one rarity tier
+  // Lucky Pulls perk + Lucky Charm boost: chance to bump the roll up one rarity tier
   const skills=aggregateSkillBonuses(currentUser?.unlocked_skills||[]);
-  if(skills.pack_luck_pct>0&&result<odds.length-1&&Math.random()<skills.pack_luck_pct/100)result++;
+  const boostLuckMult=getActiveBoostMultiplier('pack_luck');
+  const bumpChance=(skills.pack_luck_pct||0)/100+(boostLuckMult>1?boostLuckMult-1:0);
+  if(bumpChance>0&&result<odds.length-1&&Math.random()<bumpChance)result++;
   return result;
 }
 
 function packCost(pt,sizeIdx){
-  return Math.round(PACK_BASE_COST[pt]*PACK_SIZE_MULT[sizeIdx]);
+  const base=Math.round(PACK_BASE_COST[pt]*PACK_SIZE_MULT[sizeIdx]);
+  return Math.round(base*getActiveBoostMultiplier('shop_discount'));
 }
 
 // ── PACK AUTO-SETTINGS MODAL ────────────────────────────
@@ -2167,6 +2259,9 @@ async function renderItemsTab(){
   const ownedFrames=currentUser.owned_frames||[];
   const ownedBanners=currentUser.owned_banners||[];
   const bonusSkillPts=currentUser.bonus_skill_points||0;
+  const ownedBoosts=currentUser.owned_boosts||{};
+  const ownedBoostIds=Object.keys(ownedBoosts).filter(id=>ownedBoosts[id]>0);
+  const activeBoost=getActiveBoost();
 
   el.innerHTML=`
     <h3 style="margin-bottom:0.5rem;">🎒 Items</h3>
@@ -2228,6 +2323,34 @@ async function renderItemsTab(){
       }).join('')}
     </div>`:`<div class="empty" style="margin-bottom:1.5rem;">No action cards yet — buy some from the Shop!</div>`}
 
+    <h4 style="margin-bottom:10px;">🧪 Boosts</h4>
+    ${activeBoost?`<div class="box" style="margin-bottom:1rem;border-color:${activeBoost.color};box-shadow:0 0 14px ${activeBoost.color}55;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:26px;">${activeBoost.icon}</span>
+        <div>
+          <div style="font-weight:700;font-size:14px;color:${activeBoost.color};">${activeBoost.name} active!</div>
+          <div style="font-size:12px;color:var(--text3);">${activeBoost.desc}</div>
+        </div>
+        <div id="active-boost-countdown" style="margin-left:auto;font-size:16px;font-weight:800;color:${activeBoost.color};" data-expires="${currentUser.active_boost.expiresAt}">--:--</div>
+      </div>
+    </div>`:''}
+    ${ownedBoostIds.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:1.5rem;">
+      ${ownedBoostIds.map(id=>{
+        const b=getBoostDef(id);if(!b)return'';
+        return `<div class="box" style="margin-bottom:0;border-color:${b.color}33;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-size:22px;">${b.icon}</span>
+            <div style="font-weight:700;font-size:13px;">${b.name}</div>
+          </div>
+          <p style="font-size:11px;color:var(--text3);margin-bottom:6px;">${b.desc} · lasts ${b.durationMin} min</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-size:12px;font-weight:700;color:${b.color};">Owned: ${ownedBoosts[id]}</div>
+            <button class="btn btn-sm" ${activeBoost?'disabled':''} onclick="activateBoost('${id}')">${activeBoost?'Busy':'Activate'}</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`:`<div class="empty" style="margin-bottom:1.5rem;">No boosts yet — win them from the Spin Wheel!</div>`}
+
     ${ownedTitles.length||ownedFrames.length||ownedBanners.length?`
     <h4 style="margin-bottom:10px;">🎨 Cosmetics</h4>
     <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:1rem;">
@@ -2253,6 +2376,31 @@ async function renderItemsTab(){
     <p style="font-size:12px;color:var(--text3);">Manage equipped title/banner from <span style="cursor:pointer;color:var(--accent);" onclick="go('profile')">My Profile</span>.</p>
     `:''}
   `;
+  startBoostCountdown();
+}
+
+// Ticks the active-boost countdown once per second while the Items tab is open;
+// auto-refreshes the tab the moment the boost expires so Activate buttons re-enable.
+let _boostCountdownInterval=null;
+function startBoostCountdown(){
+  if(_boostCountdownInterval)clearInterval(_boostCountdownInterval);
+  const el=document.getElementById('active-boost-countdown');
+  if(!el)return;
+  const tick=()=>{
+    const el2=document.getElementById('active-boost-countdown');
+    if(!el2){clearInterval(_boostCountdownInterval);_boostCountdownInterval=null;return;}
+    const expires=parseInt(el2.dataset.expires,10);
+    const remain=expires-Date.now();
+    if(remain<=0){
+      clearInterval(_boostCountdownInterval);_boostCountdownInterval=null;
+      renderItemsTab();
+      return;
+    }
+    const mins=Math.floor(remain/60000),secs=Math.floor((remain%60000)/1000);
+    el2.textContent=`${mins}:${String(secs).padStart(2,'0')}`;
+  };
+  tick();
+  _boostCountdownInterval=setInterval(tick,1000);
 }
 
 async function renderWheelTab(){
@@ -2272,12 +2420,12 @@ async function renderWheelTab(){
     <h3 style="margin-bottom:0.5rem;">🎡 Spin Wheel</h3>
     <p style="font-size:13px;color:var(--text3);margin-bottom:1rem;">Spin daily for free, or use tickets to spin any unlocked wheel. The prize lineup rotates weekly. Tickets are earned from battles, found rarely in card packs, bought in the Shop, or traded with friends.</p>
 
-    <div class="box" style="text-align:center;margin-bottom:1.25rem;${dailyAvailable?'border-color:#facc15;box-shadow:0 0 16px rgba(250,204,21,0.25);':''}">
+    <div class="box" id="daily-spin-box" style="text-align:center;margin-bottom:1.25rem;${dailyAvailable?'border-color:#facc15;box-shadow:0 0 16px rgba(250,204,21,0.25);':''}">
       <div style="font-size:13px;color:var(--text3);margin-bottom:4px;">🗓️ Daily Free Spin</div>
       <div style="font-size:16px;font-weight:700;margin-bottom:8px;">${WHEEL_TIERS[dailyTier].icon} ${WHEEL_TIERS[dailyTier].name}</div>
-      ${dailyAvailable?
+      <div id="daily-spin-action">${dailyAvailable?
         `<button class="btn btn-primary" onclick="spinWheel(${dailyTier},'daily')">Spin Now — Free!</button>`:
-        `<div style="font-size:13px;color:var(--text3);">✅ Already claimed today — come back tomorrow!</div>`}
+        `<div style="font-size:13px;color:var(--text3);">✅ Already claimed today — come back tomorrow!</div>`}</div>
     </div>
 
     <div class="tab-row" id="wheel-tabs" style="margin-bottom:1rem;">
@@ -2285,7 +2433,7 @@ async function renderWheelTab(){
     </div>
 
     <div style="display:flex;justify-content:center;gap:10px;margin-bottom:1rem;flex-wrap:wrap;">
-      <div class="ticket-badge">🎫 ${tierInfo.name} Tickets: <span style="color:${tierInfo.color};">${tickets[ticketKey]||0}</span></div>
+      <div class="ticket-badge">🎫 ${tierInfo.name} Tickets: <span id="ticket-count-val" style="color:${tierInfo.color};">${tickets[ticketKey]||0}</span></div>
     </div>
 
     ${locked?`<div class="box" style="text-align:center;padding:2rem;">
@@ -2434,6 +2582,27 @@ function wheelSlotHTML(prize,tier){
       <div style="font-size:11px;color:var(--text3);">Rare profile avatar</div>
     </div>`;
   }
+  if(prize.type==='frame'){
+    return `<div class="wheel-slot wheel-slot-frame" style="border-color:#f472b6;">
+      <div style="font-size:46px;margin:10px 0;">🖼️</div>
+      <div style="font-size:13px;font-weight:800;color:#f9a8d4;">Mystery Card Frame</div>
+      <div style="font-size:11px;color:var(--text3);">Wheel-exclusive frame</div>
+    </div>`;
+  }
+  if(prize.type==='banner'){
+    return `<div class="wheel-slot wheel-slot-banner" style="border-color:#fb923c;">
+      <div style="font-size:46px;margin:10px 0;">🎌</div>
+      <div style="font-size:13px;font-weight:800;color:#fdba74;">Mystery Banner</div>
+      <div style="font-size:11px;color:var(--text3);">Profile banner</div>
+    </div>`;
+  }
+  if(prize.type==='boost'){
+    return `<div class="wheel-slot wheel-slot-boost" style="border-color:#4ade80;">
+      <div style="font-size:46px;margin:10px 0;">🧪</div>
+      <div style="font-size:13px;font-weight:800;color:#86efac;">Mystery Boost</div>
+      <div style="font-size:11px;color:var(--text3);">Temporary perk — activate in Items</div>
+    </div>`;
+  }
   return `<div class="wheel-slot">${prize.id}</div>`;
 }
 
@@ -2498,6 +2667,7 @@ async function spinWheel(tier,source){
   Object.assign(currentUser,updates);
   updateHUD();
 
+  // Keep a small persistent record under the wheel...
   if(resultBox){
     resultBox.innerHTML=`<div class="box" style="text-align:center;padding:1.5rem;animation:wheelResultPop 0.5s ease;">
       <div style="font-size:13px;color:var(--text3);margin-bottom:8px;">🎉 You won:</div>
@@ -2505,9 +2675,60 @@ async function spinWheel(tier,source){
       ${rewardDesc.extra?`<div style="font-size:13px;color:var(--text2);margin-top:12px;font-weight:600;">${rewardDesc.extra}</div>`:''}
     </div>`;
   }
+  // ...but the real reveal is a centered popup so it's never missed off-screen
+  showWheelWinPopup(won,tier,rewardDesc);
 
   _wheelSpinning=false;
-  if(ticketBtn)ticketBtn.disabled=!((currentUser.spin_tickets||{})[['normal','rare','legendary'][tier]]>0);
+
+  // Patch the ticket count + daily-spin box directly instead of requiring a tab revisit to refresh
+  const ticketKeyNow=['normal','rare','legendary'][tier];
+  const ticketCountEl=document.getElementById('ticket-count-val');
+  if(ticketCountEl)ticketCountEl.textContent=(currentUser.spin_tickets||{})[ticketKeyNow]||0;
+  if(source==='daily'){
+    const dailyAction=document.getElementById('daily-spin-action');
+    if(dailyAction)dailyAction.innerHTML=`<div style="font-size:13px;color:var(--text3);">✅ Already claimed today — come back tomorrow!</div>`;
+  }
+  if(ticketBtn)ticketBtn.disabled=!((currentUser.spin_tickets||{})[ticketKeyNow]>0);
+}
+
+// Rarity-scaled visual weight for the centered wheel-win popup — the rarer the prize,
+// the bigger, longer, and more dramatic the reveal.
+const WHEEL_POPUP_TIERS={
+  common:{scale:1,duration:1800,color:'#9ca3af',dim:0,label:null,confetti:0},
+  uncommon:{scale:1.05,duration:2000,color:'#34d399',dim:0,label:null,confetti:0},
+  rare:{scale:1.15,duration:2400,color:'#60a5fa',dim:0.18,label:'RARE!',confetti:10},
+  epic:{scale:1.3,duration:2800,color:'#a78bfa',dim:0.38,label:'EPIC!',confetti:18},
+  legendary:{scale:1.45,duration:3400,color:'#f59e0b',dim:0.55,label:'LEGENDARY!',confetti:28},
+  mythic:{scale:1.55,duration:3800,color:'#ec4899',dim:0.65,label:'MYTHIC!!',confetti:36},
+};
+
+function showWheelWinPopup(prize,tier,rewardDesc){
+  const rl=prize.rarityLabel||'common';
+  const meta=WHEEL_POPUP_TIERS[rl]||WHEEL_POPUP_TIERS.common;
+  const overlay=document.createElement('div');
+  overlay.style.cssText=`position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,${meta.dim});${meta.dim>0?'backdrop-filter:blur(3px);':''}cursor:pointer;animation:wheelPopupFadeIn 0.25s ease;`;
+  const confettiHTML=Array.from({length:meta.confetti}).map(()=>{
+    const left=Math.random()*100,delay=(Math.random()*0.4).toFixed(2),dur=(1.2+Math.random()*0.8).toFixed(2),emoji=['✨','🎉','⭐','💥','🌟'][Math.floor(Math.random()*5)];
+    return `<div style="position:absolute;left:${left}%;top:-5%;font-size:${Math.round(14+Math.random()*14)}px;animation:wheelConfettiFall ${dur}s ease-in ${delay}s forwards;">${emoji}</div>`;
+  }).join('');
+  overlay.innerHTML=`
+    ${confettiHTML}
+    <div style="text-align:center;--wp-scale:${meta.scale};animation:wheelPopupPop 0.5s cubic-bezier(.2,1.6,.4,1) forwards;">
+      ${meta.label?`<div style="font-size:${20+meta.scale*8}px;font-weight:900;color:${meta.color};text-shadow:0 0 20px ${meta.color};margin-bottom:10px;letter-spacing:2px;">${meta.label}</div>`:''}
+      <div style="font-size:14px;color:#fff;margin-bottom:10px;opacity:0.85;">🎉 You got:</div>
+      <div style="display:flex;justify-content:center;">${wheelSlotHTML(prize,tier)}</div>
+      ${rewardDesc&&rewardDesc.extra?`<div style="font-size:14px;color:#fff;margin-top:14px;font-weight:700;background:rgba(0,0,0,0.4);padding:8px 16px;border-radius:8px;display:inline-block;">${rewardDesc.extra}</div>`:''}
+      <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:16px;">Tap anywhere to dismiss</div>
+    </div>`;
+  overlay.addEventListener('click',()=>dismissWheelPopup(overlay));
+  document.body.appendChild(overlay);
+  overlay._timer=setTimeout(()=>dismissWheelPopup(overlay),meta.duration+1200);
+}
+function dismissWheelPopup(overlay){
+  if(!overlay||!overlay.parentNode)return;
+  clearTimeout(overlay._timer);
+  overlay.style.animation='wheelPopupFadeOut 0.3s ease forwards';
+  setTimeout(()=>overlay.remove(),300);
 }
 
 // Applies a wheel prize to the player and returns {updates, extra} for display
@@ -2583,6 +2804,34 @@ async function applyWheelReward(prize,tier){
     const won=wheelEmojis[Math.floor(Math.random()*wheelEmojis.length)];
     const newOwned=[...owned,won.e];
     return{updates:{owned_emojis:newOwned},extra:`${won.e} Rare emoji unlocked! Pick it from your avatar picker.`};
+  }
+  if(prize.type==='frame'){
+    const owned=currentUser.owned_frames||[];
+    const available=CARD_FRAME_CATALOG.filter(f=>!owned.includes(f.id));
+    if(!available.length){
+      const money=(currentUser.money||0)+500;
+      return{updates:{money},extra:'Already own every card frame — $500 instead!'};
+    }
+    const won=available[Math.floor(Math.random()*available.length)];
+    const newOwned=[...owned,won.id];
+    return{updates:{owned_frames:newOwned},extra:`${won.icon} "${won.name}" unlocked! Equip it from your Profile.`};
+  }
+  if(prize.type==='banner'){
+    const owned=currentUser.owned_banners||[];
+    const available=BANNER_CATALOG.filter(b=>!owned.includes(b.id));
+    if(!available.length){
+      const money=(currentUser.money||0)+750;
+      return{updates:{money},extra:'Already own every profile banner — $750 instead!'};
+    }
+    const won=available[Math.floor(Math.random()*available.length)];
+    const newOwned=[...owned,won.id];
+    return{updates:{owned_banners:newOwned},extra:`🎌 "${won.name}" unlocked! Equip it from your Profile.`};
+  }
+  if(prize.type==='boost'){
+    const won=BOOST_CATALOG[Math.floor(Math.random()*BOOST_CATALOG.length)];
+    const owned={...(currentUser.owned_boosts||{})};
+    owned[won.id]=(owned[won.id]||0)+1;
+    return{updates:{owned_boosts:owned},extra:`${won.icon} ${won.name} added! Activate it from your Items tab.`};
   }
   return{updates:{}};
 }
@@ -2716,8 +2965,16 @@ async function openPack(pt,sizeIdx){
   spin(spinId,true);
   const{data:pool}=await sb.from('pool_cards').select('*');
   if(!pool||!pool.length){spin(spinId,false);showToast('No cards in pool yet!');return;}
+  const ticketTierName=['normal','rare','legendary'][Math.min(2,pt)];
+  let foundTicket=null;
   const drawn=[];
   for(let i=0;i<count;i++){
+    // Rare chance for this slot to be a spin ticket instead of a card
+    if(!foundTicket&&Math.random()<0.02){
+      foundTicket=ticketTierName;
+      drawn.push({isTicket:true,ticketTier:ticketTierName});
+      continue;
+    }
     const rarity=rollRarity(pt);
     const byR=pool.filter(c=>c.rarity===rarity);
     const src=byR.length?byR:pool;
@@ -2738,12 +2995,13 @@ async function openPack(pt,sizeIdx){
       autoAction:matchesAutoMode(t.name,t.rarity)
     });
   }
+  const cardDraws=drawn.filter(c=>!c.isTicket); // ticket slots aren't real cards — exclude from all card-specific handling below
 
   // ── Apply auto-delete / auto-sell / auto-combine to freshly drawn cards ──
-  const toInsert=drawn.filter(c=>!c.autoAction);
-  const soldCards=drawn.filter(c=>c.autoAction==='sell');
-  const deletedCards=drawn.filter(c=>c.autoAction==='delete');
-  const combineCards=drawn.filter(c=>c.autoAction==='combine');
+  const toInsert=cardDraws.filter(c=>!c.autoAction);
+  const soldCards=cardDraws.filter(c=>c.autoAction==='sell');
+  const deletedCards=cardDraws.filter(c=>c.autoAction==='delete');
+  const combineCards=cardDraws.filter(c=>c.autoAction==='combine');
   let sellGain=soldCards.reduce((s,c)=>s+(AUTO_SELL_VALUES[c.rarity]||0),0);
 
   if(combineCards.length){
@@ -2792,11 +3050,6 @@ async function openPack(pt,sizeIdx){
   }
   spin(spinId,false);
   const nm=(currentUser.money||0)-cost+sellGain;
-  // Rare chance per card opened to also find a spin ticket inside the pack
-  let foundTicket=null;
-  for(let i=0;i<count;i++){
-    if(Math.random()<0.02){foundTicket=['normal','rare','legendary'][Math.min(2,pt)];break;}
-  }
   const updates={money:nm};
   if(foundTicket){
     const tickets={...(currentUser.spin_tickets||{})};
@@ -2813,7 +3066,7 @@ async function openPack(pt,sizeIdx){
   if(summaryBits.length)showToast(summaryBits.join(' · '));
   if(foundTicket)showToast(`🎫 You found a ${foundTicket} spin ticket in the pack!`);
   await updateQuestProgress('packs',1);
-  await updateQuestProgress('cards',drawn.length);
+  await updateQuestProgress('cards',cardDraws.length);
 }
 
 // Sequential reveal with rarity-scaled animation
@@ -2824,6 +3077,31 @@ async function revealPackCards(drawn){
   const sorted=[...drawn]; // reveal in draw order
   for(let i=0;i<sorted.length;i++){
     const c=sorted[i];
+    if(c.isTicket){
+      const tierInfo=WHEEL_TIERS[['normal','rare','legendary'].indexOf(c.ticketTier)]||WHEEL_TIERS[0];
+      const slot=document.createElement('div');
+      slot.style.cssText=`position:relative;flex:1;min-width:130px;background:var(--bg3);border:2px solid ${tierInfo.color};border-radius:12px;padding:12px;text-align:center;opacity:0;transform:scale(0.5) rotateY(90deg);transition:all 700ms cubic-bezier(.2,1.4,.4,1);box-shadow:0 0 0px ${tierInfo.color};`;
+      slot.innerHTML=`<div style="font-size:32px;margin-bottom:6px;">❓</div><div style="font-size:11px;color:var(--text3);">...</div>`;
+      row.appendChild(slot);
+      await new Promise(r=>setTimeout(r,80));
+      slot.style.opacity='1';
+      slot.style.transform='scale(1) rotateY(0deg)';
+      slot.style.boxShadow=`0 0 26px ${tierInfo.color}`;
+      await new Promise(r=>setTimeout(r,350));
+      slot.innerHTML=`
+        <div style="font-size:38px;margin-bottom:6px;">🎫</div>
+        <div style="font-size:13px;font-weight:800;color:${tierInfo.color};">${tierInfo.name}</div>
+        <div style="font-size:11px;font-weight:700;color:var(--text2);margin-top:2px;">Spin Ticket!</div>`;
+      for(let s=0;s<4;s++){
+        const sparkle=document.createElement('div');
+        sparkle.textContent='✨';
+        sparkle.style.cssText=`position:absolute;font-size:${Math.round(10+Math.random()*10)}px;pointer-events:none;animation:sparkleFly 900ms ease-out forwards;left:${50+Math.random()*40-20}%;top:50%;`;
+        slot.appendChild(sparkle);
+        setTimeout(()=>sparkle.remove(),900);
+      }
+      await new Promise(r=>setTimeout(r,200));
+      continue;
+    }
     const fx=RARITY_FX[c.rarity]||RARITY_FX[0];
     const col=classColor(c.class_name);
     const slot=document.createElement('div');
@@ -4327,11 +4605,14 @@ async function awardRewards(state,battle){
   const loseF=winner===battle.player1?state.fighters2:state.fighters1;
   const used=[...new Set([...(state.usedUids||[]),...winF.map(f=>f.uid),...loseF.map(f=>f.uid)])];
 
+  const{data:wuFresh}=await sb.from('users').select('*').eq('id',winner).single();
+  const{data:luFresh}=await sb.from('users').select('*').eq('id',loser).single();
+
   const cardResultsWinner=[],cardResultsLoser=[]; // per-player slices so BOTH clients can animate their own cards
   for(const uid of used){
     const{data:c}=await sb.from('player_cards').select('*').eq('uid',uid).single();if(!c)continue;
     const onWin=!!winF.find(f=>f.uid===uid);const survFighter=winF.find(f=>f.uid===uid);const surv=onWin&&survFighter&&!survFighter.defeated;
-    let xp=onWin?30:10;if(surv)xp+=20;xp=Math.round(xp*RARITY_XP_MULT[c.rarity]);
+    let xp=onWin?30:10;if(surv)xp+=20;xp=Math.round(xp*RARITY_XP_MULT[c.rarity]*boostMultiplierFor(onWin?wuFresh:luFresh,'card_xp'));
     let{xp:cx,level,atk,def,max_hp,unlocked_moves}={...c,unlocked_moves:c.unlocked_moves||[]};
     const beforeXp=cx,beforeLevel=level,xpNeededAtStart=xpForCard(level);
     cx+=xp;
@@ -4345,15 +4626,13 @@ async function awardRewards(state,battle){
     if(onWin)cardResultsWinner.push(entry);else cardResultsLoser.push(entry);
   }
 
-  const{data:wuFresh}=await sb.from('users').select('*').eq('id',winner).single();
-  const{data:luFresh}=await sb.from('users').select('*').eq('id',loser).single();
   const wu=wuFresh||allUsers.find(u=>u.id===winner);const lu=luFresh||allUsers.find(u=>u.id===loser);
   const wSkills=aggregateSkillBonuses(wu?.unlocked_skills||[]);
   const lSkills=aggregateSkillBonuses(lu?.unlocked_skills||[]);
   const winMoney=Math.round(150*(1+wSkills.win_money_pct/100));
-  const winXp=Math.round(80*(1+wSkills.player_xp_pct/100));
+  const winXp=Math.round(80*(1+wSkills.player_xp_pct/100)*boostMultiplierFor(wu,'player_xp'));
   const loseMoney=50;
-  const loseXp=Math.round(20*(1+lSkills.player_xp_pct/100));
+  const loseXp=Math.round(20*(1+lSkills.player_xp_pct/100)*boostMultiplierFor(lu,'player_xp'));
   let wpx=(wu?.player_xp||0)+winXp;let wlv=wu?.level||1;while(wpx>=xpForPlayer(wlv)){wpx-=xpForPlayer(wlv);wlv++;}
   let lpx=(lu?.player_xp||0)+loseXp;let llv=lu?.level||1;while(lpx>=xpForPlayer(llv)){lpx-=xpForPlayer(llv);llv++;}
 
@@ -6402,9 +6681,10 @@ function customizeBoxHTML(u){
       </div>
     </div>`:''}
     ${ownedFrames.length?`<div style="margin-bottom:14px;">
-      <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">Card Frames (auto-applies to matching element cards)</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">Card Frames — element frames auto-apply; equip one below to override on every card</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
-        ${ownedFrames.map(id=>{const f=getFrameDef(id);if(!f)return'';return `<div style="padding:6px 12px;border-radius:8px;border:1px solid var(--border);font-size:12px;background:var(--bg3);">${f.icon} ${f.name}</div>`;}).join('')}
+        <div onclick="equipCosmetic('frame',null)" style="cursor:pointer;padding:6px 12px;border-radius:8px;border:2px solid ${!u.equipped_frame?'var(--accent)':'var(--border)'};font-size:12px;background:var(--bg3);">None (auto)</div>
+        ${ownedFrames.map(id=>{const f=getFrameDef(id);if(!f)return'';return `<div onclick="equipCosmetic('frame','${id}')" class="${f.cls}" style="cursor:pointer;padding:6px 12px;border-radius:8px;border:2px solid ${u.equipped_frame===id?'#fff':'var(--border)'};font-size:12px;background:var(--bg3);">${f.icon} ${f.name}</div>`;}).join('')}
       </div>
     </div>`:''}
     ${ownedBanners.length?`<div>
@@ -6418,7 +6698,7 @@ function customizeBoxHTML(u){
 }
 
 async function equipCosmetic(kind,id){
-  const field=kind==='title'?'equipped_title':kind==='banner'?'equipped_banner':null;
+  const field=kind==='title'?'equipped_title':kind==='banner'?'equipped_banner':kind==='frame'?'equipped_frame':null;
   if(!field)return;
   const{error}=await sb.from('users').update({[field]:id}).eq('id',currentUser.id);
   if(error){showToast('Error saving');return;}
