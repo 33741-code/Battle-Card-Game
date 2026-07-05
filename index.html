@@ -4230,17 +4230,20 @@ function showBattleIntro(battle){
   const isP1=battle.player1===currentUser.id;
   const myName=isP1?battle.player1:battle.player2;
   const oppName=isP1?battle.player2:battle.player1;
+  const oppUser=allUsers.find(u=>u.id===oppName);
+  const myAvatar=displayAvatar(currentUser);
+  const oppAvatar=displayAvatar(oppUser);
   const overlay=document.createElement('div');
   overlay.className='battle-intro-overlay';
   overlay.innerHTML=`
     <div class="battle-intro-vs">
       <div class="battle-intro-side left">
-        <div style="font-size:40px;">🟢</div>
+        <div style="font-size:40px;">${myAvatar}</div>
         <div style="font-size:16px;font-weight:700;color:#93c5fd;margin-top:4px;">${myName}</div>
       </div>
       <div class="battle-intro-vstext">VS</div>
       <div class="battle-intro-side right">
-        <div style="font-size:40px;">🔴</div>
+        <div style="font-size:40px;">${oppAvatar}</div>
         <div style="font-size:16px;font-weight:700;color:#fca5a5;margin-top:4px;">${oppName}</div>
       </div>
     </div>
@@ -7018,20 +7021,30 @@ async function declineFriendRequest(reqId){
 // tier 4 Legendary: unlocked by total completed-quest milestones (border: gold, RARITY_COLORS[4])
 const EMOJI_TIER_NAMES=['Common','Uncommon','Rare','Epic','Legendary'];
 const EMOJI_CATALOG=[
-  // Common — 10 emojis, everyone has these from level 1
-  {e:'🧑',tier:0},{e:'👤',tier:0},{e:'😎',tier:0},{e:'🤠',tier:0},{e:'🥷',tier:0},
-  {e:'🤖',tier:0},{e:'👻',tier:0},{e:'💀',tier:0},{e:'👽',tier:0},{e:'🦊',tier:0},
+  // Common — everyone has these from level 1 (a big, varied starter set)
+  {e:'🧑',tier:0},{e:'👤',tier:0},{e:'😀',tier:0},{e:'😃',tier:0},{e:'😄',tier:0},{e:'😁',tier:0},
+  {e:'😆',tier:0},{e:'🙂',tier:0},{e:'😉',tier:0},{e:'😊',tier:0},{e:'😇',tier:0},{e:'🙃',tier:0},
+  {e:'😋',tier:0},{e:'😛',tier:0},{e:'😜',tier:0},{e:'🤪',tier:0},{e:'🤨',tier:0},{e:'🧐',tier:0},
+  {e:'🤓',tier:0},{e:'😎',tier:0},{e:'🥳',tier:0},{e:'🤠',tier:0},{e:'🥷',tier:0},{e:'🤖',tier:0},
+  {e:'👻',tier:0},{e:'💀',tier:0},{e:'👽',tier:0},{e:'🦊',tier:0},{e:'🐶',tier:0},{e:'🐱',tier:0},
+  {e:'🐭',tier:0},{e:'🐹',tier:0},{e:'🐰',tier:0},{e:'🐻',tier:0},{e:'🐼',tier:0},{e:'🐨',tier:0},
   // Uncommon — unlock progressively with player level
   {e:'🧙',tier:1,levelReq:5},{e:'🧛',tier:1,levelReq:10},{e:'🧟',tier:1,levelReq:15},
   {e:'🧜',tier:1,levelReq:20},{e:'🧝',tier:1,levelReq:25},{e:'🧞',tier:1,levelReq:30},
-  {e:'🧚',tier:1,levelReq:35},{e:'🦸',tier:1,levelReq:40},{e:'🦹',tier:1,levelReq:45},{e:'🐺',tier:1,levelReq:50},
+  {e:'🧚',tier:1,levelReq:35},{e:'🦸',tier:1,levelReq:40},{e:'🦹',tier:1,levelReq:45},
+  {e:'🐺',tier:1,levelReq:50},{e:'🦄',tier:1,levelReq:55},{e:'🧌',tier:1,levelReq:60},
+  {e:'🥸',tier:1,levelReq:65},{e:'🤡',tier:1,levelReq:70},{e:'🧑‍🚀',tier:1,levelReq:75},{e:'🧑‍🎤',tier:1,levelReq:80},
   // Rare — spin wheel exclusive
   {e:'🐲',tier:2},{e:'🦁',tier:2},{e:'🦅',tier:2},{e:'🐙',tier:2},
   {e:'🌊',tier:2},{e:'🌪️',tier:2},{e:'☀️',tier:2},{e:'🌀',tier:2},
+  {e:'🦂',tier:2},{e:'🦈',tier:2},{e:'🐉',tier:2},{e:'⚡',tier:2},
+  {e:'🔥',tier:2},{e:'❄️',tier:2},{e:'🌙',tier:2},{e:'🌟',tier:2},
   // Epic — rare drop after winning a battle
   {e:'💎',tier:3},{e:'🔮',tier:3},{e:'🎯',tier:3},{e:'🏹',tier:3},{e:'🗡️',tier:3},{e:'🔱',tier:3},
+  {e:'🏆',tier:3},{e:'🎖️',tier:3},{e:'💠',tier:3},{e:'🌌',tier:3},{e:'🧿',tier:3},{e:'🪄',tier:3},
   // Legendary — unlocked by total completed quests
-  {e:'👑',tier:4,questReq:10},{e:'⚔️',tier:4,questReq:25},{e:'🛡️',tier:4,questReq:50},{e:'✨',tier:4,questReq:100},
+  {e:'👑',tier:4,questReq:10},{e:'⚔️',tier:4,questReq:25},{e:'🛡️',tier:4,questReq:50},{e:'✨',tier:4,questReq:75},
+  {e:'🏅',tier:4,questReq:100},{e:'🌠',tier:4,questReq:150},{e:'💫',tier:4,questReq:200},{e:'⚜️',tier:4,questReq:250},
 ];
 const EMOJI_WIN_DROP_CHANCE=0.03; // 3% chance per battle win to unlock a random locked Epic emoji
 
