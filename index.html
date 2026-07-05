@@ -1510,6 +1510,33 @@ function showXpGain(source,gold,xp,newLevel){
 })();
 function spin(id,on){const el=document.getElementById(id);if(el)el.style.display=on?'inline-block':'none';}
 function xpForCard(lv){return Math.round(50*Math.pow(lv,1.2));}
+
+// Grants `amount` XP to every one of a player's cards, properly rolling any XP that crosses
+// a level threshold into level-ups (with stat scaling and move unlocks) rather than just
+// piling raw XP into the xp column where it can never trigger a level-up on its own.
+async function grantCardXpToAll(ownerId,amount){
+  const{data:cards}=await sb.from('player_cards').select('*').eq('owner',ownerId).eq('is_income_card',false);
+  if(!cards||!cards.length)return{count:0,leveledCount:0};
+  let leveledCount=0;
+  await Promise.all(cards.map(async c=>{
+    let{xp,level,atk,def,max_hp,unlocked_moves}={...c,unlocked_moves:c.unlocked_moves||[]};
+    xp+=amount;
+    let leveledUp=false;
+    while(xp>=xpForCard(level)){
+      xp-=xpForCard(level);level++;leveledUp=true;
+      atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);
+      def=Math.round(def*RARITY_STAT_MULT[c.rarity]);
+      max_hp=Math.round((max_hp||c.hp||100)*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
+      if(c.pool_card_id){
+        const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',c.pool_card_id).single();
+        if(pc&&pc.moves)pc.moves.forEach(m=>{if(m.unlock_level===level&&!unlocked_moves.includes(m.name))unlocked_moves.push(m.name);});
+      }
+    }
+    if(leveledUp)leveledCount++;
+    await sb.from('player_cards').update({xp,level,atk,def,max_hp,unlocked_moves}).eq('uid',c.uid);
+  }));
+  return{count:cards.length,leveledCount};
+}
 function xpForPlayer(lv){return lv*200;}
 function rand(min,max){return Math.floor(Math.random()*(max-min+1))+min;}
 function getTypeMult(a,d){return(TYPE_CHART[a]&&TYPE_CHART[a][d])||1;}
@@ -1687,6 +1714,7 @@ async function globalNotificationCheck(silent){
   const onBattleTab=document.getElementById('screen-battle')?.classList.contains('active');
   await fetchIncomingChallenges(silent||onBattleTab);
   await checkMyQueueMatched(silent||onBattleTab);
+  await checkMyJoinedQueueActive(silent||onBattleTab);
   // Avoid double-toasting friend requests while already on the Profile tab
   const onProfileTab=document.getElementById('screen-profile')?.classList.contains('active');
   await checkFriendRequests(silent||onProfileTab);
@@ -1753,7 +1781,16 @@ async function enterApp(){
   const today=new Date().toISOString().slice(0,10);
   const lastLogin=currentUser.last_login?String(currentUser.last_login).slice(0,10):'';
   document.getElementById('daily-reward-btn-wrap').style.display=lastLogin!==today?'block':'none';
-  updateHUD();await loadUsers();go('mycards');
+  updateHUD();await loadUsers();
+  // One-time fix for card XP that piled up in the xp column without ever rolling into levels
+  // (a past bug affecting wheel/event card-XP rewards) — safe to run once per account.
+  if(!currentUser.card_xp_rollup_done){
+    const{leveledCount}=await grantCardXpToAll(currentUser.id,0);
+    await sb.from('users').update({card_xp_rollup_done:true}).eq('id',currentUser.id);
+    currentUser.card_xp_rollup_done=true;
+    if(leveledCount>0)showToast(`🃏 Fixed piled-up card XP — ${leveledCount} card(s) leveled up!`);
+  }
+  go('mycards');
   startGlobalNotifications();
 }
 
@@ -2853,11 +2890,8 @@ async function applyWheelReward(prize,tier){
     return{updates:{player_xp,level},extra:leveledUp?`🎉 Leveled up to ${level}!`:null};
   }
   if(prize.type==='card_xp'){
-    const{data:cards}=await sb.from('player_cards').select('uid,xp').eq('owner',currentUser.id).eq('is_income_card',false);
-    if(cards&&cards.length){
-      await Promise.all(cards.map(c=>sb.from('player_cards').update({xp:(c.xp||0)+prize.value}).eq('uid',c.uid)));
-    }
-    return{updates:{},extra:`Applied to ${cards?cards.length:0} card(s)`};
+    const{count,leveledCount}=await grantCardXpToAll(currentUser.id,prize.value);
+    return{updates:{},extra:`Applied to ${count} card(s)${leveledCount?` — ${leveledCount} leveled up!`:''}`};
   }
   if(prize.type==='skill_point'){
     const bonus=(currentUser.bonus_skill_points||0)+prize.value;
@@ -3558,15 +3592,16 @@ async function renderBattleLobby(){
   }
 
   // If I still have an unmatched open queue out there, show the waiting screen
+  // (unless I've chosen to browse the normal menu while it stays active in the background)
   const{data:myOpenQueue}=await sb.from('live_battles').select('*').eq('player1',currentUser.id).eq('status','open_queue').order('created_at',{ascending:false}).limit(1);
-  if(myOpenQueue&&myOpenQueue.length){
+  if(myOpenQueue&&myOpenQueue.length&&!_browsingWhileHosting){
     renderWaitingForQueueJoin(myOpenQueue[0]);
     return;
   }
 
   // If I joined someone else's queue and I'm waiting on the host to pick their team
   const{data:myJoinedQueue}=await sb.from('live_battles').select('*').eq('player2',currentUser.id).eq('status','queue_matched').order('created_at',{ascending:false}).limit(1);
-  if(myJoinedQueue&&myJoinedQueue.length){
+  if(myJoinedQueue&&myJoinedQueue.length&&!_browsingWhileJoined){
     renderWaitingForHost(myJoinedQueue[0]);
     return;
   }
@@ -3932,7 +3967,14 @@ async function confirmAccept(){
 let _pendingJoinQueueBattleId=null;
 let _pendingQueueHostBattleId=null;
 
+// Lets a player dismiss the "waiting for a match" screen and browse the normal Battle tab
+// while their queue/join stays active in the background — reset whenever a fresh wait begins.
+let _browsingWhileHosting=false;
+let _browsingWhileJoined=false;
+
 async function createBattleQueue(){
+  const{data:already}=await sb.from('live_battles').select('id').eq('player1',currentUser.id).eq('status','open_queue').limit(1);
+  if(already&&already.length){showToast('You already have an open queue — delete it first to make a new one.');return;}
   const size=parseInt(document.getElementById('create-queue-select').value);
   const bid=`q-${Date.now()}-${currentUser.id}`;
   const{error}=await sb.from('live_battles').insert({
@@ -3942,11 +3984,13 @@ async function createBattleQueue(){
   });
   if(error){showToast('Error creating queue: '+error.message);return;}
   showToast('Queue created! Waiting for someone to join...');
+  _browsingWhileHosting=false;
   renderBattleLobby();
 }
 
 async function deleteBattleQueue(battleId){
   if(incomingPoll){clearInterval(incomingPoll);incomingPoll=null;}
+  _browsingWhileHosting=false;
   await sb.from('live_battles').delete().eq('id',battleId).eq('player1',currentUser.id);
   showToast('Queue deleted.');
   renderBattleLobby();
@@ -3955,6 +3999,7 @@ async function deleteBattleQueue(battleId){
 // A player backing out after joining someone else's queue — reopens the host's queue rather than deleting it
 async function leaveJoinedQueue(battleId){
   if(incomingPoll){clearInterval(incomingPoll);incomingPoll=null;}
+  _browsingWhileJoined=false;
   await sb.from('live_battles').update({player2:'',team2:[],util2:null,status:'open_queue'}).eq('id',battleId).eq('player2',currentUser.id);
   showToast('Left the queue.');
   renderBattleLobby();
@@ -4025,6 +4070,7 @@ async function confirmJoinQueue(){
   if(selectedUtilityCard)await consumeUtilityCard(selectedUtilityCard);
   showToast(`Joined ${b.player1}'s queue! Waiting for them to pick their team...`);
   selectedTeam=[];_pendingJoinQueueBattleId=null;selectedUtilityCard=null;
+  _browsingWhileJoined=false;_lastJoinedActiveId=null;
   renderWaitingForHost(updated);
 }
 
@@ -4036,8 +4082,11 @@ function renderWaitingForQueueJoin(battle){
     <div class="box" style="text-align:center;padding:2.5rem 1.5rem;">
       <div class="spinner" style="width:28px;height:28px;border-width:3px;margin:0 auto 1rem;"></div>
       <h3 style="margin-bottom:8px;">Waiting for someone to join your ${size}v${size} queue...</h3>
-      <p style="font-size:13px;color:var(--text3);margin-bottom:1.5rem;">Your open queue is visible to everyone on the Battle tab. This screen updates automatically once someone joins.</p>
-      <button class="btn btn-sm" style="color:#dc2626;border-color:#7f1d1d;" onclick="deleteBattleQueue('${battle.id}')">✕ Delete Queue</button>
+      <p style="font-size:13px;color:var(--text3);margin-bottom:1.5rem;">Your open queue is visible to everyone on the Battle tab. You'll get a notification the moment someone joins — no need to sit and wait here.</p>
+      <div style="display:flex;gap:8px;justify-content:center;">
+        <button class="btn btn-sm" onclick="browseWhileHosting()">← Back to Battle Menu</button>
+        <button class="btn btn-sm" style="color:#dc2626;border-color:#7f1d1d;" onclick="deleteBattleQueue('${battle.id}')">✕ Delete Queue</button>
+      </div>
     </div>`;
 
   if(incomingPoll)clearInterval(incomingPoll);
@@ -4052,6 +4101,22 @@ function renderWaitingForQueueJoin(battle){
   },3000);
 }
 
+// Dismiss the host waiting screen without cancelling the queue — it keeps polling in the
+// background via the global notification cycle and will still ping/redirect once matched.
+function browseWhileHosting(){
+  if(incomingPoll){clearInterval(incomingPoll);incomingPoll=null;}
+  _browsingWhileHosting=true;
+  renderBattleLobby();
+}
+
+// Dismiss the "waiting for host" screen without leaving the queue — still polls in the
+// background via the global notification cycle and will jump into the battle once it starts.
+function browseWhileJoined(battleId){
+  if(incomingPoll){clearInterval(incomingPoll);incomingPoll=null;}
+  _browsingWhileJoined=true;
+  renderBattleLobby();
+}
+
 function renderWaitingForHost(battle){
   const el=document.getElementById('battle-lobby');
   el.innerHTML=`
@@ -4059,7 +4124,10 @@ function renderWaitingForHost(battle){
       <div class="spinner" style="width:28px;height:28px;border-width:3px;margin:0 auto 1rem;"></div>
       <h3 style="margin-bottom:8px;">Waiting for ${battle.player1} to pick their team...</h3>
       <p style="font-size:13px;color:var(--text3);margin-bottom:1.5rem;">You joined their queue. This screen updates automatically once they're ready.</p>
-      <button class="btn btn-sm" style="color:#dc2626;border-color:#7f1d1d;" onclick="leaveJoinedQueue('${battle.id}')">✕ Leave Queue</button>
+      <div style="display:flex;gap:8px;justify-content:center;">
+        <button class="btn btn-sm" onclick="browseWhileJoined('${battle.id}')">← Back to Battle Menu</button>
+        <button class="btn btn-sm" style="color:#dc2626;border-color:#7f1d1d;" onclick="leaveJoinedQueue('${battle.id}')">✕ Leave Queue</button>
+      </div>
     </div>`;
 
   if(incomingPoll)clearInterval(incomingPoll);
@@ -4079,6 +4147,7 @@ function renderWaitingForHost(battle){
 
 async function showQueueHostPicker(battle){
   _pendingQueueHostBattleId=battle.id;
+  _browsingWhileHosting=false;
   const st=typeof battle.state==='string'?JSON.parse(battle.state):battle.state;
   selectedQueue=st.queue!==undefined?st.queue:1;
   const size=QUEUE_SIZES[selectedQueue];
@@ -4131,6 +4200,22 @@ async function checkMyQueueMatched(silent){
   _lastQueueMatchedIds=new Set(rows.map(r=>r.id));
   _queueMatchedCount=rows.length;
   refreshBattleBadge();
+}
+
+// Notifies a player who joined someone else's queue (and is browsing elsewhere) once the
+// host finalizes their team and the match actually starts.
+let _lastJoinedActiveId=null;
+async function checkMyJoinedQueueActive(silent){
+  if(!_browsingWhileJoined)return; // only relevant while dismissed from the dedicated waiting screen
+  const{data,error}=await sb.from('live_battles').select('*').eq('player2',currentUser.id).eq('status','active').order('created_at',{ascending:false}).limit(1);
+  if(error||!data||!data.length)return;
+  const b=data[0];
+  if(_lastJoinedActiveId===b.id)return;
+  _lastJoinedActiveId=b.id;
+  _browsingWhileJoined=false;
+  if(!silent)showToast(`⚔️ ${b.player1} is ready — battle starting!`);
+  const onBattleTab=document.getElementById('screen-battle')?.classList.contains('active');
+  if(onBattleTab){currentBattle=b;enterBattle(b);}
 }
 
 // ── BATTLE UI ──────────────────────────────────────────
@@ -5800,10 +5885,7 @@ async function claimEventReward(eventId){
   if(reward.type==='gold'){
     updates.money=(currentUser.money||0)+(reward.value||0);
   } else if(reward.type==='card_xp'){
-    const{data:cards}=await sb.from('player_cards').select('uid,xp').eq('owner',currentUser.id).eq('is_income_card',false);
-    if(cards&&cards.length){
-      await Promise.all(cards.map(c=>sb.from('player_cards').update({xp:(c.xp||0)+(reward.value||0)}).eq('uid',c.uid)));
-    }
+    await grantCardXpToAll(currentUser.id,reward.value||0);
   } else if(reward.type==='pack'){
     const{data:pool}=await sb.from('pool_cards').select('*');
     if(pool&&pool.length){
