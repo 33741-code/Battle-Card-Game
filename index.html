@@ -1470,6 +1470,7 @@ const MOVE_FIELDS={
 const QUEUE_SIZES={0:1,1:3,2:5};
 
 let currentUser=null,allUsers=[],battleSub=null,incomingSub=null,incomingPoll=null,currentBattle=null,selectedTeam=[],selectedQueue=1,_lastIncomingCount=0;
+let tradeSessionPoll=null;
 let pendingTargetMode=false,pendingMove=null,pendingFighterUid=null,selectedAttackerUid=null,selectedUtilityCard=null;
 let globalNotifPoll=null,_lastFriendReqCount=0;
 let currentModalCard=null;
@@ -1843,6 +1844,7 @@ async function loadUsers(){
 function go(name){
   // Stop incoming poll if leaving battle tab
   if(name!=='battle'){if(incomingPoll){clearInterval(incomingPoll);incomingPoll=null;}_lastIncomingCount=0;}
+  if(name!=='trade'&&tradeSessionPoll){clearInterval(tradeSessionPoll);tradeSessionPoll=null;}
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
   const mc=document.querySelector('.main-content');if(mc)mc.scrollTop=0;
@@ -3292,6 +3294,7 @@ let _tradeSessionSub=null,_tradePollInterval=null;
 let _tradeMySelected=[],_tradeMyGold=0;
 
 async function renderTrade(){
+  if(tradeSessionPoll){clearInterval(tradeSessionPoll);tradeSessionPoll=null;}
   const el=document.getElementById('trade-content');
   el.innerHTML='<div class="empty">Loading...</div>';
 
@@ -3403,6 +3406,12 @@ async function declineTradeRequest(id){
 }
 
 async function acceptTradeRequest(reqId,senderId){
+  // Guard against ending up in two trade rooms at once (e.g. multiple pending requests)
+  const{data:existingSessions}=await sb.from('trade_sessions').select('id').or(`player1.eq.${currentUser.id},player2.eq.${currentUser.id},player1.eq.${senderId},player2.eq.${senderId}`).eq('status','active');
+  if(existingSessions&&existingSessions.length){
+    showToast('You or this player is already in an active trade room — finish or cancel that one first.');
+    return;
+  }
   // Create a trade session and mark the request accepted
   const{data:session,error}=await sb.from('trade_sessions').insert({
     player1:senderId,player2:currentUser.id,
@@ -3486,6 +3495,34 @@ async function renderTradeSession(session){
         </div>
       </div>
     </div>`;
+
+  // Live-sync the trade room — without this, only the person who just took an action would
+  // ever see the board update, so the other player's adds/removes/confirms would appear frozen.
+  const snapshot=JSON.stringify({cards:session.p1_cards,g1:session.p1_gold,g2:session.p2_gold,c2:session.p2_cards,a1:session.p1_accepted,a2:session.p2_accepted,status:session.status});
+  if(tradeSessionPoll)clearInterval(tradeSessionPoll);
+  tradeSessionPoll=setInterval(async()=>{
+    const{data:updated}=await sb.from('trade_sessions').select('*').eq('id',session.id).single();
+    if(!updated||updated.status==='cancelled'){
+      clearInterval(tradeSessionPoll);tradeSessionPoll=null;
+      showToast('Trade was cancelled.');
+      renderTrade();
+      return;
+    }
+    if(updated.status==='completed'){
+      clearInterval(tradeSessionPoll);tradeSessionPoll=null;
+      showToast('🎉 Trade completed!');
+      await loadUsers();
+      renderTrade();
+      return;
+    }
+    // Don't yank the board out from under someone mid-typing in their gold field
+    if(document.activeElement&&document.activeElement.id==='ts-my-gold')return;
+    const newSnapshot=JSON.stringify({cards:updated.p1_cards,g1:updated.p1_gold,g2:updated.p2_gold,c2:updated.p2_cards,a1:updated.p1_accepted,a2:updated.p2_accepted,status:updated.status});
+    if(newSnapshot!==snapshot){
+      clearInterval(tradeSessionPoll);tradeSessionPoll=null;
+      renderTradeSession(updated);
+    }
+  },2500);
 }
 
 async function getMySession(){
