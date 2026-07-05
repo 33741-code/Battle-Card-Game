@@ -1294,16 +1294,16 @@ async function activateBoost(boostId){
 
 // ── MILESTONES & QUESTS ───────────────────────────────
 const MILESTONES={
-  5: {title:'Rookie',reward:'gold',amount:200,desc:'$200 gold bonus',icon:'💰',color:'#9ca3af'},
-  10:{title:'Warrior',reward:'gold',amount:500,desc:'$500 gold bonus + all cards get 100 XP',icon:'⚔️',color:'#60a5fa',cardXp:100},
-  15:{title:'Champion',reward:'pack',amount:1,desc:'Free Rare Pack',icon:'💎',color:'#34d399',packType:1},
-  20:{title:'Veteran',reward:'gold',amount:1000,desc:'$1,000 gold bonus',icon:'🏆',color:'#f59e0b'},
-  25:{title:'Elite',reward:'title',amount:0,desc:'Unlock "Elite" name title + $500',icon:'🌟',color:'#a78bfa',extraGold:500},
-  30:{title:'Legend',reward:'gold',amount:2000,desc:'$2,000 gold + all cards get 300 XP',icon:'🔥',color:'#f97316',cardXp:300},
-  40:{title:'Mythic',reward:'title',amount:0,desc:'Unlock "Mythic" name title + Free Legendary Pack',icon:'🌀',color:'#ec4899',packType:2,extraGold:0},
-  50:{title:'Ancient',reward:'gold',amount:5000,desc:'$5,000 gold + all cards get 500 XP',icon:'🌑',color:'#8b5cf6',cardXp:500},
-  75:{title:'Celestial',reward:'title',amount:0,desc:'Unlock "Celestial" name title + $10,000 gold',icon:'✨',color:'#c7d2fe',extraGold:10000},
-  100:{title:'Transcendent',reward:'special',amount:0,desc:'Unlock gold name color + $25,000 + all cards get 1000 XP',icon:'👑',color:'#fbbf24',cardXp:1000,extraGold:25000}
+  5: {title:'Rookie',reward:'gold',amount:200,desc:'$200 gold + a spin ticket',icon:'💰',color:'#9ca3af',spinTicket:'normal'},
+  10:{title:'Warrior',reward:'gold',amount:500,desc:'$500 gold + all cards get 100 XP + a skill point',icon:'⚔️',color:'#60a5fa',cardXp:100,skillPoints:1},
+  15:{title:'Champion',reward:'pack',amount:1,desc:'Free Rare Pack + a rare spin ticket',icon:'💎',color:'#34d399',packType:1,spinTicket:'rare'},
+  20:{title:'Veteran',reward:'gold',amount:1000,desc:'$1,000 gold bonus + a skill point + a rare emoji',icon:'🏆',color:'#f59e0b',skillPoints:1,emojiUnlock:true},
+  25:{title:'Elite',reward:'title',amount:0,desc:'Unlock "Elite" name title + $500 + a rare spin ticket',icon:'🌟',color:'#a78bfa',extraGold:500,spinTicket:'rare'},
+  30:{title:'Legend',reward:'gold',amount:2000,desc:'$2,000 gold + all cards get 300 XP + 2 skill points',icon:'🔥',color:'#f97316',cardXp:300,skillPoints:2},
+  40:{title:'Mythic',reward:'title',amount:0,desc:'Unlock "Mythic" name title + Free Legendary Pack + an emoji + a legendary spin ticket',icon:'🌀',color:'#ec4899',packType:2,extraGold:0,emojiUnlock:true,spinTicket:'legendary'},
+  50:{title:'Ancient',reward:'gold',amount:5000,desc:'$5,000 gold + all cards get 500 XP + 2 skill points + a legendary spin ticket',icon:'🌑',color:'#8b5cf6',cardXp:500,skillPoints:2,spinTicket:'legendary'},
+  75:{title:'Celestial',reward:'title',amount:0,desc:'Unlock "Celestial" name title + $10,000 gold + an emoji + 2 skill points',icon:'✨',color:'#c7d2fe',extraGold:10000,emojiUnlock:true,skillPoints:2},
+  100:{title:'Transcendent',reward:'special',amount:0,desc:'Unlock gold name color + $25,000 + all cards get 1000 XP + 3 skill points + an emoji + a legendary spin ticket',icon:'👑',color:'#fbbf24',cardXp:1000,extraGold:25000,skillPoints:3,emojiUnlock:true,spinTicket:'legendary'}
 };
 
 const QUESTS_ACTIVE_COUNT=5;
@@ -1693,7 +1693,7 @@ async function handleDailyLogin(){
   currentUser={...currentUser,money,player_xp,level,last_login:today};
   const leveledUp=level>oldLevel;
   showXpGain(`Daily Login Reward`,reward,pxp,leveledUp?level:null);
-  await checkMilestones(level);
+  await checkMilestones(oldLevel,level);
   await updateQuestProgress('login_streak',1);
   await updateQuestProgress('level',level);
 }
@@ -2882,11 +2882,12 @@ async function applyWheelReward(prize,tier){
     return{updates:{money}};
   }
   if(prize.type==='player_xp'){
+    const oldLevel=currentUser.level||1;
     let player_xp=(currentUser.player_xp||0)+prize.value;
-    let level=currentUser.level||1;
+    let level=oldLevel;
     let leveledUp=false;
     while(player_xp>=xpForPlayer(level)){player_xp-=xpForPlayer(level);level++;leveledUp=true;}
-    if(leveledUp)await checkMilestones(level);
+    if(leveledUp)await checkMilestones(oldLevel,level);
     return{updates:{player_xp,level},extra:leveledUp?`🎉 Leveled up to ${level}!`:null};
   }
   if(prize.type==='card_xp'){
@@ -4902,13 +4903,13 @@ async function awardRewards(state,battle){
   if(currentUser.id===winner){
     myWon=true;myMoneyGain=winMoney;myXpGain=winXp;myNewLevel=wlv;myLeveledUp=wlv>prevWinnerLevel;
     currentUser={...currentUser,money:(currentUser.money||0)+winMoney,player_xp:wpx,level:wlv};
-    await checkMilestones(wlv);
+    await checkMilestones(prevWinnerLevel,wlv);
     await updateQuestProgress('wins',currentUser.wins||0);
     await updateQuestProgress('win_mode',1,selectedQueue);
   } else {
     myWon=false;myMoneyGain=loseMoney;myXpGain=loseXp;myNewLevel=llv;myLeveledUp=llv>prevLoserLevel;
     currentUser={...currentUser,money:Math.max(0,(currentUser.money||0)+loseMoney),player_xp:lpx,level:llv};
-    await checkMilestones(llv);
+    await checkMilestones(prevLoserLevel,llv);
   }
   updateHUD();
   if(ticketWon)showToast(`🎫 Lucky! You earned a ${ticketWon} spin ticket!`);
@@ -6275,30 +6276,49 @@ async function ctxCombine(name,useAll){
 
 
 // ── MILESTONES ────────────────────────────────────────
-async function checkMilestones(level){
-  await updateQuestProgress('level',level);
+async function checkMilestones(oldLevel,newLevel){
+  await updateQuestProgress('level',newLevel);
   const claimed=currentUser.claimed_milestones||[];
-  const newMilestones=Object.keys(MILESTONES).map(Number).filter(lv=>lv<=level&&!claimed.includes(lv));
-  if(!newMilestones.length)return;
-  for(const lv of newMilestones){
-    await claimMilestone(lv);
+  const allLevels=Object.keys(MILESTONES).map(Number).sort((a,b)=>a-b);
+  const newMilestoneLevels=allLevels.filter(lv=>lv<=newLevel&&!claimed.includes(lv));
+  if(newMilestoneLevels.length){
+    for(const lv of newMilestoneLevels){
+      await claimMilestone(lv,allLevels.indexOf(lv));
+    }
+  } else if(oldLevel!=null&&newLevel>oldLevel){
+    // A plain level-up with no milestone attached — still worth a quick toast
+    showToast(`🎉 Level up! You're now level ${newLevel}.`);
   }
 }
 
-async function claimMilestone(lv){
+async function claimMilestone(lv,milestoneIndex){
   const m=MILESTONES[lv];if(!m)return;
   const claimed=[...(currentUser.claimed_milestones||[]),lv];
+  const idx=milestoneIndex!=null?milestoneIndex:Object.keys(MILESTONES).map(Number).sort((a,b)=>a-b).indexOf(lv);
+  // Later milestones scale their rewards up further, on top of already-larger base amounts
+  const scaleMult=1+0.15*Math.max(0,idx);
+
   let money=currentUser.money||0;
   let updates={claimed_milestones:claimed};
+  const rewardLines=[]; // {icon,text} — shown in the milestone popup and used to build the toast
 
-  if(m.reward==='gold')money+=m.amount;
-  if(m.extraGold)money+=m.extraGold;
+  if(m.reward==='gold'){
+    const amt=Math.round(m.amount*scaleMult);
+    money+=amt;
+    rewardLines.push({icon:'💰',text:`+$${amt.toLocaleString()} gold`});
+  }
+  if(m.extraGold){
+    const amt=Math.round(m.extraGold*scaleMult);
+    money+=amt;
+    rewardLines.push({icon:'💰',text:`+$${amt.toLocaleString()} gold`});
+  }
   if(m.reward==='pack'){
-    // Give a free pack open
+    // Later milestones also throw in a couple extra cards with the free pack
+    const packCount=3+Math.floor(idx/3);
     const{data:pool}=await sb.from('pool_cards').select('*');
     if(pool&&pool.length){
       const drawn=[];
-      for(let i=0;i<3;i++){
+      for(let i=0;i<packCount;i++){
         const rarity=rollRarity(m.packType||1);
         const byR=pool.filter(c=>c.rarity===rarity);
         const src=byR.length?byR:pool;
@@ -6307,20 +6327,38 @@ async function claimMilestone(lv){
         drawn.push({uid:`${currentUser.id}-ms${Date.now()}-${i}`,owner:currentUser.id,name:t.name,cat:t.class_name||t.cat||'Warrior',class_name:t.class_name||t.cat||'Warrior',rarity:t.rarity,element:t.element||'neutral',atk:t.atk||10,def:t.def||10,hp:t.hp||100,max_hp:t.hp||100,stamina:t.stamina_start||50,max_stamina:t.stamina_max||100,stamina_regen:t.stamina_regen||25,crit_chance:t.crit_chance||0.1,dodge_chance:t.dodge_chance||0.05,level:1,xp:0,unlocked_moves:startMoves,image_url:t.image_url||null,pool_card_id:t.id,is_income_card:t.is_income_card||false,income_amount:t.income_amount||0,income_interval_hours:t.income_interval_hours||24});
       }
       await sb.from('player_cards').insert(drawn);
+      rewardLines.push({icon:'📦',text:`Free ${PACK_NAMES[m.packType||1]} (${packCount} cards)`});
     }
   }
   if(m.reward==='title'||m.title){
     updates.title=m.title;
     updates.title_color=TITLE_COLORS[m.title]||null;
     updates.title_effect=TITLE_EFFECTS[m.title]||null;
+    rewardLines.push({icon:'🏷️',text:`"${m.title}" title unlocked`});
   }
   if(m.cardXp){
-    const{data:cards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id);
-    for(const c of (cards||[])){
-      let{xp,level,atk,def,max_hp,unlocked_moves}={...c,unlocked_moves:c.unlocked_moves||[]};
-      xp+=m.cardXp;
-      while(xp>=xpForCard(level)){xp-=xpForCard(level);level++;atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);def=Math.round(def*RARITY_STAT_MULT[c.rarity]);max_hp=Math.round((max_hp||c.hp||100)*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));}
-      await sb.from('player_cards').update({xp,level,atk,def,max_hp,unlocked_moves}).eq('uid',c.uid);
+    const amt=Math.round(m.cardXp*scaleMult);
+    const{count,leveledCount}=await grantCardXpToAll(currentUser.id,amt);
+    if(count)rewardLines.push({icon:'🃏',text:`+${amt} XP to every card${leveledCount?` — ${leveledCount} leveled up!`:''}`});
+  }
+  if(m.skillPoints){
+    const pts=Math.max(1,Math.round(m.skillPoints*scaleMult));
+    updates.bonus_skill_points=(currentUser.bonus_skill_points||0)+pts;
+    rewardLines.push({icon:'🌳',text:`+${pts} skill point${pts>1?'s':''}`});
+  }
+  if(m.spinTicket){
+    const tickets={...(currentUser.spin_tickets||{})};
+    tickets[m.spinTicket]=(tickets[m.spinTicket]||0)+1;
+    updates.spin_tickets=tickets;
+    rewardLines.push({icon:'🎫',text:`+1 ${m.spinTicket} spin ticket`});
+  }
+  if(m.emojiUnlock){
+    const owned=currentUser.owned_emojis||[];
+    const locked=EMOJI_CATALOG.filter(d=>(d.tier===2||d.tier===3)&&!owned.includes(d.e));
+    if(locked.length){
+      const won=locked[Math.floor(Math.random()*locked.length)];
+      updates.owned_emojis=[...owned,won.e];
+      rewardLines.push({icon:won.e,text:'New emoji unlocked for your profile'});
     }
   }
 
@@ -6328,23 +6366,34 @@ async function claimMilestone(lv){
   await sb.from('users').update(updates).eq('id',currentUser.id);
   currentUser={...currentUser,...updates};
   updateHUD();
-  showMilestonePopup(lv,m);
+  showMilestonePopup(lv,m,rewardLines);
 }
 
-function showMilestonePopup(lv,m){
+function showMilestonePopup(lv,m,rewardLines){
   const old=document.getElementById('milestone-popup');if(old)old.remove();
-  const div=document.createElement('div');
-  div.id='milestone-popup';
-  div.style.cssText=`position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:500;background:var(--bg2);border:2px solid ${m.color};border-radius:16px;padding:2rem;text-align:center;min-width:280px;max-width:90vw;box-shadow:0 0 40px ${m.color}44;`;
-  div.innerHTML=`
-    <div style="font-size:48px;margin-bottom:12px;">${m.icon}</div>
-    <div style="font-size:11px;color:${m.color};font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Level ${lv} Milestone!</div>
-    <div style="font-size:22px;font-weight:800;color:${m.color};margin-bottom:8px;">${m.title}</div>
-    <div style="font-size:14px;color:var(--text2);margin-bottom:20px;">${m.desc}</div>
-    <button class="btn btn-primary" onclick="document.getElementById('milestone-popup').remove()">Claim! 🎉</button>`;
-  document.body.appendChild(div);
-  // Auto-dismiss after 8 seconds
-  setTimeout(()=>{const el=document.getElementById('milestone-popup');if(el)el.remove();},8000);
+  const overlay=document.createElement('div');
+  overlay.id='milestone-popup';
+  overlay.style.cssText=`position:fixed;inset:0;z-index:6000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);backdrop-filter:blur(3px);cursor:pointer;animation:wheelPopupFadeIn 0.25s ease;`;
+  const confettiHTML=Array.from({length:26}).map(()=>{
+    const left=Math.random()*100,delay=(Math.random()*0.4).toFixed(2),dur=(1.4+Math.random()*1).toFixed(2),emoji=['✨','🎉','⭐','💥','🌟'][Math.floor(Math.random()*5)];
+    return `<div style="position:absolute;left:${left}%;top:-5%;font-size:${Math.round(14+Math.random()*14)}px;animation:wheelConfettiFall ${dur}s ease-in ${delay}s forwards;">${emoji}</div>`;
+  }).join('');
+  overlay.innerHTML=`
+    ${confettiHTML}
+    <div style="text-align:center;background:var(--bg2);border:2px solid ${m.color};border-radius:16px;padding:2rem;min-width:300px;max-width:90vw;box-shadow:0 0 50px ${m.color}66;--wp-scale:1;animation:wheelPopupPop 0.5s cubic-bezier(.2,1.6,.4,1) forwards;" onclick="event.stopPropagation();">
+      <div style="font-size:52px;margin-bottom:10px;">${m.icon}</div>
+      <div style="font-size:11px;color:${m.color};font-weight:800;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:6px;">🎉 Level ${lv} Milestone! 🎉</div>
+      <div style="font-size:24px;font-weight:900;color:${m.color};text-shadow:0 0 16px ${m.color};margin-bottom:16px;">${m.title}</div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px;">
+        ${(rewardLines||[]).map(r=>`<div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.06);padding:7px 14px;border-radius:8px;font-size:14px;font-weight:600;text-align:left;">
+          <span style="font-size:18px;">${r.icon}</span><span>${r.text}</span>
+        </div>`).join('')}
+      </div>
+      <button class="btn btn-primary" onclick="document.getElementById('milestone-popup').remove()">Awesome! 🎉</button>
+    </div>`;
+  overlay.addEventListener('click',()=>overlay.remove());
+  document.body.appendChild(overlay);
+  overlay._timer=setTimeout(()=>{const el=document.getElementById('milestone-popup');if(el)el.remove();},10000);
 }
 
 async function renderMilestonesPanel(){
