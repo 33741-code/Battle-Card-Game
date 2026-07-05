@@ -2838,31 +2838,31 @@ async function spinWheel(tier,source){
 // Rarity-scaled visual weight for the centered wheel-win popup — the rarer the prize,
 // the bigger, longer, and more dramatic the reveal.
 const WHEEL_POPUP_TIERS={
-  common:{scale:1,duration:1800,color:'#9ca3af',dim:0,label:null,confetti:0},
-  uncommon:{scale:1.05,duration:2000,color:'#34d399',dim:0,label:null,confetti:0},
-  rare:{scale:1.15,duration:2400,color:'#60a5fa',dim:0.18,label:'RARE!',confetti:10},
-  epic:{scale:1.3,duration:2800,color:'#a78bfa',dim:0.38,label:'EPIC!',confetti:18},
-  legendary:{scale:1.45,duration:3400,color:'#f59e0b',dim:0.55,label:'LEGENDARY!',confetti:28},
-  mythic:{scale:1.55,duration:3800,color:'#ec4899',dim:0.65,label:'MYTHIC!!',confetti:36},
+  common:{scale:1,duration:1800,color:'#9ca3af',dim:0.45,label:null,confetti:0},
+  uncommon:{scale:1.05,duration:2000,color:'#34d399',dim:0.5,label:null,confetti:0},
+  rare:{scale:1.15,duration:2400,color:'#60a5fa',dim:0.55,label:'RARE!',confetti:10},
+  epic:{scale:1.3,duration:2800,color:'#a78bfa',dim:0.62,label:'EPIC!',confetti:18},
+  legendary:{scale:1.45,duration:3400,color:'#f59e0b',dim:0.7,label:'LEGENDARY!',confetti:28},
+  mythic:{scale:1.55,duration:3800,color:'#ec4899',dim:0.78,label:'MYTHIC!!',confetti:36},
 };
 
 function showWheelWinPopup(prize,tier,rewardDesc){
   const rl=prize.rarityLabel||'common';
   const meta=WHEEL_POPUP_TIERS[rl]||WHEEL_POPUP_TIERS.common;
   const overlay=document.createElement('div');
-  overlay.style.cssText=`position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,${meta.dim});${meta.dim>0?'backdrop-filter:blur(3px);':''}cursor:pointer;animation:wheelPopupFadeIn 0.25s ease;`;
+  overlay.style.cssText=`position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,${meta.dim});backdrop-filter:blur(4px);cursor:pointer;animation:wheelPopupFadeIn 0.25s ease;`;
   const confettiHTML=Array.from({length:meta.confetti}).map(()=>{
     const left=Math.random()*100,delay=(Math.random()*0.4).toFixed(2),dur=(1.2+Math.random()*0.8).toFixed(2),emoji=['✨','🎉','⭐','💥','🌟'][Math.floor(Math.random()*5)];
     return `<div style="position:absolute;left:${left}%;top:-5%;font-size:${Math.round(14+Math.random()*14)}px;animation:wheelConfettiFall ${dur}s ease-in ${delay}s forwards;">${emoji}</div>`;
   }).join('');
   overlay.innerHTML=`
     ${confettiHTML}
-    <div style="text-align:center;--wp-scale:${meta.scale};animation:wheelPopupPop 0.5s cubic-bezier(.2,1.6,.4,1) forwards;">
+    <div style="text-align:center;background:var(--bg2);border:2px solid ${meta.color};border-radius:18px;padding:2rem 1.75rem;width:100%;max-width:320px;box-shadow:0 0 60px ${meta.color}55,0 20px 50px rgba(0,0,0,0.5);--wp-scale:${meta.scale};animation:wheelPopupPop 0.5s cubic-bezier(.2,1.6,.4,1) forwards;">
       ${meta.label?`<div style="font-size:${20+meta.scale*8}px;font-weight:900;color:${meta.color};text-shadow:0 0 20px ${meta.color};margin-bottom:10px;letter-spacing:2px;">${meta.label}</div>`:''}
-      <div style="font-size:14px;color:#fff;margin-bottom:10px;opacity:0.85;">🎉 You got:</div>
-      <div style="display:flex;justify-content:center;">${wheelSlotHTML(prize,tier)}</div>
-      ${rewardDesc&&rewardDesc.extra?`<div style="font-size:14px;color:#fff;margin-top:14px;font-weight:700;background:rgba(0,0,0,0.4);padding:8px 16px;border-radius:8px;display:inline-block;">${rewardDesc.extra}</div>`:''}
-      <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:16px;">Tap anywhere to dismiss</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.1em;font-weight:700;">🎉 You got</div>
+      <div style="display:flex;justify-content:center;margin-bottom:${rewardDesc&&rewardDesc.extra?'16px':'4px'};">${wheelSlotHTML(prize,tier)}</div>
+      ${rewardDesc&&rewardDesc.extra?`<div style="font-size:14px;color:var(--text);font-weight:700;background:var(--bg3);padding:8px 16px;border-radius:8px;">${rewardDesc.extra}</div>`:''}
+      <div style="font-size:11px;color:var(--text3);margin-top:16px;">Tap anywhere to dismiss</div>
     </div>`;
   overlay.addEventListener('click',()=>dismissWheelPopup(overlay));
   document.body.appendChild(overlay);
