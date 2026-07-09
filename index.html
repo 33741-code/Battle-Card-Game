@@ -439,6 +439,7 @@ document.addEventListener("DOMContentLoaded",function(){
     <!-- Vertical sidebar nav -->
     <div class="main-sidebar">
       <button class="active" onclick="go('mycards')">🃏 My Cards</button>
+      <button onclick="go('allcards')">📚 All Cards</button>
       <button onclick="go('packs')">📦 Shop</button>
       <button onclick="go('wheel')">🎡 Spin Wheel</button>
       <button onclick="go('items')">🎒 Items</button>
@@ -481,6 +482,9 @@ document.addEventListener("DOMContentLoaded",function(){
     </div>
     <div id="mycards-grid" class="card-grid"></div>
   </div>
+
+  <!-- ALL CARDS -->
+  <div id="screen-allcards" class="screen"><div id="allcards-content"></div></div>
 
   <!-- SHOP -->
   <div id="screen-packs" class="screen">
@@ -602,6 +606,9 @@ document.addEventListener("DOMContentLoaded",function(){
           <div id="levelup-moves-container"></div>
           <button class="btn btn-sm" onclick="addMoveBlock('levelup-moves-container',5)" style="margin-bottom:16px;">+ Add Level-Up Move</button>
         </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px;cursor:pointer;">
+          <input type="checkbox" id="ac-post-news" checked style="width:auto;"> Post an announcement to News when this card is added
+        </label>
         <button class="btn btn-primary" onclick="addPoolCard()"><span id="pool-spin" class="spinner" style="display:none;"></span>Add Card to Pool</button>
       </div>
     </div>
@@ -1266,7 +1273,48 @@ const UTILITY_CARDS=[
   {id:'team_atk_10',name:'War Horn',icon:'📯',desc:'+10% ATK to your whole team for the battle',cost:500,effect:'team_atk_pct',value:10,color:'#ef4444'},
   {id:'team_def_10',name:'Iron Banner',icon:'🛡️',desc:'+10% DEF to your whole team for the battle',cost:500,effect:'team_def_pct',value:10,color:'#60a5fa'},
   {id:'first_strike',name:"Scout's Edge",icon:'🎯',desc:'Guarantees you go first regardless of who was challenged',cost:600,effect:'go_first',value:1,color:'#a78bfa'},
+  {id:'team_atk_20',name:'Battle Cry',icon:'📢',desc:'+20% ATK to your whole team for the battle',cost:900,effect:'team_atk_pct',value:20,color:'#dc2626'},
+  {id:'team_def_20',name:'Fortress Stance',icon:'🏰',desc:'+20% DEF to your whole team for the battle',cost:900,effect:'team_def_pct',value:20,color:'#3b82f6'},
+  {id:'team_stamina_75',name:'Adrenaline Rush',icon:'💉',desc:'+75% stamina to your whole team at battle start',cost:1100,effect:'team_stamina_pct',value:75,color:'#fb923c'},
+  {id:'team_heal_50',name:'Emergency Surgery',icon:'🩺',desc:'Heal your whole team for 50% max HP at battle start',cost:1200,effect:'team_heal_pct',value:50,color:'#16a34a'},
+  {id:'team_crit_10',name:'Precision Training',icon:'🎯',desc:'+10% crit chance to your whole team for the battle',cost:750,effect:'team_crit_pct',value:10,color:'#eab308'},
+  {id:'team_dodge_10',name:'Evasive Maneuvers',icon:'💨',desc:'+10% dodge chance to your whole team for the battle',cost:750,effect:'team_dodge_pct',value:10,color:'#38bdf8'},
+  {id:'team_shield_20',name:'Guardian Ward',icon:'🔰',desc:"Shields your whole team's next hit for 20% reduced damage",cost:850,effect:'team_shield_pct',value:20,color:'#a3e635'},
 ];
+const UTILITY_SHOP_SLOT_COUNT=3;
+
+// Deterministic "day number" shared by everyone — same seed all day, changes at local midnight.
+function currentDaySeed(){
+  const now=new Date();
+  const jan1=new Date(now.getFullYear(),0,1);
+  const dayOfYear=Math.floor((now-jan1)/86400000);
+  return now.getFullYear()*1000+dayOfYear;
+}
+// Today's rotating pick of action cards available to purchase in the Shop.
+function dailyShopUtilityCards(){
+  const rng=seededRandom(currentDaySeed());
+  const pool=[...UTILITY_CARDS];
+  const picked=[];
+  const count=Math.min(UTILITY_SHOP_SLOT_COUNT,pool.length);
+  for(let i=0;i<count;i++){
+    const idx=Math.floor(rng()*pool.length);
+    picked.push(pool.splice(idx,1)[0]);
+  }
+  return picked;
+}
+// Renders an action card at the same footprint as a real game card (.card-tile) so it looks
+// consistent wherever it shows up — Shop, Items, and the battle team picker.
+function utilityCardTileHTML(u,opts){
+  opts=opts||{};
+  const clickAttr=opts.onclick?`onclick="${opts.onclick}"`:'';
+  const idAttr=opts.id?`id="${opts.id}"`:'';
+  return `<div ${idAttr} class="card-tile" style="${opts.onclick?'cursor:pointer;':'cursor:default;'}border-color:${u.color}55;${opts.selected?`box-shadow:0 0 0 2px ${u.color};`:''}" ${clickAttr}>
+    <div class="card-img-placeholder" style="background:${u.color}22;font-size:30px;">${u.icon}</div>
+    <div style="font-size:13px;font-weight:700;margin-bottom:3px;">${u.name}</div>
+    <div style="font-size:10px;color:var(--text3);margin-bottom:6px;line-height:1.35;min-height:26px;">${u.desc}</div>
+    ${opts.footer||''}
+  </div>`;
+}
 
 // ── BOOSTS ────────────────────────────────────────────────────────────
 // Temporary player-wide perks, won from the spin wheel and activated from the Items tab.
@@ -1492,6 +1540,7 @@ const QUEUE_SIZES={0:1,1:3,2:5};
 
 let currentUser=null,allUsers=[],battleSub=null,incomingSub=null,incomingPoll=null,currentBattle=null,selectedTeam=[],selectedQueue=1,_lastIncomingCount=0;
 let tradeSessionPoll=null;
+let _tradeActionBusy=false;
 let pendingTargetMode=false,pendingMove=null,pendingFighterUid=null,selectedAttackerUid=null,selectedUtilityCard=null;
 let globalNotifPoll=null,_lastFriendReqCount=0;
 let currentModalCard=null;
@@ -1896,9 +1945,10 @@ function go(name){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
   const mc=document.querySelector('.main-content');if(mc)mc.scrollTop=0;
-  const names=['mycards','packs','wheel','items','battle','trade','training','quests','skills','leaderboard','news','events','feedback','players','profile','admin'];
+  const names=['mycards','allcards','packs','wheel','items','battle','trade','training','quests','skills','leaderboard','news','events','feedback','players','profile','admin'];
   document.querySelectorAll('.main-sidebar button').forEach((b,i)=>b.classList.toggle('active',names[i]===name));
   if(name==='mycards')renderMyCards();
+  if(name==='allcards')renderAllCards();
   if(name==='packs')renderPacks();
   if(name==='wheel')renderWheelTab();
   if(name==='items')renderItemsTab();
@@ -2206,6 +2256,30 @@ function poolTileHTML(c){
   </div>`;
 }
 
+async function renderAllCards(){
+  const el=document.getElementById('allcards-content');
+  if(!el)return;
+  el.innerHTML='<div class="empty">Loading...</div>';
+  const{data:pool,error}=await sb.from('pool_cards').select('*');
+  if(error){el.innerHTML='<div class="empty">Error loading cards.</div>';return;}
+  if(!pool||!pool.length){el.innerHTML='<div class="empty">No cards in the game yet.</div>';return;}
+  const poolScore=c=>(c.atk||0)+(c.def||0)+(c.hp||0);
+  const byRarity=RARITIES.map(()=>[]);
+  pool.forEach(c=>{if(byRarity[c.rarity])byRarity[c.rarity].push(c);});
+  el.innerHTML=`
+    <h3 style="margin-bottom:4px;">📚 All Cards</h3>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:1.25rem;">Every card in the game, grouped by rarity from worst to best. ${pool.length} total.</p>
+    ${RARITIES.map((rname,r)=>{
+      const cards=byRarity[r].sort((a,b)=>poolScore(a)-poolScore(b));
+      if(!cards.length)return'';
+      return `<div style="margin-bottom:1.75rem;">
+        <h4 style="color:${RARITY_COLORS[r]};margin-bottom:8px;">${rname} <span style="color:var(--text3);font-weight:400;">(${cards.length})</span></h4>
+        <div class="card-grid">${cards.map(c=>poolTileHTML(c)).join('')}</div>
+      </div>`;
+    }).join('')}
+  `;
+}
+
 // ── PACKS / SHOP ───────────────────────────────────────
 function rollRarity(packType){
   const odds=PACK_ODDS[packType];const r=Math.random();let cum=0;
@@ -2503,17 +2577,10 @@ async function renderItemsTab(){
     </div>
 
     <h4 style="margin-bottom:10px;">⚡ Action Cards</h4>
-    ${ownedUtilityIds.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:1.5rem;">
+    ${ownedUtilityIds.length?`<div class="card-grid">
       ${ownedUtilityIds.map(id=>{
         const u=UTILITY_CARDS.find(x=>x.id===id);if(!u)return'';
-        return `<div class="box" style="margin-bottom:0;border-color:${u.color}33;">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-            <span style="font-size:22px;">${u.icon}</span>
-            <div style="font-weight:700;font-size:13px;">${u.name}</div>
-          </div>
-          <p style="font-size:11px;color:var(--text3);margin-bottom:6px;">${u.desc}</p>
-          <div style="font-size:12px;font-weight:700;color:${u.color};">Owned: ${myUtility[id]}</div>
-        </div>`;
+        return utilityCardTileHTML(u,{footer:`<div style="font-size:12px;font-weight:700;color:${u.color};">Owned: ${myUtility[id]}</div>`});
       }).join('')}
     </div>`:`<div class="empty" style="margin-bottom:1.5rem;">No action cards yet — buy some from the Shop!</div>`}
 
@@ -3086,21 +3153,13 @@ async function renderPacks(){
     </div>
 
     <h4 style="margin-bottom:10px;">⚡ Action Cards</h4>
-    <p style="font-size:12px;color:var(--text3);margin-bottom:10px;">One-time use effects. Apply them right before starting a battle from the Battle tab.</p>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">
-      ${UTILITY_CARDS.map(u=>{
+    <p style="font-size:12px;color:var(--text3);margin-bottom:10px;">One-time use effects. Apply them right before starting a battle from the Battle tab. 3 rotate into the shop every day.</p>
+    <div class="card-grid">
+      ${dailyShopUtilityCards().map(u=>{
         const owned=myUtility[u.id]||0;
-        return `<div class="box" style="margin-bottom:0;border-color:${u.color}33;">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-            <span style="font-size:22px;">${u.icon}</span>
-            <div style="font-weight:700;font-size:13px;">${u.name}</div>
-          </div>
-          <p style="font-size:11px;color:var(--text3);margin-bottom:10px;min-height:28px;">${u.desc}</p>
-          <div style="display:flex;align-items:center;justify-content:space-between;">
-            <span style="font-size:11px;color:var(--text3);">${owned>0?`Owned: ${owned}`:''}</span>
-            <button class="btn btn-sm" style="border-color:${u.color};color:${u.color};" onclick="buyUtilityCard('${u.id}')">Buy — $${u.cost.toLocaleString()}</button>
-          </div>
-        </div>`;
+        return utilityCardTileHTML(u,{footer:`
+          <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">${owned>0?`Owned: ${owned}`:'&nbsp;'}</div>
+          <button class="btn btn-sm" style="border-color:${u.color};color:${u.color};width:100%;" onclick="buyUtilityCard('${u.id}')">Buy — $${u.cost.toLocaleString()}</button>`});
       }).join('')}
     </div>`;
 }
@@ -3124,6 +3183,7 @@ async function buyTicket(tier){
 async function buyUtilityCard(id){
   const u=UTILITY_CARDS.find(x=>x.id===id);
   if(!u)return;
+  if(!dailyShopUtilityCards().some(x=>x.id===id)){showToast("That action card isn't in today's rotation anymore.");renderPacks();return;}
   if((currentUser.money||0)<u.cost){showToast(`Need $${u.cost.toLocaleString()}`);return;}
   const nm=(currentUser.money||0)-u.cost;
   const myUtility={...(currentUser.utility_cards||{})};
@@ -3347,8 +3407,13 @@ async function renderTrade(){
   el.innerHTML='<div class="empty">Loading...</div>';
 
   // Is there an active trade session involving me?
-  const{data:activeSessions}=await sb.from('trade_sessions').select('*').or(`player1.eq.${currentUser.id},player2.eq.${currentUser.id}`).eq('status','active');
+  const{data:activeSessions}=await sb.from('trade_sessions').select('*').or(`player1.eq.${currentUser.id},player2.eq.${currentUser.id}`).in('status',['active','finalizing']);
   if(activeSessions&&activeSessions.length){
+    if(activeSessions[0].status==='finalizing'){
+      el.innerHTML='<div class="empty">Finalizing trade...</div>';
+      setTimeout(renderTrade,500);
+      return;
+    }
     renderTradeSession(activeSessions[0]);
     return;
   }
@@ -3455,7 +3520,7 @@ async function declineTradeRequest(id){
 
 async function acceptTradeRequest(reqId,senderId){
   // Guard against ending up in two trade rooms at once (e.g. multiple pending requests)
-  const{data:existingSessions}=await sb.from('trade_sessions').select('id').or(`player1.eq.${currentUser.id},player2.eq.${currentUser.id},player1.eq.${senderId},player2.eq.${senderId}`).eq('status','active');
+  const{data:existingSessions}=await sb.from('trade_sessions').select('id').or(`player1.eq.${currentUser.id},player2.eq.${currentUser.id},player1.eq.${senderId},player2.eq.${senderId}`).in('status',['active','finalizing']);
   if(existingSessions&&existingSessions.length){
     showToast('You or this player is already in an active trade room — finish or cancel that one first.');
     return;
@@ -3505,7 +3570,7 @@ async function renderTradeSession(session){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
       <!-- MY SIDE -->
       <div class="box" style="margin-bottom:0;${myAccepted?'border-color:#16a34a;box-shadow:0 0 14px rgba(22,163,74,0.3);':''}">
-        <h4 style="margin-bottom:8px;">🟢 Your Offer ${myAccepted?'<span style="color:#4ade80;font-size:12px;">✅ Confirmed</span>':''}</h4>
+        <h4 style="margin-bottom:8px;">🟢 Your Offer ${myAccepted?'<span style="color:#4ade80;font-size:12px;">✅ Confirmed</span>':'<span style="color:var(--text3);font-size:12px;">⏳ Not confirmed</span>'}</h4>
         <div class="field" style="margin-bottom:10px;">
           <label>Gold</label>
           <input type="number" id="ts-my-gold" value="${myGold}" min="0" max="${currentUser.money||0}" onchange="updateMyTradeOffer(${session.id})">
@@ -3563,6 +3628,15 @@ async function renderTradeSession(session){
       renderTrade();
       return;
     }
+    // Safety net: if both sides ended up accepted (e.g. both players confirmed at nearly the
+    // same instant) but neither client's own check caught it, finalize it here instead of
+    // leaving the trade stuck forever. finalizeTradeSession's atomic claim keeps this safe
+    // even if multiple clients try it around the same time.
+    if(updated.status==='active'&&updated.p1_accepted&&updated.p2_accepted){
+      clearInterval(tradeSessionPoll);tradeSessionPoll=null;
+      await finalizeTradeSession(updated);
+      return;
+    }
     // Don't yank the board out from under someone mid-typing in their gold field
     if(document.activeElement&&document.activeElement.id==='ts-my-gold')return;
     const newSnapshot=JSON.stringify({cards:updated.p1_cards,g1:updated.p1_gold,g2:updated.p2_gold,c2:updated.p2_cards,a1:updated.p1_accepted,a2:updated.p2_accepted,status:updated.status});
@@ -3579,55 +3653,77 @@ async function getMySession(){
 }
 
 async function addMyTradeCard(sessionId,uid){
-  const{data:session}=await sb.from('trade_sessions').select('*').eq('id',sessionId).single();
-  if(!session)return;
-  const isP1=session.player1===currentUser.id;
-  const key=(isP1?'p1':'p2')+'_cards';
-  const cards=[...(session[key]||[])];
-  if(!cards.includes(uid))cards.push(uid);
-  await sb.from('trade_sessions').update({[key]:cards,p1_accepted:false,p2_accepted:false}).eq('id',sessionId);
-  renderTrade();
+  if(_tradeActionBusy){showToast('Still saving your last change — one sec.');return;}
+  _tradeActionBusy=true;
+  try{
+    const{data:session}=await sb.from('trade_sessions').select('*').eq('id',sessionId).single();
+    if(!session)return;
+    const isP1=session.player1===currentUser.id;
+    const key=(isP1?'p1':'p2')+'_cards';
+    const cards=[...(session[key]||[])];
+    if(!cards.includes(uid))cards.push(uid);
+    await sb.from('trade_sessions').update({[key]:cards,p1_accepted:false,p2_accepted:false}).eq('id',sessionId);
+    await renderTrade();
+  } finally { _tradeActionBusy=false; }
 }
 
 async function removeMyTradeCard(sessionId,uid){
-  const{data:session}=await sb.from('trade_sessions').select('*').eq('id',sessionId).single();
-  if(!session)return;
-  const isP1=session.player1===currentUser.id;
-  const key=(isP1?'p1':'p2')+'_cards';
-  const cards=(session[key]||[]).filter(u=>u!==uid);
-  await sb.from('trade_sessions').update({[key]:cards,p1_accepted:false,p2_accepted:false}).eq('id',sessionId);
-  renderTrade();
+  if(_tradeActionBusy){showToast('Still saving your last change — one sec.');return;}
+  _tradeActionBusy=true;
+  try{
+    const{data:session}=await sb.from('trade_sessions').select('*').eq('id',sessionId).single();
+    if(!session)return;
+    const isP1=session.player1===currentUser.id;
+    const key=(isP1?'p1':'p2')+'_cards';
+    const cards=(session[key]||[]).filter(u=>u!==uid);
+    await sb.from('trade_sessions').update({[key]:cards,p1_accepted:false,p2_accepted:false}).eq('id',sessionId);
+    await renderTrade();
+  } finally { _tradeActionBusy=false; }
 }
 
 async function updateMyTradeOffer(sessionId){
-  const goldInput=document.getElementById('ts-my-gold');
-  const gold=Math.max(0,Math.min(currentUser.money||0,parseInt(goldInput.value)||0));
-  const{data:session}=await sb.from('trade_sessions').select('*').eq('id',sessionId).single();
-  if(!session)return;
-  const isP1=session.player1===currentUser.id;
-  const key=(isP1?'p1':'p2')+'_gold';
-  await sb.from('trade_sessions').update({[key]:gold,p1_accepted:false,p2_accepted:false}).eq('id',sessionId);
-  renderTrade();
+  if(_tradeActionBusy){showToast('Still saving your last change — one sec.');return;}
+  _tradeActionBusy=true;
+  try{
+    const goldInput=document.getElementById('ts-my-gold');
+    const gold=Math.max(0,Math.min(currentUser.money||0,parseInt(goldInput.value)||0));
+    const{data:session}=await sb.from('trade_sessions').select('*').eq('id',sessionId).single();
+    if(!session)return;
+    const isP1=session.player1===currentUser.id;
+    const key=(isP1?'p1':'p2')+'_gold';
+    await sb.from('trade_sessions').update({[key]:gold,p1_accepted:false,p2_accepted:false}).eq('id',sessionId);
+    await renderTrade();
+  } finally { _tradeActionBusy=false; }
 }
 
 async function toggleMyTradeAccept(sessionId,currentlyAccepted){
-  const{data:session}=await sb.from('trade_sessions').select('*').eq('id',sessionId).single();
-  if(!session)return;
-  const isP1=session.player1===currentUser.id;
-  const key=(isP1?'p1':'p2')+'_accepted';
-  const newVal=!currentlyAccepted;
-  await sb.from('trade_sessions').update({[key]:newVal}).eq('id',sessionId);
+  if(_tradeActionBusy){showToast('Still saving your last change — one sec.');return;}
+  _tradeActionBusy=true;
+  try{
+    const{data:session}=await sb.from('trade_sessions').select('*').eq('id',sessionId).single();
+    if(!session)return;
+    const isP1=session.player1===currentUser.id;
+    const key=(isP1?'p1':'p2')+'_accepted';
+    const newVal=!currentlyAccepted;
+    await sb.from('trade_sessions').update({[key]:newVal}).eq('id',sessionId);
 
-  // Re-fetch to check if both sides are now accepted
-  const{data:updated}=await sb.from('trade_sessions').select('*').eq('id',sessionId).single();
-  if(updated&&updated.p1_accepted&&updated.p2_accepted){
-    await finalizeTradeSession(updated);
-  } else {
-    renderTrade();
-  }
+    // Re-fetch to check if both sides are now accepted
+    const{data:updated}=await sb.from('trade_sessions').select('*').eq('id',sessionId).single();
+    if(updated&&updated.status==='active'&&updated.p1_accepted&&updated.p2_accepted){
+      await finalizeTradeSession(updated);
+    } else {
+      await renderTrade();
+    }
+  } finally { _tradeActionBusy=false; }
 }
 
 async function finalizeTradeSession(session){
+  // Atomically claim this session first — if both players confirm at nearly the same instant,
+  // only whichever client wins this conditional update actually performs the transfer, so the
+  // trade can never be double-processed.
+  const{data:claimed}=await sb.from('trade_sessions').update({status:'finalizing'}).eq('id',session.id).eq('status','active').select();
+  if(!claimed||!claimed.length)return;
+
   // Transfer cards
   for(const uid of (session.p1_cards||[])){await sb.from('player_cards').update({owner:session.player2}).eq('uid',uid);}
   for(const uid of (session.p2_cards||[])){await sb.from('player_cards').update({owner:session.player1}).eq('uid',uid);}
@@ -3658,6 +3754,10 @@ async function renderBattleLobby(){
   document.getElementById('battle-active').style.display='none';
   document.getElementById('battle-lobby').style.display='block';
   selectedTeam=[];
+  // Grab any profile-initiated challenge prefill now, so it can't linger and misfire later if
+  // we end up on one of the other battle-state screens below instead of the normal lobby.
+  const prefillOpponent=_prefillChallengeOpponent;
+  _prefillChallengeOpponent=null;
   // Only auto-enter active battles (not waiting ones — those show as incoming challenges)
   const{data:existing}=await sb.from('live_battles').select('*').or(`player1.eq.${currentUser.id},player2.eq.${currentUser.id}`).eq('status','active').order('created_at',{ascending:false}).limit(1);
   // Don't rejoin if it was abandoned
@@ -3666,6 +3766,7 @@ async function renderBattleLobby(){
   // If I'm waiting on someone to accept a challenge I sent, show a dedicated waiting screen
   const{data:myWaiting}=await sb.from('live_battles').select('*').eq('player1',currentUser.id).eq('status','waiting').order('created_at',{ascending:false}).limit(1);
   if(myWaiting&&myWaiting.length){
+    if(prefillOpponent)showToast("You already have a challenge pending — finish that one first.");
     renderWaitingForAccept(myWaiting[0]);
     return;
   }
@@ -3681,6 +3782,7 @@ async function renderBattleLobby(){
   // (unless I've chosen to browse the normal menu while it stays active in the background)
   const{data:myOpenQueue}=await sb.from('live_battles').select('*').eq('player1',currentUser.id).eq('status','open_queue').order('created_at',{ascending:false}).limit(1);
   if(myOpenQueue&&myOpenQueue.length&&!_browsingWhileHosting){
+    if(prefillOpponent)showToast("You already have an open queue — finish that one first.");
     renderWaitingForQueueJoin(myOpenQueue[0]);
     return;
   }
@@ -3688,6 +3790,7 @@ async function renderBattleLobby(){
   // If I joined someone else's queue and I'm waiting on the host to pick their team
   const{data:myJoinedQueue}=await sb.from('live_battles').select('*').eq('player2',currentUser.id).eq('status','queue_matched').order('created_at',{ascending:false}).limit(1);
   if(myJoinedQueue&&myJoinedQueue.length&&!_browsingWhileJoined){
+    if(prefillOpponent)showToast("You're already waiting in someone else's queue — finish that first.");
     renderWaitingForHost(myJoinedQueue[0]);
     return;
   }
@@ -3745,9 +3848,28 @@ async function renderBattleLobby(){
   loadIncoming();
   renderOpenQueuesList();
 
+  // If we got here via "Challenge to Battle" from someone's profile, pre-select them and jump
+  // straight to the team picker instead of making the player pick from the dropdown again.
+  if(prefillOpponent){
+    const oppSel=document.getElementById('opp-select');
+    if(oppSel&&[...oppSel.options].some(o=>o.value===prefillOpponent)){
+      oppSel.value=prefillOpponent;
+      showTeamPicker();
+    } else {
+      showToast("Couldn't find that player to challenge.");
+    }
+  }
+
   // Poll every 4 seconds for incoming challenges, queue matches, and the open queue list
   if(incomingPoll)clearInterval(incomingPoll);
   incomingPoll=setInterval(()=>{loadIncoming();renderOpenQueuesList();checkMyQueueMatched();}, 4000);
+}
+
+// Set by challengeFromProfile() so the Battle tab knows to pre-select this opponent on next render
+let _prefillChallengeOpponent=null;
+function challengeFromProfile(uid){
+  _prefillChallengeOpponent=uid;
+  go('battle');
 }
 
 function utilityPickerHTML(){
@@ -3756,11 +3878,15 @@ function utilityPickerHTML(){
   if(!ownedIds.length)return '<p style="font-size:12px;color:var(--text3);margin-top:10px;">No action cards owned. Buy some from the Shop!</p>';
   return `<div style="margin-top:10px;">
     <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">⚡ Use an action card this battle (optional):</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <div onclick="pickUtilityCard(null)" id="util-none" style="cursor:pointer;padding:6px 12px;border-radius:8px;border:2px solid ${!selectedUtilityCard?'var(--accent)':'var(--border)'};font-size:12px;background:var(--bg3);">None</div>
+    <div class="card-grid" style="margin-bottom:0;">
+      <div id="util-none" class="card-tile" style="cursor:pointer;${!selectedUtilityCard?'box-shadow:0 0 0 2px var(--accent);':''}" onclick="pickUtilityCard(null)">
+        <div class="card-img-placeholder">🚫</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:3px;">None</div>
+        <div style="font-size:10px;color:var(--text3);min-height:26px;">Skip using an action card</div>
+      </div>
       ${ownedIds.map(id=>{
         const u=UTILITY_CARDS.find(x=>x.id===id);if(!u)return'';
-        return `<div onclick="pickUtilityCard('${id}')" id="util-${id}" style="cursor:pointer;padding:6px 12px;border-radius:8px;border:2px solid ${selectedUtilityCard===id?u.color:'var(--border)'};font-size:12px;background:var(--bg3);">${u.icon} ${u.name} <span style="color:var(--text3);">(${owned[id]})</span></div>`;
+        return utilityCardTileHTML(u,{id:'util-'+id,onclick:`pickUtilityCard('${id}')`,selected:selectedUtilityCard===id,footer:`<div style="font-size:11px;color:var(--text3);">Owned: ${owned[id]}</div>`});
       }).join('')}
     </div>
   </div>`;
@@ -3768,11 +3894,11 @@ function utilityPickerHTML(){
 
 function pickUtilityCard(id){
   selectedUtilityCard=id;
-  document.querySelectorAll('[id^="util-"]').forEach(el=>el.style.borderColor='var(--border)');
+  document.querySelectorAll('[id^="util-"]').forEach(el=>{el.style.boxShadow='';});
   const sel=document.getElementById(id?'util-'+id:'util-none');
   if(sel){
-    if(id){const u=UTILITY_CARDS.find(x=>x.id===id);sel.style.borderColor=u?u.color:'var(--accent)';}
-    else sel.style.borderColor='var(--accent)';
+    const u=id?UTILITY_CARDS.find(x=>x.id===id):null;
+    sel.style.boxShadow=`0 0 0 2px ${u?u.color:'var(--accent)'}`;
   }
 }
 
@@ -3789,6 +3915,12 @@ function applyUtilityEffect(fighters,utilId){
     fighters.forEach(f=>{f.atk=Math.round(f.atk*(1+u.value/100));});
   } else if(u.effect==='team_def_pct'){
     fighters.forEach(f=>{f.def=Math.round(f.def*(1+u.value/100));});
+  } else if(u.effect==='team_crit_pct'){
+    fighters.forEach(f=>{f.crit=Math.min(0.95,(f.crit||0.1)+u.value/100);});
+  } else if(u.effect==='team_dodge_pct'){
+    fighters.forEach(f=>{f.dodge=Math.min(0.95,(f.dodge||0.05)+u.value/100);});
+  } else if(u.effect==='team_shield_pct'){
+    fighters.forEach(f=>{f.shielded=true;f.shieldPct=Math.max(f.shieldPct||0,u.value/100);});
   }
   return u;
 }
@@ -5419,6 +5551,8 @@ async function addPoolCard(){
   const{error}=await sb.from('pool_cards').insert(card);
   spin('pool-spin',false);
   if(error){showToast('Error: '+error.message);console.error(error);return;}
+  const shouldPostNews=document.getElementById('ac-post-news').checked;
+  if(shouldPostNews)await postCardAnnouncementNews(card);
   document.getElementById('ac-name').value='';
   document.getElementById('ac-img-preview').style.display='none';
   document.getElementById('ac-image').value='';
@@ -5429,7 +5563,20 @@ async function addPoolCard(){
     const el=document.getElementById(id);if(el)delete el.dataset.userEdited;
   });
   updateSuggestedStats();
-  showToast(`${name} added to pool!`);
+  showToast(`${name} added to pool!${shouldPostNews?' Announcement posted.':''}`);
+}
+
+// Posts a News announcement showing the new card exactly as it appears on the My Cards page
+// (same card-tile rendering), triggered automatically when a card is added unless unchecked.
+async function postCardAnnouncementNews(card){
+  const title=card.is_income_card?`💵 New Income Card: ${card.name}!`:`🃏 New Card: ${card.name}!`;
+  const body=card.is_income_card
+    ? `A new ${RARITIES[card.rarity]} ${card.class_name} income card has joined the pool, earning $${card.income_amount} every ${card.income_interval_hours}h!`
+    : `A new ${RARITIES[card.rarity]} ${card.class_name} card has joined the pool!`;
+  await sb.from('news').insert({
+    title,body,tag:'new-cards',pinned:false,author:currentUser.id,
+    image_url:card.image_url||null,card_snapshot:card
+  });
 }
 
 // ── ADMIN MANAGEMENT ──────────────────────────────────
@@ -5771,8 +5918,9 @@ async function renderNews(){
       <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:8px;">
         ${pin}<span style="font-size:16px;font-weight:700;">${n.title}</span>${tag}
       </div>
-      ${n.image_url?`<img src="${n.image_url}" style="max-width:100%;height:auto;border-radius:10px;margin-bottom:10px;display:block;">`:''}
+      ${n.image_url&&!n.card_snapshot?`<img src="${n.image_url}" style="max-width:100%;height:auto;border-radius:10px;margin-bottom:10px;display:block;">`:''}
       <p style="font-size:14px;color:var(--text2);line-height:1.7;white-space:pre-wrap;margin-bottom:10px;">${n.body}</p>
+      ${n.card_snapshot?`<div style="max-width:170px;margin-bottom:10px;">${poolTileHTML(n.card_snapshot)}</div>`:''}
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
         <div style="display:flex;gap:6px;">${reactionBtns}</div>
         <div style="font-size:11px;color:var(--text4);">Posted by ${n.author} · ${date}</div>
@@ -6943,8 +7091,9 @@ async function renderProfile(uid){
           </div>
         </div>
         ${!isSelf?`<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+          <button class="btn btn-primary btn-sm" onclick="challengeFromProfile('${uid}')">⚔️ Challenge to Battle</button>
           ${!existingReq?
-            `<button class="btn btn-primary btn-sm" onclick="sendFriendRequest('${uid}')">➕ Friend Request</button>`:
+            `<button class="btn btn-sm" onclick="sendFriendRequest('${uid}')">➕ Friend Request</button>`:
             existingReq.status==='accepted'?
             `<div style="font-size:12px;color:#4ade80;font-weight:600;">✅ Friends</div>`:
             existingReq.from===currentUser.id?
