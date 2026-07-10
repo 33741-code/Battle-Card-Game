@@ -7044,18 +7044,293 @@ async function renderTraining(){
         const cost=trainingCost(c);
         const dur=trainingDuration(c);
         const xp=trainingXpTotal(c);
-        return `<div class="row-item">
+        const spCost=sparCost(c);
+        const spXp=sparXpWin(c);
+        const canSpar=(c.unlocked_moves||[]).length>0;
+        return `<div class="row-item" style="flex-wrap:wrap;gap:8px;">
           <div style="display:flex;align-items:center;gap:10px;">
             ${c.image_url?`<img src="${c.image_url}" style="width:36px;height:36px;object-fit:contain;border-radius:6px;background:var(--bg3);">`:`<span style="font-size:22px;">${classEmoji(c.class_name)}</span>`}
             <div>
               <div style="font-size:14px;font-weight:600;">${c.name} <span style="font-size:11px;color:var(--text3);">Lv${c.level} ${RARITIES[c.rarity]}</span></div>
-              <div style="font-size:12px;color:var(--text3);">+${xp} XP over ${dur}h · Cost: <span style="color:#fbbf24;">$${cost}</span></div>
+              <div style="font-size:12px;color:var(--text3);">🏋️ +${xp} XP over ${dur}h · $${cost} &nbsp;|&nbsp; ⚔️ up to +${spXp} XP instantly · $${spCost}</div>
             </div>
           </div>
-          <button class="btn btn-sm${(currentUser.money||0)<cost?' disabled':''}" onclick="startTraining('${c.uid}',${cost},${xp},${dur})" ${(currentUser.money||0)<cost?'disabled':''}>Train</button>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-sm${canSpar&&(currentUser.money||0)>=spCost?'':' disabled'}" onclick="startSpar('${c.uid}')" ${canSpar&&(currentUser.money||0)>=spCost?'':'disabled'} title="${canSpar?'Fight a training dummy for instant XP':'Card has no usable moves yet'}">⚔️ Spar</button>
+            <button class="btn btn-sm${(currentUser.money||0)<cost?' disabled':''}" onclick="startTraining('${c.uid}',${cost},${xp},${dur})" ${(currentUser.money||0)<cost?'disabled':''}>🏋️ Train</button>
+          </div>
         </div>`;
       }).join(''):`<div class="empty">All cards are training!</div>`}
     </div>`;
+}
+
+// ── SPARRING (instant, interactive training mini-battle vs an AI dummy) ──
+function sparCost(card){return Math.round(trainingCost(card)*0.45);}
+function sparXpWin(card){return Math.round(trainingXpTotal(card)*0.3);}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+// Scales a generic "Training Dummy" opponent off the same rarity table used to seed real
+// cards, ramped a little by the player's card level so sparring stays a real (winnable) fight.
+function buildSparDummy(card){
+  const base=RARITY_SUGGESTED[card.rarity]||RARITY_SUGGESTED[0];
+  const lvlMult=1+Math.max(0,(card.level-1))*0.06;
+  const hp=Math.round(base.hp*lvlMult*0.9);
+  return{uid:'dummy',name:'Training Dummy',class_name:null,atk:Math.round(base.atk*lvlMult*0.85),def:Math.round(base.def*lvlMult*0.85),
+    maxHp:hp,hp,crit:(base.crit||0.1)*0.7,dodge:(base.dodge||0.05)*0.6,stamina:999,maxStamina:999,staminaRegen:999,
+    shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,image_url:null};
+}
+
+// Picks a move for an AI-controlled fighter: prioritizes healing when low, otherwise the
+// strongest affordable damaging move it has unlocked.
+function pickAiMove(fighter,moves){
+  const affordable=moves.filter(m=>fighter.stamina>=(m.stamina_cost||0));
+  if(!affordable.length)return moves.find(m=>(m.stamina_cost||0)===0)||moves[0];
+  if(fighter.hp/fighter.maxHp<0.4){
+    const heal=affordable.find(m=>m.type==='heal');
+    if(heal)return heal;
+  }
+  const damaging=affordable.filter(m=>!['heal','shield','speed','taunt','counter','curse'].includes(m.type));
+  const pool=damaging.length?damaging:affordable;
+  return pool.reduce((best,m)=>((m.value||0)>(best.value||0)?m:best),pool[0]);
+}
+
+// A trimmed, single-target version of the real battle's useMove() damage logic — same
+// formulas and move types, just resolved locally/instantly instead of over Supabase.
+function resolveSparHit(attacker,defender,move,isFirstHit){
+  const log=[],fx=[];
+  attacker.stamina=Math.max(0,attacker.stamina-(move.stamina_cost||0));
+  const crit=Math.random()<(attacker.crit||0.1);
+  let critMult=crit?1.5+Math.random()*0.5:1;
+  if(crit&&attacker.critDmgBonusPct)critMult*=(1+attacker.critDmgBonusPct/100);
+  const firstHitMult=(isFirstHit&&attacker.firstHitBonusPct)?(1+attacker.firstHitBonusPct/100):1;
+
+  if(move.type==='heal'){
+    const h=move.value||30;attacker.hp=Math.min(attacker.maxHp,attacker.hp+h);
+    log.push(`💚 ${attacker.name} used ${move.name} and restored ${h} HP!`);
+    fx.push({uid:attacker.uid,type:'heal',amount:h});
+    return{log,fx};
+  }
+  if(move.type==='shield'){
+    attacker.shielded=true;attacker.shieldPct=(move.value||75)/100;
+    log.push(`🛡️ ${attacker.name} used ${move.name} — shields the next hit!`);
+    return{log,fx};
+  }
+  if(move.type==='speed'){
+    attacker.speedBuff=true;
+    log.push(`💨 ${attacker.name} used ${move.name} — dodge chance doubled next turn!`);
+    return{log,fx};
+  }
+  const dodged=Math.random()<(attacker.speedBuff?(defender.dodge*2):(defender.dodge||0.05));
+  attacker.speedBuff=false;
+  if(dodged){
+    log.push(`💨 ${defender.name} dodged ${attacker.name}'s ${move.name}!`);
+    fx.push({uid:defender.uid,type:'dodge'});
+    return{log,fx};
+  }
+  if(move.type==='dot'){
+    const dpt=Math.max(1,Math.round(((move.value||30)+(attacker.atk*0.15))/3));
+    defender.dot=dpt;defender.dotTurns=move.dot_turns||3;
+    log.push(`🔥 ${attacker.name} used ${move.name}${crit?' 💥 CRIT!':''} — ${defender.name} burns for ${dpt}/turn × ${defender.dotTurns}!`);
+    fx.push({uid:defender.uid,type:'hit',crit,amount:0});
+  } else if(move.type==='multi'){
+    const hits=rand(move.hits_min||2,move.hits_max||3);let tot=0;
+    for(let i=0;i<hits;i++)tot+=Math.max(1,Math.round(((move.value||30)/hits+attacker.atk*0.2-defender.def*0.3)*critMult));
+    if(defender.shielded){const bl=Math.round(tot*defender.shieldPct);tot=Math.max(1,tot-bl);log.push(`🛡️ Shield absorbed ${bl} damage!`);defender.shielded=false;}
+    defender.hp=Math.max(0,defender.hp-tot);
+    log.push(`🌀 ${attacker.name} used ${move.name}${crit?' 💥 CRIT!':''} — ${hits} hits for ${tot} total!`);
+    fx.push({uid:defender.uid,type:'hit',crit,amount:tot});
+  } else if(move.type==='lifesteal'){
+    const dmg=Math.max(1,Math.round((move.value+attacker.atk*0.3-defender.def*0.5)*critMult));
+    const stolen=Math.round(dmg*(move.steal_pct||0.5));
+    if(defender.shielded){const bl=Math.round(dmg*defender.shieldPct);defender.hp=Math.max(0,defender.hp-(dmg-bl));defender.shielded=false;}else defender.hp=Math.max(0,defender.hp-dmg);
+    attacker.hp=Math.min(attacker.maxHp,attacker.hp+stolen);
+    log.push(`🩸 ${attacker.name} used ${move.name}${crit?' 💥 CRIT!':''} — ${dmg} dmg, stole ${stolen} HP!`);
+    fx.push({uid:defender.uid,type:'hit',crit,amount:dmg});
+    if(stolen>0)fx.push({uid:attacker.uid,type:'heal',amount:stolen});
+  } else if(move.type==='execute'){
+    const threshold=(move.execute_threshold||20)/100;
+    const hpPct=defender.hp/defender.maxHp;
+    let dmg=Math.max(1,Math.round((move.value-defender.def*0.5)*critMult));
+    if(hpPct<=threshold){dmg=defender.hp;log.push(`💀 EXECUTE! ${defender.name} is below ${move.execute_threshold||20}% HP!`);}
+    defender.hp=Math.max(0,defender.hp-dmg);
+    log.push(`💀 ${attacker.name} used ${move.name}${crit?' 💥 CRIT!':''} — ${dmg} damage!`);
+    fx.push({uid:defender.uid,type:'hit',crit,amount:dmg});
+  } else {
+    const dmg=Math.max(1,Math.round((move.value+attacker.atk*0.3-defender.def*0.5)*critMult*firstHitMult));
+    let dealt=dmg;
+    if(defender.shielded){const bl=Math.round(dmg*defender.shieldPct);dealt=Math.max(1,dmg-bl);log.push(`🛡️ Shield absorbed ${bl} damage!`);defender.shielded=false;}
+    defender.hp=Math.max(0,defender.hp-dealt);
+    log.push(`${MOVE_ICONS[move.type]||'⚔️'} ${attacker.name} used ${move.name}${crit?' 💥 CRIT!':''} — ${dealt} damage!`);
+    fx.push({uid:defender.uid,type:'hit',crit,amount:dealt});
+  }
+  if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
+  return{log,fx};
+}
+
+let currentSpar=null;
+
+async function startSpar(uid){
+  const{data:c}=await sb.from('player_cards').select('*').eq('uid',uid).single();
+  if(!c){showToast('Card not found');return;}
+  if(!(c.unlocked_moves||[]).length){showToast('This card has no usable moves yet!');return;}
+  const cost=sparCost(c);
+  if((currentUser.money||0)<cost){showToast('Not enough money!');return;}
+  let moves=[];
+  if(c.pool_card_id){
+    const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',c.pool_card_id).single();
+    moves=(pc&&pc.moves)||[];
+  }
+  const availableMoves=moves.filter(m=>(c.unlocked_moves||[]).includes(m.name));
+  if(!availableMoves.length){showToast('This card has no usable moves yet!');return;}
+
+  const newMoney=(currentUser.money||0)-cost;
+  await sb.from('users').update({money:newMoney}).eq('id',currentUser.id);
+  currentUser.money=newMoney;updateHUD();
+
+  const skills=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
+  const maxHp=Math.round((c.max_hp||c.hp)*(1+skills.hp_pct/100));
+  const player={uid:c.uid,name:c.name,class_name:c.class_name,atk:Math.round(c.atk*(1+skills.atk_pct/100)),def:Math.round(c.def*(1+skills.def_pct/100)),
+    maxHp,hp:maxHp,stamina:c.stamina||50,maxStamina:c.max_stamina||100,staminaRegen:c.stamina_regen||25,
+    crit:Math.min(0.95,(c.crit_chance||0.1)+skills.crit_pct/100),dodge:Math.min(0.95,(c.dodge_chance||0.05)+skills.dodge_pct/100),
+    critDmgBonusPct:skills.crit_dmg_pct||0,firstHitBonusPct:skills.first_hit_pct||0,
+    image_url:c.image_url||null,shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,usedFirstHit:false};
+
+  currentSpar={player,dummy:buildSparDummy(c),moves:availableMoves,log:['⚔️ The sparring match begins!'],cardUid:c.uid,ended:false};
+  renderSparModal();
+  runSparLoop();
+}
+
+function applySparFx(fxList){
+  let anyCrit=false,anyBig=false;
+  fxList.forEach(fx=>{
+    if(fx.type==='dodge'){flashCardFx(fx.uid,'fx-dodge',450);showTextPopup(fx.uid,'MISS!','miss-popup');}
+    else if(fx.type==='hit'){
+      if(fx.amount>0)showDmgPopup(fx.uid,fx.amount,false);
+      flashCardFx(fx.uid,fx.crit?'fx-crit':'fx-hit',fx.crit?500:350);
+      if(fx.crit){showTextPopup(fx.uid,'CRIT!','crit-popup');anyCrit=true;}
+      const f=[currentSpar.player,currentSpar.dummy].find(x=>x.uid===fx.uid);
+      if(f&&fx.amount>=f.maxHp*0.25)anyBig=true;
+    } else if(fx.type==='heal'){
+      if(fx.amount>0)showDmgPopup(fx.uid,fx.amount,true);
+      flashCardFx(fx.uid,'fx-heal',600);
+    }
+  });
+  if(anyCrit){screenFlash();shakeSparModal();}
+  else if(anyBig)shakeSparModal();
+}
+function shakeSparModal(){
+  const el=document.getElementById('spar-arena');
+  if(!el)return;
+  el.classList.remove('screen-shake');void el.offsetWidth;el.classList.add('screen-shake');
+  setTimeout(()=>el.classList.remove('screen-shake'),320);
+}
+
+async function runSparLoop(){
+  const s=currentSpar;
+  let turn='player',round=1;
+  while(!s.player.defeated&&!s.dummy.defeated&&round<=30){
+    await sleep(900);
+    [s.player,s.dummy].forEach(f=>{
+      if(f.dot>0&&f.dotTurns>0&&!f.defeated){
+        f.hp=Math.max(0,f.hp-f.dot);
+        s.log.push(`🔥 ${f.name} takes ${f.dot} damage-over-time (${f.dotTurns-1} turns left)`);
+        f.dotTurns--;if(f.dotTurns<=0)f.dot=0;
+        if(f.hp<=0){f.hp=0;f.defeated=true;s.log.push(`💀 ${f.name} was defeated!`);}
+      }
+    });
+    [s.player,s.dummy].forEach(f=>{if(!f.defeated)f.stamina=Math.min(f.maxStamina,(f.stamina||0)+(f.staminaRegen||20));});
+    renderSparModal();
+    if(s.player.defeated||s.dummy.defeated)break;
+
+    if(turn==='player'){
+      const move=pickAiMove(s.player,s.moves);
+      const isFirst=!s.player.usedFirstHit;s.player.usedFirstHit=true;
+      const{log,fx}=resolveSparHit(s.player,s.dummy,move,isFirst);
+      s.log.push(...log);renderSparModal();applySparFx(fx);
+    } else {
+      const dummyMove={name:'Slam',type:'attack',value:s.dummy.atk,stamina_cost:0};
+      const{log,fx}=resolveSparHit(s.dummy,s.player,dummyMove,false);
+      s.log.push(...log);renderSparModal();applySparFx(fx);
+    }
+    if(s.player.defeated||s.dummy.defeated)break;
+    turn=turn==='player'?'dummy':'player';round++;
+  }
+  await sleep(700);
+  finishSpar(!s.player.defeated);
+}
+
+async function finishSpar(win){
+  const s=currentSpar;
+  const{data:c}=await sb.from('player_cards').select('*').eq('uid',s.cardUid).single();
+  if(!c){closeSparModal();return;}
+  const winXp=sparXpWin(c);
+  const baseXp=win?winXp:Math.round(winXp*0.35);
+  const skills=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
+  const bonusXp=Math.round(baseXp*(1+skills.training_xp_pct/100));
+  let xp=(c.xp||0)+bonusXp,level=c.level,atk=c.atk,def=c.def,max_hp=c.max_hp||c.hp;
+  let unlocked_moves=[...(c.unlocked_moves||[])];
+  while(xp>=xpForCard(level)){
+    xp-=xpForCard(level);level++;
+    atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);
+    def=Math.round(def*RARITY_STAT_MULT[c.rarity]);
+    max_hp=Math.round(max_hp*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
+    if(c.pool_card_id){
+      const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',c.pool_card_id).single();
+      if(pc&&pc.moves)pc.moves.forEach(m=>{if(m.unlock_level===level&&!unlocked_moves.includes(m.name))unlocked_moves.push(m.name);});
+    }
+  }
+  await sb.from('player_cards').update({xp,level,atk,def,max_hp,unlocked_moves}).eq('uid',s.cardUid);
+  s.resultWin=win;s.resultXp=bonusXp;s.resultLevel=level;s.resultLeveledUp=level>c.level;s.ended=true;
+  showToast(win?`Victory! +${bonusXp} XP${level>c.level?' — Leveled up!':''}`:`Defeated — +${bonusXp} XP anyway`);
+  renderSparModal();
+}
+
+function renderSparCard(f){
+  const pct=f.maxHp?Math.max(0,Math.round((f.hp/f.maxHp)*100)):0;
+  const barColor=pct>50?'#16a34a':pct>20?'#eab308':'#dc2626';
+  return `<div class="battle-card${f.shielded?' shielded-card':''}${f.defeated?' defeated-card':''}" id="fc-${f.uid}" style="width:150px;">
+    ${f.shielded?'<div class="shield-badge">🛡️</div>':''}
+    ${f.image_url?`<img src="${f.image_url}" class="battle-card-img">`:`<div class="battle-card-img-ph">${f.uid==='dummy'?'🥊':classEmoji(f.class_name)}</div>`}
+    <div style="font-size:13px;font-weight:700;text-align:center;">${f.name}</div>
+    <div class="hp-bar-wrap"><div class="hp-bar" style="width:${pct}%;background:${barColor};"></div></div>
+    <div style="font-size:11px;color:var(--text3);text-align:center;">${f.hp}/${f.maxHp} HP</div>
+  </div>`;
+}
+
+function renderSparModal(){
+  let el=document.getElementById('spar-overlay-wrap');
+  if(!el){el=document.createElement('div');el.id='spar-overlay-wrap';document.body.appendChild(el);}
+  const s=currentSpar;
+  if(!s){el.innerHTML='';return;}
+  el.innerHTML=`<div class="tutorial-overlay">
+    <div class="tutorial-card" style="width:520px;max-width:95vw;">
+      <h3 style="margin-bottom:12px;text-align:center;">⚔️ Sparring Match</h3>
+      <div id="spar-arena" style="display:flex;align-items:flex-start;justify-content:center;gap:14px;margin-bottom:14px;">
+        ${renderSparCard(s.player)}
+        <div style="font-size:18px;font-weight:800;color:var(--text3);padding-top:40px;">VS</div>
+        ${renderSparCard(s.dummy)}
+      </div>
+      <div class="battle-log-box" id="spar-log" style="margin-bottom:14px;">
+        ${s.log.map(l=>`<div class="log-entry">${l}</div>`).join('')}
+      </div>
+      ${s.ended?`
+        <div style="text-align:center;padding:10px;border-radius:var(--radius);background:${s.resultWin?'rgba(22,163,74,0.12)':'rgba(220,38,38,0.12)'};border:1px solid ${s.resultWin?'#16a34a':'#dc2626'};margin-bottom:12px;">
+          <div style="font-size:15px;font-weight:700;color:${s.resultWin?'#16a34a':'#dc2626'};">${s.resultWin?'🏆 Victory!':'💀 Defeat'}</div>
+          <div style="font-size:13px;color:var(--text2);margin-top:4px;">+${s.resultXp} XP${s.resultLeveledUp?' · Leveled up to Lv'+s.resultLevel+'!':''}</div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;" onclick="closeSparModal()">Continue</button>
+      `:`<div style="text-align:center;font-size:12px;color:var(--text3);">Battle in progress...</div>`}
+    </div>
+  </div>`;
+  const logBox=document.getElementById('spar-log');
+  if(logBox)logBox.scrollTop=logBox.scrollHeight;
+}
+
+function closeSparModal(){
+  currentSpar=null;
+  const el=document.getElementById('spar-overlay-wrap');
+  if(el)el.innerHTML='';
+  renderTraining();
 }
 async function startTraining(uid,cost,xp,durHours){
   if((currentUser.money||0)<cost){showToast('Not enough money!');return;}
