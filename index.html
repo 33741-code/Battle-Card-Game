@@ -447,6 +447,7 @@ document.addEventListener("DOMContentLoaded",function(){
       <button onclick="go('battle')">⚔️ Battle</button>
       <button onclick="go('trade')">🤝 Trade</button>
       <button onclick="go('training')">🏋️ Training</button>
+      <button onclick="go('botbattle')">🤖 Bot Battles</button>
       <button onclick="go('quests')">📋 Quests</button>
       <button onclick="go('skills')">🌳 Skill Tree</button>
       <button onclick="go('leaderboard')">🏆 Leaderboard</button>
@@ -507,6 +508,8 @@ document.addEventListener("DOMContentLoaded",function(){
 
   <!-- TRAINING -->
   <div id="screen-training" class="screen"><div id="training-content"></div></div>
+  <!-- BOT BATTLES -->
+  <div id="screen-botbattle" class="screen"><div id="botbattle-content"></div></div>
 
   <!-- LEADERBOARD -->
   <div id="screen-leaderboard" class="screen"><div id="lb-content"></div></div>
@@ -2014,7 +2017,7 @@ function go(name){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
   const mc=document.querySelector('.main-content');if(mc)mc.scrollTop=0;
-  const names=['mycards','allcards','packs','wheel','items','battle','trade','training','quests','skills','leaderboard','news','events','feedback','players','profile','admin'];
+  const names=['mycards','allcards','packs','wheel','items','battle','trade','training','botbattle','quests','skills','leaderboard','news','events','feedback','players','profile','admin'];
   document.querySelectorAll('.main-sidebar button').forEach((b,i)=>b.classList.toggle('active',names[i]===name));
   if(name==='mycards')renderMyCards();
   if(name==='allcards')renderAllCards();
@@ -2024,6 +2027,7 @@ function go(name){
   if(name==='battle')renderBattleLobby();
   if(name==='trade')renderTrade();
   if(name==='training')renderTraining();
+  if(name==='botbattle')renderBotBattle();
   if(name==='quests')renderQuestsTab();
   if(name==='skills')renderSkillTree();
   if(name==='leaderboard')renderLB();
@@ -7332,6 +7336,293 @@ function closeSparModal(){
   if(el)el.innerHTML='';
   renderTraining();
 }
+
+// ── BOT BATTLES (PvE ladder, Level 1 → 50) ──────────────────────────────
+// Bot tiers give the ladder some visual/flavor progression as levels climb.
+const BOT_TIERS=[
+  {max:5,name:'Recruit Bot',emoji:'🤖',color:'#94a3b8'},
+  {max:10,name:'Combat Drone',emoji:'🛰️',color:'#60a5fa'},
+  {max:15,name:'Sentry Unit',emoji:'🗼',color:'#38bdf8'},
+  {max:20,name:'War Machine',emoji:'⚙️',color:'#f59e0b'},
+  {max:25,name:'Siege Bot',emoji:'💣',color:'#fb923c'},
+  {max:30,name:'Cyber Knight',emoji:'🛡️',color:'#a78bfa'},
+  {max:35,name:'Phantom Unit',emoji:'👻',color:'#c084fc'},
+  {max:40,name:'Titan Core',emoji:'🏛️',color:'#f43f5e'},
+  {max:45,name:'Nemesis Prime',emoji:'💀',color:'#dc2626'},
+  {max:50,name:'Omega Unit',emoji:'⚡',color:'#facc15'}
+];
+function botTierFor(level){return BOT_TIERS.find(t=>level<=t.max)||BOT_TIERS[BOT_TIERS.length-1];}
+
+// Stat curve — convex growth so early levels are a gentle ramp and the back half of the
+// ladder (35-50) gets genuinely tough. Tune this if it plays too easy/hard.
+function buildBotFighter(level){
+  const tier=botTierFor(level);
+  const growth=Math.pow(level,1.35);
+  const hp=Math.round(70+growth*15);
+  const atk=Math.round(12+growth*2.8);
+  const def=Math.round(7+growth*1.9);
+  const crit=Math.min(0.4,0.04+level*0.006);
+  const dodge=Math.min(0.35,0.03+level*0.005);
+  const bot={uid:'bot',name:tier.name,tierColor:tier.color,emoji:tier.emoji,
+    atk,def,maxHp:hp,hp,crit,dodge,stamina:999,maxStamina:999,staminaRegen:999,
+    shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,image_url:null};
+  bot.moves=buildBotMoveset(level,bot);
+  return bot;
+}
+// Bots unlock more move variety as the ladder climbs — always has a basic Strike, then
+// gains heavy hits, shields, multi-hit, lifesteal, heals, and execute at higher tiers.
+function buildBotMoveset(level,bot){
+  const moves=[{name:'Strike',type:'attack',value:Math.round(bot.atk*0.9),stamina_cost:0}];
+  if(level>=6)moves.push({name:'Heavy Slam',type:'heavy',value:Math.round(bot.atk*1.3),stamina_cost:0});
+  if(level>=11)moves.push({name:'Guard Plating',type:'shield',value:60,stamina_cost:0});
+  if(level>=16)moves.push({name:'Rapid Fire',type:'multi',value:Math.round(bot.atk*1.2),hits_min:2,hits_max:3,stamina_cost:0});
+  if(level>=21)moves.push({name:'Overload Drain',type:'lifesteal',value:Math.round(bot.atk*1.1),steal_pct:0.4,stamina_cost:0});
+  if(level>=26)moves.push({name:'Repair Protocol',type:'heal',value:Math.round(bot.maxHp*0.18),stamina_cost:0});
+  if(level>=31)moves.push({name:'Termination Beam',type:'execute',execute_threshold:20,value:Math.round(bot.atk*1.1),stamina_cost:0});
+  if(level>=36)moves.push({name:'Barrage',type:'multi',value:Math.round(bot.atk*1.4),hits_min:3,hits_max:5,stamina_cost:0});
+  if(level>=41)moves.push({name:'Overdrive Slam',type:'heavy',value:Math.round(bot.atk*1.6),stamina_cost:0});
+  if(level>=46)moves.push({name:'Annihilate',type:'execute',execute_threshold:30,value:Math.round(bot.atk*1.5),stamina_cost:0});
+  return moves;
+}
+function botRewardMoney(level){return Math.round(60+level*40);}
+function botRewardXp(level){return Math.round(70+level*32);}
+
+let currentBotFight=null;
+let botFightSelectedCardUid=null;
+
+async function renderBotBattle(){
+  const el=document.getElementById('botbattle-content');
+  el.innerHTML='<div class="empty">Loading...</div>';
+  const{data:fresh}=await sb.from('users').select('bot_level').eq('id',currentUser.id).single();
+  const botLevel=(fresh&&fresh.bot_level)||1;
+  currentUser.bot_level=botLevel;
+  botFightSelectedCardUid=null;
+
+  const levels=Array.from({length:50},(_,i)=>i+1);
+  el.innerHTML=`
+    <h3 style="margin-bottom:0.5rem;">🤖 Bot Battles</h3>
+    <p style="font-size:13px;color:var(--text3);margin-bottom:1rem;">Climb the ladder from Level 1 to Level 50. Win the level at the front of the ladder to advance — cleared levels can be replayed anytime for a smaller reward.</p>
+    <div class="box">
+      <h4 style="margin-bottom:8px;">Progress: Level ${botLevel} / 50${botLevel>=50?' — MAX!':''}</h4>
+      <div class="hp-bar-wrap" style="height:8px;margin-bottom:12px;"><div class="hp-bar" style="height:8px;width:${Math.round((Math.min(botLevel,50)-1)/49*100)}%;background:var(--accent);"></div></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        ${levels.map(l=>{
+          const cleared=l<botLevel;
+          const current=l===botLevel;
+          const locked=l>botLevel;
+          const tier=botTierFor(l);
+          return `<button class="btn btn-sm" style="width:42px;padding:6px 2px;font-size:11px;${current?`border-color:${tier.color};box-shadow:0 0 8px ${tier.color}55;font-weight:800;`:''}${locked?'opacity:0.35;cursor:not-allowed;':''}${cleared?`background:${tier.color}22;border-color:${tier.color}55;`:''}" ${locked?'disabled':`onclick="openBotLevelPicker(${l})"`} title="${tier.name} — Lv ${l}">${cleared?'✅':current?tier.emoji:'🔒'}<br>${l}</button>`;
+        }).join('')}
+      </div>
+    </div>
+    <div id="bot-level-picker"></div>
+  `;
+}
+
+async function openBotLevelPicker(level){
+  const box=document.getElementById('bot-level-picker');
+  if(!box)return;
+  box.innerHTML='<div class="empty">Loading fighters...</div>';
+  const{data:cards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
+  const now=Date.now();
+  const usable=(cards||[]).filter(c=>(!c.training_until||now>=new Date(c.training_until).getTime())&&(c.unlocked_moves||[]).length>0);
+  if(!usable.length){box.innerHTML='<div class="empty">No available fighters — cards may be training, or have no moves unlocked yet!</div>';return;}
+  const tier=botTierFor(level);
+  const isFrontier=level===currentUser.bot_level;
+  const rewardMoney=Math.round(botRewardMoney(level)*(isFrontier?1:0.4));
+  const rewardXp=Math.round(botRewardXp(level)*(isFrontier?1:0.4));
+  box.innerHTML=`<div class="box" style="border-color:${tier.color};margin-top:12px;">
+    <h4 style="margin-bottom:4px;">${tier.emoji} ${tier.name} — Level ${level}</h4>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:10px;">${isFrontier?'Win to advance to the next level!':'Already cleared — replay for a reduced reward.'} Reward on win: ~$${rewardMoney} + ${rewardXp} XP.</p>
+    <div class="card-grid" style="grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-bottom:10px;">
+      ${usable.map(c=>`<div class="card-tile${botFightSelectedCardUid===c.uid?' ctx-selected':''}" style="padding:8px;" onclick="botFightSelectedCardUid='${c.uid}';openBotLevelPicker(${level});">
+        ${c.image_url?`<img src="${c.image_url}" style="width:100%;height:56px;object-fit:contain;">`:`<div style="font-size:26px;text-align:center;">${classEmoji(c.class_name)}</div>`}
+        <div style="font-size:11px;font-weight:600;text-align:center;margin-top:4px;">${c.name}</div>
+        <div style="font-size:10px;color:var(--text3);text-align:center;">Lv${c.level} ${RARITIES[c.rarity]}</div>
+      </div>`).join('')}
+    </div>
+    <button class="btn btn-primary" style="width:100%;" ${botFightSelectedCardUid?'':'disabled'} onclick="startBotFight(${level})">⚔️ Fight</button>
+  </div>`;
+}
+
+async function startBotFight(level){
+  if(!botFightSelectedCardUid)return;
+  const{data:c}=await sb.from('player_cards').select('*').eq('uid',botFightSelectedCardUid).single();
+  if(!c){showToast('Card not found');return;}
+  if(!(c.unlocked_moves||[]).length){showToast('This card has no usable moves yet!');return;}
+  let moves=[];
+  if(c.pool_card_id){
+    const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',c.pool_card_id).single();
+    moves=(pc&&pc.moves)||[];
+  }
+  const availableMoves=moves.filter(m=>(c.unlocked_moves||[]).includes(m.name));
+  if(!availableMoves.length){showToast('This card has no usable moves yet!');return;}
+
+  const skills=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
+  const maxHp=Math.round((c.max_hp||c.hp)*(1+skills.hp_pct/100));
+  const player={uid:c.uid,name:c.name,class_name:c.class_name,atk:Math.round(c.atk*(1+skills.atk_pct/100)),def:Math.round(c.def*(1+skills.def_pct/100)),
+    maxHp,hp:maxHp,stamina:c.stamina||50,maxStamina:c.max_stamina||100,staminaRegen:c.stamina_regen||25,
+    crit:Math.min(0.95,(c.crit_chance||0.1)+skills.crit_pct/100),dodge:Math.min(0.95,(c.dodge_chance||0.05)+skills.dodge_pct/100),
+    critDmgBonusPct:skills.crit_dmg_pct||0,firstHitBonusPct:skills.first_hit_pct||0,
+    image_url:c.image_url||null,shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,usedFirstHit:false};
+
+  const bot=buildBotFighter(level);
+  currentBotFight={player,bot,playerMoves:availableMoves,botMoves:bot.moves,level,cardUid:c.uid,
+    log:[`⚔️ ${player.name} steps up to face the ${bot.name} (Lv ${level})!`],ended:false};
+  renderBotFightModal();
+  runBotFightLoop();
+}
+
+function applyBotFightFx(fxList){
+  let anyCrit=false,anyBig=false;
+  fxList.forEach(fx=>{
+    if(fx.type==='dodge'){flashCardFx(fx.uid,'fx-dodge',450);showTextPopup(fx.uid,'MISS!','miss-popup');}
+    else if(fx.type==='hit'){
+      if(fx.amount>0)showDmgPopup(fx.uid,fx.amount,false);
+      flashCardFx(fx.uid,fx.crit?'fx-crit':'fx-hit',fx.crit?500:350);
+      if(fx.crit){showTextPopup(fx.uid,'CRIT!','crit-popup');anyCrit=true;}
+      const f=[currentBotFight.player,currentBotFight.bot].find(x=>x.uid===fx.uid);
+      if(f&&fx.amount>=f.maxHp*0.25)anyBig=true;
+    } else if(fx.type==='heal'){
+      if(fx.amount>0)showDmgPopup(fx.uid,fx.amount,true);
+      flashCardFx(fx.uid,'fx-heal',600);
+    }
+  });
+  if(anyCrit){screenFlash();shakeBotArena();}
+  else if(anyBig)shakeBotArena();
+}
+function shakeBotArena(){
+  const el=document.getElementById('botfight-arena');
+  if(!el)return;
+  el.classList.remove('screen-shake');void el.offsetWidth;el.classList.add('screen-shake');
+  setTimeout(()=>el.classList.remove('screen-shake'),320);
+}
+
+async function runBotFightLoop(){
+  const s=currentBotFight;
+  let turn='player',round=1;
+  while(!s.player.defeated&&!s.bot.defeated&&round<=40){
+    await sleep(900);
+    [s.player,s.bot].forEach(f=>{
+      if(f.dot>0&&f.dotTurns>0&&!f.defeated){
+        f.hp=Math.max(0,f.hp-f.dot);
+        s.log.push(`🔥 ${f.name} takes ${f.dot} damage-over-time (${f.dotTurns-1} turns left)`);
+        f.dotTurns--;if(f.dotTurns<=0)f.dot=0;
+        if(f.hp<=0){f.hp=0;f.defeated=true;s.log.push(`💀 ${f.name} was defeated!`);}
+      }
+    });
+    [s.player,s.bot].forEach(f=>{if(!f.defeated)f.stamina=Math.min(f.maxStamina,(f.stamina||0)+(f.staminaRegen||20));});
+    renderBotFightModal();
+    if(s.player.defeated||s.bot.defeated)break;
+
+    if(turn==='player'){
+      const move=pickAiMove(s.player,s.playerMoves);
+      const isFirst=!s.player.usedFirstHit;s.player.usedFirstHit=true;
+      const{log,fx}=resolveSparHit(s.player,s.bot,move,isFirst);
+      s.log.push(...log);renderBotFightModal();applyBotFightFx(fx);
+    } else {
+      const move=pickAiMove(s.bot,s.botMoves);
+      const{log,fx}=resolveSparHit(s.bot,s.player,move,false);
+      s.log.push(...log);renderBotFightModal();applyBotFightFx(fx);
+    }
+    if(s.player.defeated||s.bot.defeated)break;
+    turn=turn==='player'?'bot':'player';round++;
+  }
+  await sleep(700);
+  finishBotFight(!s.player.defeated);
+}
+
+async function finishBotFight(win){
+  const s=currentBotFight;
+  const{data:c}=await sb.from('player_cards').select('*').eq('uid',s.cardUid).single();
+  if(!c){closeBotFightModal();return;}
+  const isFrontier=s.level===currentUser.bot_level;
+  let leveledUpAccount=false,moneyReward=0,xpReward=0;
+  if(win){
+    const mult=isFrontier?1:0.4;
+    moneyReward=Math.round(botRewardMoney(s.level)*mult);
+    xpReward=Math.round(botRewardXp(s.level)*mult);
+    const newMoney=(currentUser.money||0)+moneyReward;
+    await sb.from('users').update({money:newMoney}).eq('id',currentUser.id);
+    currentUser.money=newMoney;updateHUD();
+
+    if(isFrontier&&s.level<50){
+      const newBotLevel=s.level+1;
+      await sb.from('users').update({bot_level:newBotLevel}).eq('id',currentUser.id);
+      currentUser.bot_level=newBotLevel;leveledUpAccount=true;
+    }
+
+    const skills=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
+    const bonusXp=Math.round(xpReward*(1+skills.training_xp_pct/100));
+    let xp=(c.xp||0)+bonusXp,level=c.level,atk=c.atk,def=c.def,max_hp=c.max_hp||c.hp;
+    let unlocked_moves=[...(c.unlocked_moves||[])];
+    while(xp>=xpForCard(level)){
+      xp-=xpForCard(level);level++;
+      atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);
+      def=Math.round(def*RARITY_STAT_MULT[c.rarity]);
+      max_hp=Math.round(max_hp*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
+      if(c.pool_card_id){
+        const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',c.pool_card_id).single();
+        if(pc&&pc.moves)pc.moves.forEach(m=>{if(m.unlock_level===level&&!unlocked_moves.includes(m.name))unlocked_moves.push(m.name);});
+      }
+    }
+    await sb.from('player_cards').update({xp,level,atk,def,max_hp,unlocked_moves}).eq('uid',s.cardUid);
+    s.resultLevel=level;s.resultLeveledUp=level>c.level;s.resultMoney=moneyReward;s.resultXp=bonusXp;
+  }
+  s.resultWin=win;s.resultAccountLevelUp=leveledUpAccount;s.ended=true;
+  showToast(win?(leveledUpAccount?`Victory! Advanced to Level ${s.level+1}!`:`Victory! +$${moneyReward}, +${xpReward} XP`):'Defeated — no rewards this time.');
+  renderBotFightModal();
+}
+
+function renderBotCard(f){
+  const pct=f.maxHp?Math.max(0,Math.round((f.hp/f.maxHp)*100)):0;
+  const barColor=pct>50?'#16a34a':pct>20?'#eab308':'#dc2626';
+  const isBot=f.uid==='bot';
+  return `<div class="battle-card${f.shielded?' shielded-card':''}${f.defeated?' defeated-card':''}" id="fc-${f.uid}" style="width:150px;${isBot?`border-color:${f.tierColor};`:''}">
+    ${f.shielded?'<div class="shield-badge">🛡️</div>':''}
+    ${isBot?`<div class="battle-card-img-ph" style="font-size:40px;">${f.emoji}</div>`:(f.image_url?`<img src="${f.image_url}" class="battle-card-img">`:`<div class="battle-card-img-ph">${classEmoji(f.class_name)}</div>`)}
+    <div style="font-size:13px;font-weight:700;text-align:center;">${f.name}</div>
+    <div class="hp-bar-wrap"><div class="hp-bar" style="width:${pct}%;background:${barColor};"></div></div>
+    <div style="font-size:11px;color:var(--text3);text-align:center;">${f.hp}/${f.maxHp} HP</div>
+  </div>`;
+}
+
+function renderBotFightModal(){
+  let el=document.getElementById('botfight-overlay-wrap');
+  if(!el){el=document.createElement('div');el.id='botfight-overlay-wrap';document.body.appendChild(el);}
+  const s=currentBotFight;
+  if(!s){el.innerHTML='';return;}
+  el.innerHTML=`<div class="tutorial-overlay">
+    <div class="tutorial-card" style="width:520px;max-width:95vw;">
+      <h3 style="margin-bottom:12px;text-align:center;">🤖 Bot Battle — Level ${s.level}</h3>
+      <div id="botfight-arena" style="display:flex;align-items:flex-start;justify-content:center;gap:14px;margin-bottom:14px;">
+        ${renderBotCard(s.player)}
+        <div style="font-size:18px;font-weight:800;color:var(--text3);padding-top:40px;">VS</div>
+        ${renderBotCard(s.bot)}
+      </div>
+      <div class="battle-log-box" id="botfight-log" style="margin-bottom:14px;">
+        ${s.log.map(l=>`<div class="log-entry">${l}</div>`).join('')}
+      </div>
+      ${s.ended?`
+        <div style="text-align:center;padding:10px;border-radius:var(--radius);background:${s.resultWin?'rgba(22,163,74,0.12)':'rgba(220,38,38,0.12)'};border:1px solid ${s.resultWin?'#16a34a':'#dc2626'};margin-bottom:12px;">
+          <div style="font-size:15px;font-weight:700;color:${s.resultWin?'#16a34a':'#dc2626'};">${s.resultWin?'🏆 Victory!':'💀 Defeat'}</div>
+          <div style="font-size:13px;color:var(--text2);margin-top:4px;">${s.resultWin?`+$${s.resultMoney} · +${s.resultXp} XP${s.resultLeveledUp?' · Card leveled up to Lv'+s.resultLevel+'!':''}${s.resultAccountLevelUp?' · Advanced to Level '+(s.level+1)+'!':''}`:'No rewards this time — try a stronger card!'}</div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;" onclick="closeBotFightModal()">Continue</button>
+      `:`<div style="text-align:center;font-size:12px;color:var(--text3);">Battle in progress...</div>`}
+    </div>
+  </div>`;
+  const logBox=document.getElementById('botfight-log');
+  if(logBox)logBox.scrollTop=logBox.scrollHeight;
+}
+
+function closeBotFightModal(){
+  currentBotFight=null;
+  const el=document.getElementById('botfight-overlay-wrap');
+  if(el)el.innerHTML='';
+  renderBotBattle();
+}
+
 async function startTraining(uid,cost,xp,durHours){
   if((currentUser.money||0)<cost){showToast('Not enough money!');return;}
   const until=new Date(Date.now()+durHours*3600*1000).toISOString();
