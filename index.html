@@ -54,6 +54,7 @@ h4{font-size:13px;font-weight:600;margin-bottom:0.5rem;}
 .tutorial-dot.active{background:var(--accent);transform:scale(1.4);}
 .main-sidebar button.tutorial-highlight,.theme-btn.tutorial-highlight,.level-badge.tutorial-highlight{box-shadow:0 0 0 3px var(--accent),0 0 16px var(--accent);animation:tutorialHighlightPulse 1.2s ease-in-out infinite;position:relative;z-index:5001;}
 @keyframes tutorialHighlightPulse{0%,100%{box-shadow:0 0 0 3px var(--accent),0 0 12px var(--accent);}50%{box-shadow:0 0 0 3px var(--accent),0 0 22px var(--accent);}}
+@keyframes milestonePulse{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
 .nav button.active,.main-sidebar button.active{background:var(--bg4);color:var(--text);font-weight:600;}
 .nav button:hover:not(.active),.main-sidebar button:hover:not(.active){background:var(--bg3);color:var(--text2);}
 
@@ -978,7 +979,9 @@ const SKILL_TREES=[
       {id:'off_atk2', name:'Power Surge',desc:'+5% ATK',icon:'💪',cost:2,tier:1,effect:'atk_pct',value:5,requires:'off_atk1'},
       {id:'off_critdmg',name:'Lethal Precision',desc:'+15% Critical Damage',icon:'💥',cost:3,tier:2,effect:'crit_dmg_pct',value:15,requires:'off_crit2'},
       {id:'off_first',name:'Opening Strike',desc:'+10% damage on your first attack each battle',icon:'🗡️',cost:3,tier:2,effect:'first_hit_pct',value:10,requires:'off_atk2'},
+      {id:'off_atk3',name:'Berserker Fury',desc:'+7% ATK',icon:'😤',cost:3,tier:2,effect:'atk_pct',value:7,requires:'off_atk2'},
       {id:'off_master',name:'Battlemaster',desc:'+8% ATK and +5% Crit Chance',icon:'👑',cost:5,tier:3,effect:'master_offense',value:1,requires:'off_critdmg'},
+      {id:'off_grandmaster',name:'Warlord',desc:'+12% ATK, +8% Crit Chance, and +20% Critical Damage',icon:'🐲',cost:8,tier:4,effect:'grandmaster_offense',value:1,requires:'off_master'},
     ]
   },
   {
@@ -990,7 +993,9 @@ const SKILL_TREES=[
       {id:'def_hp2', name:'Resilience',desc:'+8% Max HP',icon:'❤️',cost:2,tier:1,effect:'hp_pct',value:8,requires:'def_hp1'},
       {id:'def_dodge',name:'Evasive Footwork',desc:'+3% Dodge Chance',icon:'💨',cost:3,tier:2,effect:'dodge_pct',value:3,requires:'def_def2'},
       {id:'def_regen',name:'Steady Recovery',desc:'Regenerate 2% Max HP at the start of each of your turns',icon:'💚',cost:3,tier:2,effect:'turn_regen_pct',value:2,requires:'def_hp2'},
+      {id:'def_hp3',name:'Juggernaut',desc:'+10% Max HP',icon:'🦏',cost:3,tier:2,effect:'hp_pct',value:10,requires:'def_hp2'},
       {id:'def_master',name:'Unbreakable',desc:'+10% DEF and +10% Max HP',icon:'👑',cost:5,tier:3,effect:'master_defense',value:1,requires:'def_dodge'},
+      {id:'def_grandmaster',name:'Aegis',desc:'+15% DEF, +15% Max HP, and +5% Dodge Chance',icon:'🏛️',cost:8,tier:4,effect:'grandmaster_defense',value:1,requires:'def_master'},
     ]
   },
   {
@@ -1002,7 +1007,9 @@ const SKILL_TREES=[
       {id:'sta_regen2',name:'Second Wind',desc:'+4% Stamina Regen',icon:'🌬️',cost:2,tier:1,effect:'stamina_regen_pct',value:4,requires:'sta_regen1'},
       {id:'sta_max',name:'Expanded Reserves',desc:'+10% Max Stamina',icon:'🔋',cost:3,tier:2,effect:'max_stamina_pct',value:10,requires:'sta_start2'},
       {id:'sta_efficiency',name:'Efficient Casting',desc:'All moves cost 5% less stamina',icon:'♻️',cost:3,tier:2,effect:'stamina_cost_reduction_pct',value:5,requires:'sta_regen2'},
+      {id:'sta_regen3',name:'Overdrive',desc:'+6% Stamina Regen',icon:'🌀',cost:3,tier:2,effect:'stamina_regen_pct',value:6,requires:'sta_regen2'},
       {id:'sta_master',name:'Limitless Energy',desc:'+3 Starting Stamina and +10% Stamina Regen',icon:'👑',cost:5,tier:3,effect:'master_stamina',value:1,requires:'sta_max'},
+      {id:'sta_grandmaster',name:'Eternal Motion',desc:'+5 Starting Stamina, +15% Stamina Regen, and +8% Max Stamina',icon:'🌌',cost:8,tier:4,effect:'grandmaster_stamina',value:1,requires:'sta_master'},
     ]
   },
   {
@@ -1014,7 +1021,35 @@ const SKILL_TREES=[
       {id:'eco_training',name:'Dedicated Trainer',desc:'+10% XP gained from card training',icon:'🏋️',cost:2,tier:1,effect:'training_xp_pct',value:10,requires:'eco_xp1'},
       {id:'eco_packs',name:'Lucky Pulls',desc:'+2% chance to roll one rarity tier higher when opening packs',icon:'🍀',cost:3,tier:2,effect:'pack_luck_pct',value:2,requires:'eco_money2'},
       {id:'eco_daily',name:'Loyalty Bonus',desc:'+20% daily login reward',icon:'🎁',cost:3,tier:2,effect:'daily_reward_pct',value:20,requires:'eco_training'},
+      {id:'eco_xp2',name:'Scholar',desc:'+10% player XP earned',icon:'🎓',cost:3,tier:2,effect:'player_xp_pct',value:10,requires:'eco_training'},
       {id:'eco_master',name:'Tycoon',desc:'+15% money earned and +15% player XP earned',icon:'👑',cost:5,tier:3,effect:'master_economy',value:1,requires:'eco_packs'},
+      {id:'eco_grandmaster',name:'Mogul',desc:'+20% money earned, +20% player XP earned, and +5% pack luck',icon:'🏦',cost:8,tier:4,effect:'grandmaster_economy',value:1,requires:'eco_master'},
+    ]
+  },
+  {
+    id:'endurance',name:'Endurance',icon:'🌿',color:'#2dd4bf',
+    nodes:[
+      {id:'end_hp1',name:'Toughness',desc:'+4% Max HP',icon:'🌿',cost:1,tier:0,effect:'hp_pct',value:4},
+      {id:'end_def1',name:'Hardened Scales',desc:'+3% DEF',icon:'🦎',cost:1,tier:0,effect:'def_pct',value:3},
+      {id:'end_dodge1',name:'Nimble Step',desc:'+2% Dodge Chance',icon:'💨',cost:2,tier:1,effect:'dodge_pct',value:2,requires:'end_hp1'},
+      {id:'end_regen1',name:'Natural Healing',desc:'Regenerate 2% Max HP at the start of each of your turns',icon:'🌱',cost:2,tier:1,effect:'turn_regen_pct',value:2,requires:'end_def1'},
+      {id:'end_hp2',name:'Iron Will',desc:'+8% Max HP',icon:'🗿',cost:3,tier:2,effect:'hp_pct',value:8,requires:'end_dodge1'},
+      {id:'end_dodge2',name:'Phantom Step',desc:'+4% Dodge Chance',icon:'👻',cost:3,tier:2,effect:'dodge_pct',value:4,requires:'end_regen1'},
+      {id:'end_master',name:'Stalwart',desc:'+10% Max HP and +10% Dodge Chance',icon:'👑',cost:5,tier:3,effect:'master_endurance',value:1,requires:'end_hp2'},
+      {id:'end_grandmaster',name:'Immortal',desc:'+18% Max HP, +8% DEF, and +8% Dodge Chance',icon:'🔱',cost:8,tier:4,effect:'grandmaster_endurance',value:1,requires:'end_master'},
+    ]
+  },
+  {
+    id:'fortune',name:'Fortune',icon:'🍀',color:'#c084fc',
+    nodes:[
+      {id:'for_money1',name:'Silver Tongue',desc:'+5% money earned from battle wins',icon:'💰',cost:1,tier:0,effect:'win_money_pct',value:5},
+      {id:'for_cardxp1',name:'Mentor',desc:'+8% card XP earned',icon:'🃏',cost:1,tier:0,effect:'card_xp_pct',value:8},
+      {id:'for_luck1',name:"Gambler's Instinct",desc:'+2% chance to roll one rarity tier higher when opening packs',icon:'🎲',cost:2,tier:1,effect:'pack_luck_pct',value:2,requires:'for_money1'},
+      {id:'for_cardxp2',name:'Grand Mentor',desc:'+12% card XP earned',icon:'📖',cost:2,tier:1,effect:'card_xp_pct',value:12,requires:'for_cardxp1'},
+      {id:'for_discount',name:'Haggler',desc:'5% off every pack purchase in the Shop',icon:'🏷️',cost:3,tier:2,effect:'shop_discount_pct',value:5,requires:'for_luck1'},
+      {id:'for_daily2',name:"Fortune's Favor",desc:'+25% daily login reward',icon:'🎁',cost:3,tier:2,effect:'daily_reward_pct',value:25,requires:'for_cardxp2'},
+      {id:'for_master',name:'Fortune Seeker',desc:'+10% pack luck and 10% shop discount',icon:'👑',cost:5,tier:3,effect:'master_fortune',value:1,requires:'for_discount'},
+      {id:'for_grandmaster',name:'Midas Touch',desc:'+15% money earned, +15% card XP earned, and 10% shop discount',icon:'🪙',cost:8,tier:4,effect:'grandmaster_fortune',value:1,requires:'for_master'},
     ]
   }
 ];
@@ -1022,8 +1057,16 @@ const SKILL_TREES=[
 function allSkillNodes(){return SKILL_TREES.flatMap(t=>t.nodes);}
 function getSkillNode(id){return allSkillNodes().find(n=>n.id===id);}
 
-// Total skill points a player has earned so far (1 per level after level 1)
-function totalSkillPoints(level,bonusPoints){return Math.max(0,(level||1)-1)+(bonusPoints||0);}
+// Total skill points a player has earned so far from leveling, at a tiered rate:
+// 1 point per level-up through level 10, 2 per level-up from 11–20, then 3 per level-up after that.
+function totalSkillPoints(level,bonusPoints){
+  const lv=Math.max(1,level||1);
+  let pts;
+  if(lv<=10)pts=(lv-1)*1;
+  else if(lv<=20)pts=9*1+(lv-10)*2;
+  else pts=9*1+10*2+(lv-20)*3;
+  return Math.max(0,pts)+(bonusPoints||0);
+}
 
 // Returns {used, available} for a player's unlocked node id list. Includes any
 // bonus_skill_points earned from the Spin Wheel on top of the normal level-based total.
@@ -1036,13 +1079,22 @@ function skillPointSummary(unlocked,level,bonusPoints){
 function aggregateSkillBonuses(unlocked){
   const b={crit_pct:0,atk_pct:0,crit_dmg_pct:0,first_hit_pct:0,def_pct:0,hp_pct:0,dodge_pct:0,turn_regen_pct:0,
     start_stamina_flat:0,stamina_regen_pct:0,max_stamina_pct:0,stamina_cost_reduction_pct:0,
-    win_money_pct:0,player_xp_pct:0,training_xp_pct:0,pack_luck_pct:0,daily_reward_pct:0};
+    win_money_pct:0,player_xp_pct:0,training_xp_pct:0,pack_luck_pct:0,daily_reward_pct:0,
+    card_xp_pct:0,shop_discount_pct:0};
   (unlocked||[]).forEach(id=>{
     const n=getSkillNode(id);if(!n)return;
     if(n.effect==='master_offense'){b.atk_pct+=8;b.crit_pct+=5;}
     else if(n.effect==='master_defense'){b.def_pct+=10;b.hp_pct+=10;}
     else if(n.effect==='master_stamina'){b.start_stamina_flat+=3;b.stamina_regen_pct+=10;}
     else if(n.effect==='master_economy'){b.win_money_pct+=15;b.player_xp_pct+=15;}
+    else if(n.effect==='master_endurance'){b.hp_pct+=10;b.dodge_pct+=10;}
+    else if(n.effect==='master_fortune'){b.pack_luck_pct+=10;b.shop_discount_pct+=10;}
+    else if(n.effect==='grandmaster_offense'){b.atk_pct+=12;b.crit_pct+=8;b.crit_dmg_pct+=20;}
+    else if(n.effect==='grandmaster_defense'){b.def_pct+=15;b.hp_pct+=15;b.dodge_pct+=5;}
+    else if(n.effect==='grandmaster_stamina'){b.start_stamina_flat+=5;b.stamina_regen_pct+=15;b.max_stamina_pct+=8;}
+    else if(n.effect==='grandmaster_economy'){b.win_money_pct+=20;b.player_xp_pct+=20;b.pack_luck_pct+=5;}
+    else if(n.effect==='grandmaster_endurance'){b.hp_pct+=18;b.def_pct+=8;b.dodge_pct+=8;}
+    else if(n.effect==='grandmaster_fortune'){b.win_money_pct+=15;b.card_xp_pct+=15;b.shop_discount_pct+=10;}
     else if(b[n.effect]!==undefined)b[n.effect]+=n.value;
   });
   return b;
@@ -1156,15 +1208,15 @@ const TICKET_SHOP_COST=[150,600,2000];
 // type: 'gold' | 'card' | 'utility' | 'player_xp' | 'card_xp' | 'skill_point'
 // weightTier: base weight per wheel tier [normal, rare, legendary] — 0 means "never on this wheel"
 const WHEEL_PRIZE_POOL=[
-  {id:'gold_small',type:'gold',value:100,weightTier:[24,0,0],rarityLabel:'common'},
-  {id:'gold_med',type:'gold',value:300,weightTier:[16,20,0],rarityLabel:'uncommon'},
-  {id:'gold_big',type:'gold',value:750,weightTier:[6,18,14],rarityLabel:'rare'},
-  {id:'gold_huge',type:'gold',value:2000,weightTier:[0,8,18],rarityLabel:'epic'},
-  {id:'gold_jackpot',type:'gold',value:10000,weightTier:[1,3,8],rarityLabel:'legendary'},
+  {id:'gold_small',type:'gold',value:150,weightTier:[24,0,0],rarityLabel:'common'},
+  {id:'gold_med',type:'gold',value:450,weightTier:[16,20,0],rarityLabel:'uncommon'},
+  {id:'gold_big',type:'gold',value:1100,weightTier:[6,18,14],rarityLabel:'rare'},
+  {id:'gold_huge',type:'gold',value:3000,weightTier:[0,8,18],rarityLabel:'epic'},
+  {id:'gold_jackpot',type:'gold',value:15000,weightTier:[1,3,8],rarityLabel:'legendary'},
 
-  {id:'pxp_small',type:'player_xp',value:40,weightTier:[18,0,0],rarityLabel:'common'},
-  {id:'pxp_med',type:'player_xp',value:120,weightTier:[10,16,0],rarityLabel:'uncommon'},
-  {id:'pxp_big',type:'player_xp',value:300,weightTier:[2,12,16],rarityLabel:'rare'},
+  {id:'pxp_small',type:'player_xp',value:60,weightTier:[18,0,0],rarityLabel:'common'},
+  {id:'pxp_med',type:'player_xp',value:180,weightTier:[10,16,0],rarityLabel:'uncommon'},
+  {id:'pxp_big',type:'player_xp',value:450,weightTier:[2,12,16],rarityLabel:'rare'},
 
   {id:'cxp_small',type:'card_xp',value:60,weightTier:[18,0,0],rarityLabel:'common'},
   {id:'cxp_med',type:'card_xp',value:180,weightTier:[10,16,0],rarityLabel:'uncommon'},
@@ -1363,62 +1415,62 @@ async function activateBoost(boostId){
 
 // ── MILESTONES & QUESTS ───────────────────────────────
 const MILESTONES={
-  5: {title:'Rookie',reward:'gold',amount:200,desc:'$200 gold + a spin ticket',icon:'💰',color:'#9ca3af',spinTicket:'normal'},
-  10:{title:'Warrior',reward:'gold',amount:500,desc:'$500 gold + all cards get 100 XP + a skill point',icon:'⚔️',color:'#60a5fa',cardXp:100,skillPoints:1},
+  5: {title:'Rookie',reward:'gold',amount:300,desc:'$300 gold + a spin ticket',icon:'💰',color:'#9ca3af',spinTicket:'normal'},
+  10:{title:'Warrior',reward:'gold',amount:750,desc:'$750 gold + all cards get 100 XP + a skill point',icon:'⚔️',color:'#60a5fa',cardXp:100,skillPoints:1},
   15:{title:'Champion',reward:'pack',amount:1,desc:'Free Rare Pack + a rare spin ticket',icon:'💎',color:'#34d399',packType:1,spinTicket:'rare'},
-  20:{title:'Veteran',reward:'gold',amount:1000,desc:'$1,000 gold bonus + a skill point + a rare emoji',icon:'🏆',color:'#f59e0b',skillPoints:1,emojiUnlock:true},
-  25:{title:'Elite',reward:'title',amount:0,desc:'Unlock "Elite" name title + $500 + a rare spin ticket',icon:'🌟',color:'#a78bfa',extraGold:500,spinTicket:'rare'},
-  30:{title:'Legend',reward:'gold',amount:2000,desc:'$2,000 gold + all cards get 300 XP + 2 skill points',icon:'🔥',color:'#f97316',cardXp:300,skillPoints:2},
+  20:{title:'Veteran',reward:'gold',amount:1500,desc:'$1,500 gold bonus + a skill point + a rare emoji',icon:'🏆',color:'#f59e0b',skillPoints:1,emojiUnlock:true},
+  25:{title:'Elite',reward:'title',amount:0,desc:'Unlock "Elite" name title + $750 + a rare spin ticket',icon:'🌟',color:'#a78bfa',extraGold:750,spinTicket:'rare'},
+  30:{title:'Legend',reward:'gold',amount:3000,desc:'$3,000 gold + all cards get 300 XP + 2 skill points',icon:'🔥',color:'#f97316',cardXp:300,skillPoints:2},
   40:{title:'Mythic',reward:'title',amount:0,desc:'Unlock "Mythic" name title + Free Legendary Pack + an emoji + a legendary spin ticket',icon:'🌀',color:'#ec4899',packType:2,extraGold:0,emojiUnlock:true,spinTicket:'legendary'},
-  50:{title:'Ancient',reward:'gold',amount:5000,desc:'$5,000 gold + all cards get 500 XP + 2 skill points + a legendary spin ticket',icon:'🌑',color:'#8b5cf6',cardXp:500,skillPoints:2,spinTicket:'legendary'},
-  75:{title:'Celestial',reward:'title',amount:0,desc:'Unlock "Celestial" name title + $10,000 gold + an emoji + 2 skill points',icon:'✨',color:'#c7d2fe',extraGold:10000,emojiUnlock:true,skillPoints:2},
-  100:{title:'Transcendent',reward:'special',amount:0,desc:'Unlock gold name color + $25,000 + all cards get 1000 XP + 3 skill points + an emoji + a legendary spin ticket',icon:'👑',color:'#fbbf24',cardXp:1000,extraGold:25000,skillPoints:3,emojiUnlock:true,spinTicket:'legendary'}
+  50:{title:'Ancient',reward:'gold',amount:7500,desc:'$7,500 gold + all cards get 500 XP + 2 skill points + a legendary spin ticket',icon:'🌑',color:'#8b5cf6',cardXp:500,skillPoints:2,spinTicket:'legendary'},
+  75:{title:'Celestial',reward:'title',amount:0,desc:'Unlock "Celestial" name title + $15,000 gold + an emoji + 2 skill points',icon:'✨',color:'#c7d2fe',extraGold:15000,emojiUnlock:true,skillPoints:2},
+  100:{title:'Transcendent',reward:'special',amount:0,desc:'Unlock gold name color + $37,500 + all cards get 1000 XP + 3 skill points + an emoji + a legendary spin ticket',icon:'👑',color:'#fbbf24',cardXp:1000,extraGold:37500,skillPoints:3,emojiUnlock:true,spinTicket:'legendary'}
 };
 
 const QUESTS_ACTIVE_COUNT=5;
 const QUEST_TEMPLATES=[
   // ── Wins (repeatable — progress tracked as wins since the quest was assigned) ──
-  {id:'win3',desc:'Win 3 battles',icon:'⚔️',type:'wins',target:3,reward:300,repeatable:true},
-  {id:'win5',desc:'Win 5 battles',icon:'⚔️',type:'wins',target:5,reward:500,repeatable:true},
-  {id:'win10',desc:'Win 10 battles',icon:'🏆',type:'wins',target:10,reward:1000,repeatable:true},
-  {id:'win15',desc:'Win 15 battles',icon:'🏆',type:'wins',target:15,reward:1600,repeatable:true},
-  {id:'win25',desc:'Win 25 battles',icon:'👑',type:'wins',target:25,reward:3000,repeatable:true},
+  {id:'win3',desc:'Win 3 battles',icon:'⚔️',type:'wins',target:3,reward:450,repeatable:true},
+  {id:'win5',desc:'Win 5 battles',icon:'⚔️',type:'wins',target:5,reward:750,repeatable:true},
+  {id:'win10',desc:'Win 10 battles',icon:'🏆',type:'wins',target:10,reward:1500,repeatable:true},
+  {id:'win15',desc:'Win 15 battles',icon:'🏆',type:'wins',target:15,reward:2400,repeatable:true},
+  {id:'win25',desc:'Win 25 battles',icon:'👑',type:'wins',target:25,reward:4500,repeatable:true},
 
   // ── Pack openings (repeatable) ──
-  {id:'open3packs',desc:'Open 3 packs',icon:'📦',type:'packs',target:3,reward:250,repeatable:true},
-  {id:'open5packs',desc:'Open 5 packs',icon:'📦',type:'packs',target:5,reward:450,repeatable:true},
-  {id:'open10packs',desc:'Open 10 packs',icon:'💎',type:'packs',target:10,reward:800,repeatable:true},
-  {id:'open20packs',desc:'Open 20 packs',icon:'💎',type:'packs',target:20,reward:1800,repeatable:true},
+  {id:'open3packs',desc:'Open 3 packs',icon:'📦',type:'packs',target:3,reward:375,repeatable:true},
+  {id:'open5packs',desc:'Open 5 packs',icon:'📦',type:'packs',target:5,reward:675,repeatable:true},
+  {id:'open10packs',desc:'Open 10 packs',icon:'💎',type:'packs',target:10,reward:1200,repeatable:true},
+  {id:'open20packs',desc:'Open 20 packs',icon:'💎',type:'packs',target:20,reward:2700,repeatable:true},
 
   // ── Player level milestones (one-time — reaching a fixed level only happens once) ──
-  {id:'reach5',desc:'Reach player level 5',icon:'⭐',type:'level',target:5,reward:500,repeatable:false},
-  {id:'reach10',desc:'Reach player level 10',icon:'🌟',type:'level',target:10,reward:1500,repeatable:false},
-  {id:'reach20',desc:'Reach player level 20',icon:'🌠',type:'level',target:20,reward:2500,repeatable:false},
-  {id:'reach30',desc:'Reach player level 30',icon:'🌌',type:'level',target:30,reward:4000,repeatable:false},
-  {id:'reach50',desc:'Reach player level 50',icon:'☄️',type:'level',target:50,reward:7500,repeatable:false},
+  {id:'reach5',desc:'Reach player level 5',icon:'⭐',type:'level',target:5,reward:750,repeatable:false},
+  {id:'reach10',desc:'Reach player level 10',icon:'🌟',type:'level',target:10,reward:2250,repeatable:false},
+  {id:'reach20',desc:'Reach player level 20',icon:'🌠',type:'level',target:20,reward:3750,repeatable:false},
+  {id:'reach30',desc:'Reach player level 30',icon:'🌌',type:'level',target:30,reward:6000,repeatable:false},
+  {id:'reach50',desc:'Reach player level 50',icon:'☄️',type:'level',target:50,reward:11250,repeatable:false},
 
   // ── Collect cards (repeatable — progress tracked as cards gained since assigned) ──
-  {id:'collect5',desc:'Collect 5 more cards',icon:'🃏',type:'cards',target:5,reward:200,repeatable:true},
-  {id:'collect10',desc:'Collect 10 more cards',icon:'🃏',type:'cards',target:10,reward:400,repeatable:true},
-  {id:'collect25',desc:'Collect 25 more cards',icon:'🃏',type:'cards',target:25,reward:1200,repeatable:true},
-  {id:'collect50',desc:'Collect 50 more cards',icon:'🃏',type:'cards',target:50,reward:2500,repeatable:true},
+  {id:'collect5',desc:'Collect 5 more cards',icon:'🃏',type:'cards',target:5,reward:300,repeatable:true},
+  {id:'collect10',desc:'Collect 10 more cards',icon:'🃏',type:'cards',target:10,reward:600,repeatable:true},
+  {id:'collect25',desc:'Collect 25 more cards',icon:'🃏',type:'cards',target:25,reward:1800,repeatable:true},
+  {id:'collect50',desc:'Collect 50 more cards',icon:'🃏',type:'cards',target:50,reward:3750,repeatable:true},
 
   // ── Win by battle mode (repeatable) ──
-  {id:'win1v1',desc:'Win a 1v1 battle',icon:'🥊',type:'win_mode',target:1,mode:0,reward:350,repeatable:true},
-  {id:'win3v3',desc:'Win a 3v3 battle',icon:'⚔️',type:'win_mode',target:1,mode:1,reward:500,repeatable:true},
-  {id:'win5v5',desc:'Win a 5v5 battle',icon:'💥',type:'win_mode',target:1,mode:2,reward:750,repeatable:true},
-  {id:'win3_1v1',desc:'Win 3 1v1 battles',icon:'🥊',type:'win_mode',target:3,mode:0,reward:900,repeatable:true},
-  {id:'win3_5v5',desc:'Win 3 5v5 battles',icon:'💥',type:'win_mode',target:3,mode:2,reward:2200,repeatable:true},
+  {id:'win1v1',desc:'Win a 1v1 battle',icon:'🥊',type:'win_mode',target:1,mode:0,reward:525,repeatable:true},
+  {id:'win3v3',desc:'Win a 3v3 battle',icon:'⚔️',type:'win_mode',target:1,mode:1,reward:750,repeatable:true},
+  {id:'win5v5',desc:'Win a 5v5 battle',icon:'💥',type:'win_mode',target:1,mode:2,reward:1125,repeatable:true},
+  {id:'win3_1v1',desc:'Win 3 1v1 battles',icon:'🥊',type:'win_mode',target:3,mode:0,reward:1350,repeatable:true},
+  {id:'win3_5v5',desc:'Win 3 5v5 battles',icon:'💥',type:'win_mode',target:3,mode:2,reward:3300,repeatable:true},
 
   // ── Combine duplicate cards (repeatable) ──
-  {id:'combine',desc:'Combine 2 duplicate cards',icon:'🔗',type:'combine',target:1,reward:300,repeatable:true},
-  {id:'combine3',desc:'Combine duplicates 3 times',icon:'🔗',type:'combine',target:3,reward:800,repeatable:true},
-  {id:'combine5',desc:'Combine duplicates 5 times',icon:'🔗',type:'combine',target:5,reward:1400,repeatable:true},
+  {id:'combine',desc:'Combine 2 duplicate cards',icon:'🔗',type:'combine',target:1,reward:450,repeatable:true},
+  {id:'combine3',desc:'Combine duplicates 3 times',icon:'🔗',type:'combine',target:3,reward:1200,repeatable:true},
+  {id:'combine5',desc:'Combine duplicates 5 times',icon:'🔗',type:'combine',target:5,reward:2100,repeatable:true},
 
   // ── Login streaks (repeatable) ──
-  {id:'login3',desc:'Log in 3 days in a row',icon:'📅',type:'login_streak',target:3,reward:300,repeatable:true},
-  {id:'login7',desc:'Log in 7 days in a row',icon:'📅',type:'login_streak',target:7,reward:700,repeatable:true},
-  {id:'login14',desc:'Log in 14 days in a row',icon:'📅',type:'login_streak',target:14,reward:1500,repeatable:true},
+  {id:'login3',desc:'Log in 3 days in a row',icon:'📅',type:'login_streak',target:3,reward:450,repeatable:true},
+  {id:'login7',desc:'Log in 7 days in a row',icon:'📅',type:'login_streak',target:7,reward:1050,repeatable:true},
+  {id:'login14',desc:'Log in 14 days in a row',icon:'📅',type:'login_streak',target:14,reward:2250,repeatable:true},
 ];
 
 
@@ -1581,6 +1633,23 @@ function showXpGain(source,gold,xp,newLevel){
 })();
 function spin(id,on){const el=document.getElementById(id);if(el)el.style.display=on?'inline-block':'none';}
 function xpForCard(lv){return Math.round(50*Math.pow(lv,1.2));}
+
+// Grants player XP with the usual skill/boost multipliers applied, handling level-ups and
+// milestone checks — used for sources like card combining that award player XP directly.
+async function grantPlayerXp(amount){
+  const skills=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
+  const mult=(1+(skills.player_xp_pct||0)/100)*getActiveBoostMultiplier('player_xp');
+  const gained=Math.round(amount*mult);
+  const oldLevel=currentUser.level||1;
+  let player_xp=(currentUser.player_xp||0)+gained;
+  let level=oldLevel;
+  while(player_xp>=xpForPlayer(level)){player_xp-=xpForPlayer(level);level++;}
+  await sb.from('users').update({player_xp,level}).eq('id',currentUser.id);
+  currentUser.player_xp=player_xp;currentUser.level=level;
+  updateHUD();
+  if(level>oldLevel)await checkMilestones(oldLevel,level);
+  return gained;
+}
 
 // Grants `amount` XP to every one of a player's cards, properly rolling any XP that crosses
 // a level threshold into level-ups (with stat scaling and move unlocks) rather than just
@@ -1754,8 +1823,8 @@ async function handleDailyLogin(){
   const lastLogin=currentUser.last_login?String(currentUser.last_login).slice(0,10):'';
   if(lastLogin===today)return;
   const skills=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
-  const reward=Math.round((20+(5*(currentUser.level||1)))*(1+skills.daily_reward_pct/100));
-  const pxp=30;
+  const reward=Math.round((40+(8*(currentUser.level||1)))*(1+skills.daily_reward_pct/100));
+  const pxp=50;
   const oldLevel=currentUser.level||1;
   let{money,player_xp,level}={money:currentUser.money||0,player_xp:currentUser.player_xp||0,level:currentUser.level||1};
   money+=reward;player_xp+=pxp;
@@ -2295,7 +2364,9 @@ function rollRarity(packType){
 
 function packCost(pt,sizeIdx){
   const base=Math.round(PACK_BASE_COST[pt]*PACK_SIZE_MULT[sizeIdx]);
-  return Math.round(base*getActiveBoostMultiplier('shop_discount'));
+  const skills=aggregateSkillBonuses(currentUser?.unlocked_skills||[]);
+  const skillMult=Math.max(0.1,1-(skills.shop_discount_pct||0)/100);
+  return Math.round(base*getActiveBoostMultiplier('shop_discount')*skillMult);
 }
 
 // ── PACK AUTO-SETTINGS MODAL ────────────────────────────
@@ -3255,6 +3326,7 @@ async function openPack(pt,sizeIdx){
   const deletedCards=cardDraws.filter(c=>c.autoAction==='delete');
   const combineCards=cardDraws.filter(c=>c.autoAction==='combine');
   let sellGain=soldCards.reduce((s,c)=>s+(AUTO_SELL_VALUES[c.rarity]||0),0);
+  let autoMergeCount=0;
 
   if(combineCards.length){
     const names=[...new Set(combineCards.map(c=>c.name))];
@@ -3271,6 +3343,7 @@ async function openPack(pt,sizeIdx){
         baseByName[c.name]=c;
         continue;
       }
+      autoMergeCount++;
       const xpBonus=Math.round((200+50*base.rarity)*(1+(c.level||1)*0.1));
       let level=Math.max(base.level,c.level||1);
       let atk=Math.max(base.atk,c.atk);
@@ -3315,6 +3388,10 @@ async function openPack(pt,sizeIdx){
   if(deletedCards.length)summaryBits.push(`🗑️ ${deletedCards.length} auto-deleted`);
   if(soldCards.length)summaryBits.push(`💰 ${soldCards.length} auto-sold for $${sellGain.toLocaleString()}`);
   if(combineCards.length)summaryBits.push(`🔗 ${combineCards.length} auto-combined`);
+  if(autoMergeCount>0){
+    const pxpGained=await grantPlayerXp(25*autoMergeCount);
+    if(pxpGained>0)summaryBits.push(`+${pxpGained} player XP`);
+  }
   if(summaryBits.length)showToast(summaryBits.join(' · '));
   if(foundTicket)showToast(`🎫 You found a ${foundTicket} spin ticket in the pack!`);
   await updateQuestProgress('packs',1);
@@ -5046,12 +5123,16 @@ async function awardRewards(state,battle){
 
   const{data:wuFresh}=await sb.from('users').select('*').eq('id',winner).single();
   const{data:luFresh}=await sb.from('users').select('*').eq('id',loser).single();
+  const wu=wuFresh||allUsers.find(u=>u.id===winner);const lu=luFresh||allUsers.find(u=>u.id===loser);
+  const wSkills=aggregateSkillBonuses(wu?.unlocked_skills||[]);
+  const lSkills=aggregateSkillBonuses(lu?.unlocked_skills||[]);
 
   const cardResultsWinner=[],cardResultsLoser=[]; // per-player slices so BOTH clients can animate their own cards
   for(const uid of used){
     const{data:c}=await sb.from('player_cards').select('*').eq('uid',uid).single();if(!c)continue;
     const onWin=!!winF.find(f=>f.uid===uid);const survFighter=winF.find(f=>f.uid===uid);const surv=onWin&&survFighter&&!survFighter.defeated;
-    let xp=onWin?30:10;if(surv)xp+=20;xp=Math.round(xp*RARITY_XP_MULT[c.rarity]*boostMultiplierFor(onWin?wuFresh:luFresh,'card_xp'));
+    const sideSkills=onWin?wSkills:lSkills;
+    let xp=onWin?30:10;if(surv)xp+=20;xp=Math.round(xp*RARITY_XP_MULT[c.rarity]*boostMultiplierFor(onWin?wuFresh:luFresh,'card_xp')*(1+(sideSkills.card_xp_pct||0)/100));
     let{xp:cx,level,atk,def,max_hp,unlocked_moves}={...c,unlocked_moves:c.unlocked_moves||[]};
     const beforeXp=cx,beforeLevel=level,xpNeededAtStart=xpForCard(level);
     cx+=xp;
@@ -5065,13 +5146,10 @@ async function awardRewards(state,battle){
     if(onWin)cardResultsWinner.push(entry);else cardResultsLoser.push(entry);
   }
 
-  const wu=wuFresh||allUsers.find(u=>u.id===winner);const lu=luFresh||allUsers.find(u=>u.id===loser);
-  const wSkills=aggregateSkillBonuses(wu?.unlocked_skills||[]);
-  const lSkills=aggregateSkillBonuses(lu?.unlocked_skills||[]);
-  const winMoney=Math.round(150*(1+wSkills.win_money_pct/100));
-  const winXp=Math.round(80*(1+wSkills.player_xp_pct/100)*boostMultiplierFor(wu,'player_xp'));
-  const loseMoney=50;
-  const loseXp=Math.round(20*(1+lSkills.player_xp_pct/100)*boostMultiplierFor(lu,'player_xp'));
+  const winMoney=Math.round(250*(1+wSkills.win_money_pct/100));
+  const winXp=Math.round(130*(1+wSkills.player_xp_pct/100)*boostMultiplierFor(wu,'player_xp'));
+  const loseMoney=80;
+  const loseXp=Math.round(35*(1+lSkills.player_xp_pct/100)*boostMultiplierFor(lu,'player_xp'));
   let wpx=(wu?.player_xp||0)+winXp;let wlv=wu?.level||1;while(wpx>=xpForPlayer(wlv)){wpx-=xpForPlayer(wlv);wlv++;}
   let lpx=(lu?.player_xp||0)+loseXp;let llv=lu?.level||1;while(lpx>=xpForPlayer(llv)){lpx-=xpForPlayer(llv);llv++;}
 
@@ -5868,7 +5946,8 @@ async function combineDuplicate(keepUid,sacrificeUid,cost){
   const nm=(currentUser.money||0)-cost;
   await sb.from('users').update({money:nm}).eq('id',currentUser.id);
   currentUser.money=nm;updateHUD();
-  showToast(`Combined! +${xpBonus} XP · Best stats kept${level>oldLevel?` · Level ${level}!`:''}`);
+  const pxpGained=await grantPlayerXp(25);
+  showToast(`Combined! +${xpBonus} card XP · +${pxpGained} player XP${level>oldLevel?` · Level ${level}!`:''}`);
   await updateQuestProgress('combine',1);
   closeModal();
   await renderMyCards();
@@ -6505,7 +6584,8 @@ async function ctxCombine(name,useAll){
   const nm=(currentUser.money||0)-cost;
   await sb.from('users').update({money:nm}).eq('id',currentUser.id);
   currentUser.money=nm;updateHUD();
-  showToast(`Combined ${n} ${name} cards! Now Lv ${level}.`);
+  const pxpGained=await grantPlayerXp(25*sacrifices.length);
+  showToast(`Combined ${n} ${name} cards! Now Lv ${level}. +${pxpGained} player XP`);
   await updateQuestProgress('combine',1);
   await renderMyCards();
 }
@@ -6635,32 +6715,56 @@ function showMilestonePopup(lv,m,rewardLines){
 async function renderMilestonesPanel(){
   const level=currentUser.level||1;
   const claimed=currentUser.claimed_milestones||[];
-  const milestoneList=Object.entries(MILESTONES).map(([lv,m])=>{
-    const lvNum=parseInt(lv);
-    const done=claimed.includes(lvNum);
-    const current=lvNum===Object.keys(MILESTONES).map(Number).find(l=>l>level);
-    const pct=done?100:Math.min(100,Math.round((level/lvNum)*100));
-    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);opacity:${done?0.6:1}">
-      <div style="font-size:24px;width:36px;text-align:center;">${done?'✅':m.icon}</div>
-      <div style="flex:1;">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
-          <span style="font-size:14px;font-weight:700;color:${m.color};">${m.title}</span>
-          <span style="font-size:11px;color:var(--text3);">Level ${lv}</span>
-          ${done?`<span style="font-size:10px;background:#16a34a22;color:#16a34a;padding:1px 6px;border-radius:4px;">CLAIMED</span>`:''}
-        </div>
-        <div style="font-size:12px;color:var(--text3);">${m.desc}</div>
-        ${!done?`<div style="background:var(--bg3);border-radius:4px;height:4px;margin-top:5px;"><div style="background:${m.color};height:4px;border-radius:4px;width:${pct}%;transition:width 0.3s;"></div></div>`:''}
+  const entries=Object.entries(MILESTONES).map(([lv,m])=>({lv:parseInt(lv),m})).sort((a,b)=>a.lv-b.lv);
+  const nextLv=entries.map(e=>e.lv).find(l=>l>level);
+
+  const nodesHTML=entries.map((entry,i)=>{
+    const{lv,m}=entry;
+    const done=claimed.includes(lv);
+    const isNext=!done&&lv===nextLv;
+    const locked=!done&&!isNext;
+    const pct=done?100:isNext?Math.min(99,Math.max(1,Math.round((level/lv)*100))):0;
+
+    const circleStyle=done
+      ? `background:${m.color};border-color:${m.color};box-shadow:0 0 14px ${m.color}88;`
+      : isNext
+      ? `background:var(--bg2);border-color:${m.color};box-shadow:0 0 10px ${m.color}55;animation:milestonePulse 1.8s ease-in-out infinite;`
+      : `background:var(--bg3);border-color:var(--border);`;
+    const iconOpacity=locked?'0.35':'1';
+
+    const node=`<div style="display:flex;flex-direction:column;align-items:center;width:120px;flex-shrink:0;position:relative;z-index:1;">
+      <div title="${m.desc}" style="width:52px;height:52px;border-radius:50%;border:3px solid;display:flex;align-items:center;justify-content:center;font-size:22px;cursor:default;${circleStyle}opacity:${locked?0.7:1};">
+        <span style="opacity:${iconOpacity};">${done?'✅':m.icon}</span>
       </div>
-      <div style="font-size:12px;color:var(--text3);white-space:nowrap;">Lv ${lv}</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px;font-weight:600;">Lv ${lv}</div>
+      <div style="font-size:12px;font-weight:800;color:${done||isNext?m.color:'var(--text3)'};margin-top:1px;text-align:center;">${m.title}</div>
+      ${isNext?`<div style="font-size:10px;color:var(--text3);margin-top:3px;">${level}/${lv} (${pct}%)</div>`:''}
+      <div style="font-size:10px;color:var(--text4);margin-top:4px;text-align:center;line-height:1.3;max-width:112px;">${m.desc}</div>
+      ${done?`<div style="font-size:9px;background:#16a34a22;color:#16a34a;padding:1px 6px;border-radius:4px;margin-top:4px;font-weight:700;">CLAIMED</div>`:''}
     </div>`;
+
+    if(i===entries.length-1)return node;
+
+    // Connector segment to the next node — filled if this milestone is already done,
+    // partially filled if this is the one currently in progress, otherwise empty.
+    const segPct=done?100:isNext?pct:0;
+    const connector=`<div style="flex:1;min-width:40px;height:5px;background:var(--bg3);border-radius:3px;margin-top:25px;position:relative;overflow:hidden;">
+      <div style="position:absolute;left:0;top:0;bottom:0;width:${segPct}%;background:${m.color};border-radius:3px;transition:width 0.4s;"></div>
+    </div>`;
+    return node+connector;
   }).join('');
 
   return `<div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
-      <h3 style="margin:0;">🏆 Milestones</h3>
-      <span style="font-size:13px;color:var(--text3);">${claimed.length}/${Object.keys(MILESTONES).length} claimed</span>
+      <h3 style="margin:0;">🏆 Milestone Journey</h3>
+      <span style="font-size:13px;color:var(--text3);">${claimed.length}/${entries.length} claimed</span>
     </div>
-    ${milestoneList}
+    <div id="milestone-timeline-scroll" style="overflow-x:auto;padding:14px 6px 6px;">
+      <div style="display:flex;align-items:flex-start;min-width:${entries.length*130}px;">
+        ${nodesHTML}
+      </div>
+    </div>
+    <p style="font-size:11px;color:var(--text3);text-align:center;margin-top:10px;">← Scroll to see your full journey →</p>
   </div>`;
 }
 
@@ -6748,6 +6852,11 @@ async function claimQuest(questId,reward){
   const money=(currentUser.money||0)+reward;
   const total_quests_completed=(currentUser.total_quests_completed||0)+1;
 
+  // Every set of 5 quests completed earns a bonus skill point on top of the normal level-based total
+  const QUEST_SET_SIZE=5;
+  const earnedBonusSkillPoint=total_quests_completed%QUEST_SET_SIZE===0;
+  const bonus_skill_points=(currentUser.bonus_skill_points||0)+(earnedBonusSkillPoint?1:0);
+
   // Immediately top this quest up with a fresh replacement instead of waiting for the panel to refill
   const activeIds=new Set(remaining.map(q=>q.id));
   const availableForRefill=QUEST_TEMPLATES.filter(t=>!activeIds.has(t.id)&&!completed.includes(t.id)&&t.id!==questId);
@@ -6758,10 +6867,11 @@ async function claimQuest(questId,reward){
   }
   const active_quests=replacement?[...remaining,replacement]:remaining;
 
-  await sb.from('users').update({active_quests,completed_quests:completed,money,total_quests_completed}).eq('id',currentUser.id);
-  currentUser={...currentUser,active_quests,completed_quests:completed,money,total_quests_completed};
+  await sb.from('users').update({active_quests,completed_quests:completed,money,total_quests_completed,bonus_skill_points}).eq('id',currentUser.id);
+  currentUser={...currentUser,active_quests,completed_quests:completed,money,total_quests_completed,bonus_skill_points};
   updateHUD();
   showToast(`✅ Quest complete! +$${reward} 💰`);
+  if(earnedBonusSkillPoint)showToast(`🌳 ${QUEST_SET_SIZE} quests completed! +1 bonus skill point!`);
   checkQuestsBadge();
   refreshQuestPanel();
 }
@@ -6793,7 +6903,7 @@ async function openLevelModal(){
   const title=currentUser.title||null;
   const titleColor=currentUser.title_color||'var(--text)';
   div.innerHTML=`
-    <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:1.5rem;width:500px;max-width:95vw;max-height:88vh;overflow-y:auto;">
+    <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:1.5rem;width:700px;max-width:95vw;max-height:88vh;overflow-y:auto;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;">
         <div>
           <div style="font-size:24px;font-weight:800;">${title?`<span style="color:${titleColor};">[${title}]</span> `:''}Level ${level}</div>
@@ -6809,6 +6919,11 @@ async function openLevelModal(){
   document.body.appendChild(div);
   div.addEventListener('click',function(e){if(e.target===this)this.remove();});
   document.getElementById('level-tab-content').innerHTML=await renderMilestonesPanel();
+  // Scroll the timeline so the player's current progress is centered in view, not buried off-screen
+  const scrollBox=document.getElementById('milestone-timeline-scroll');
+  const pulsing=scrollBox&&scrollBox.querySelector('[style*="milestonePulse"]');
+  const target=pulsing||(scrollBox&&scrollBox.lastElementChild);
+  if(target&&target.scrollIntoView)target.scrollIntoView({inline:'center',block:'nearest'});
 }
 
 async function showLevelTab(tab){
