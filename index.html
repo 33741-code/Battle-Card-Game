@@ -7486,7 +7486,15 @@ let botFightSelectedCardUid=null;
 async function renderBotBattle(){
   const el=document.getElementById('botbattle-content');
   el.innerHTML='<div class="empty">Loading...</div>';
-  const{data:fresh}=await sb.from('users').select('bot_level').eq('id',currentUser.id).single();
+  const{data:fresh,error}=await sb.from('users').select('bot_level').eq('id',currentUser.id).single();
+  if(error){
+    console.error('renderBotBattle: failed to load bot_level —',error.message);
+    el.innerHTML=`<div class="box" style="border-color:#dc2626;">
+      <h4 style="color:#dc2626;margin-bottom:6px;">⚠️ Couldn't load your Bot Battle progress</h4>
+      <p style="font-size:13px;color:var(--text3);">${error.message.includes('column')?"Your database is missing the <code>bot_level</code> column. Run this once in the Supabase SQL editor:<br><code>ALTER TABLE users ADD COLUMN IF NOT EXISTS bot_level INT DEFAULT 1;</code>":error.message}</p>
+    </div>`;
+    return;
+  }
   const botLevel=(fresh&&fresh.bot_level)||1;
   currentUser.bot_level=botLevel;
   botFightSelectedCardUid=null;
@@ -7691,13 +7699,19 @@ async function finishBotFight(win){
     moneyReward=Math.round(botRewardMoney(s.level)*mult);
     xpReward=Math.round(botRewardXp(s.level)*mult);
     const newMoney=(currentUser.money||0)+moneyReward;
-    await sb.from('users').update({money:newMoney}).eq('id',currentUser.id);
-    currentUser.money=newMoney;updateHUD();
+    const{error:moneyErr}=await sb.from('users').update({money:newMoney}).eq('id',currentUser.id);
+    if(moneyErr)console.error('finishBotFight: money update failed —',moneyErr.message);
+    else{currentUser.money=newMoney;updateHUD();}
 
     if(isFrontier&&s.level<50){
       const newBotLevel=s.level+1;
-      await sb.from('users').update({bot_level:newBotLevel}).eq('id',currentUser.id);
-      currentUser.bot_level=newBotLevel;leveledUpAccount=true;
+      const{error:lvlErr}=await sb.from('users').update({bot_level:newBotLevel}).eq('id',currentUser.id);
+      if(lvlErr){
+        console.error('finishBotFight: bot_level update failed —',lvlErr.message);
+        showToast(lvlErr.message.includes('column')?"Can't save ladder progress — missing bot_level column (see Bot Battles tab for the fix).":'Error saving level progress: '+lvlErr.message);
+      } else {
+        currentUser.bot_level=newBotLevel;leveledUpAccount=true;
+      }
     }
 
     const skills=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
