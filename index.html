@@ -1867,6 +1867,95 @@ async function globalNotificationCheck(silent){
   await checkTradeNotifications(silent||onTradeTab);
   checkDailySpinAvailable();
   checkQuestsBadge();
+  await checkMyCardsBadge();
+  await checkTrainingBadge();
+  checkSkillsBadge();
+  await checkAllCardsBadge();
+  await checkPacksBadge();
+  await checkNewsBadge();
+  await checkFeedbackBadge();
+}
+
+// Income cards sitting ready to collect right now.
+async function checkMyCardsBadge(){
+  const{data:cards,error}=await sb.from('player_cards').select('income_interval_hours,last_income_collected').eq('owner',currentUser.id).eq('is_income_card',true);
+  if(error){setNavBadge('mycards','mycards-nav-badge',0);return;}
+  const now=Date.now();
+  const ready=(cards||[]).filter(c=>{
+    if(!c.last_income_collected)return true;
+    return(now-new Date(c.last_income_collected).getTime())/3600000>=(c.income_interval_hours||24);
+  }).length;
+  setNavBadge('mycards','mycards-nav-badge',ready);
+}
+
+// Cards that finished their training timer and have XP waiting to be collected.
+async function checkTrainingBadge(){
+  const{data:cards,error}=await sb.from('player_cards').select('training_until,training_xp_pending').eq('owner',currentUser.id).eq('is_income_card',false);
+  if(error){setNavBadge('training','training-nav-badge',0);return;}
+  const now=Date.now();
+  const ready=(cards||[]).filter(c=>c.training_until&&now>=new Date(c.training_until).getTime()&&(c.training_xp_pending>0)).length;
+  setNavBadge('training','training-nav-badge',ready);
+}
+
+// Unspent skill points available to allocate.
+function checkSkillsBadge(){
+  const{available}=skillPointSummary(currentUser.unlocked_skills||[],currentUser.level||1,currentUser.bonus_skill_points||0);
+  setNavBadge('skills','skills-nav-badge',Math.max(0,available));
+}
+
+// Persists that the player has viewed a tab as of right now, so "new since last visit"
+// badges (allcards/packs/news) clear. Stored in one shared JSONB column to avoid schema sprawl.
+async function markTabSeen(tabKey){
+  const updated={...(currentUser.tab_last_seen||{}),[tabKey]:new Date().toISOString()};
+  currentUser.tab_last_seen=updated;
+  await sb.from('users').update({tab_last_seen:updated}).eq('id',currentUser.id);
+}
+
+// New cards added to the pool since the player last opened All Cards.
+async function checkAllCardsBadge(){
+  const seen=currentUser.tab_last_seen||{};
+  if(!seen.allcards){setNavBadge('allcards','allcards-nav-badge',0);return;}
+  const{data,error}=await sb.from('pool_cards').select('id').gt('created_at',seen.allcards);
+  if(error){setNavBadge('allcards','allcards-nav-badge',0);return;}
+  setNavBadge('allcards','allcards-nav-badge',(data||[]).length);
+}
+
+// New cards added to the pool since the player last opened the Shop — same underlying
+// data as All Cards, tracked separately since players may check them at different times.
+async function checkPacksBadge(){
+  const seen=currentUser.tab_last_seen||{};
+  if(!seen.packs){setNavBadge('packs','packs-nav-badge',0);return;}
+  const{data,error}=await sb.from('pool_cards').select('id').gt('created_at',seen.packs);
+  if(error){setNavBadge('packs','packs-nav-badge',0);return;}
+  setNavBadge('packs','packs-nav-badge',(data||[]).length);
+}
+
+// Unread news posts since the player last opened News.
+async function checkNewsBadge(){
+  const seen=currentUser.tab_last_seen||{};
+  if(!seen.news){setNavBadge('news','news-nav-badge',0);return;}
+  const{data,error}=await sb.from('news').select('id').gt('created_at',seen.news);
+  if(error){setNavBadge('news','news-nav-badge',0);return;}
+  setNavBadge('news','news-nav-badge',(data||[]).length);
+}
+
+// The player's own feedback submissions that moved to "reviewed"/"addressed" that they
+// haven't seen yet (feedback has no updated_at column, so we track acknowledged ids instead).
+async function checkFeedbackBadge(){
+  const{data,error}=await sb.from('feedback').select('id,status').eq('author',currentUser.id);
+  if(error){setNavBadge('feedback','feedback-nav-badge',0);return;}
+  const seenIds=(currentUser.tab_last_seen&&currentUser.tab_last_seen.feedback_seen_ids)||[];
+  const unseen=(data||[]).filter(f=>f.status!=='new'&&!seenIds.includes(f.id)).length;
+  setNavBadge('feedback','feedback-nav-badge',unseen);
+}
+async function markFeedbackSeen(ids){
+  if(!ids.length)return;
+  const prevIds=(currentUser.tab_last_seen&&currentUser.tab_last_seen.feedback_seen_ids)||[];
+  const merged=Array.from(new Set([...prevIds,...ids]));
+  const updated={...(currentUser.tab_last_seen||{}),feedback_seen_ids:merged};
+  currentUser.tab_last_seen=updated;
+  await sb.from('users').update({tab_last_seen:updated}).eq('id',currentUser.id);
+  setNavBadge('feedback','feedback-nav-badge',0);
 }
 
 function checkDailySpinAvailable(){
@@ -2288,7 +2377,7 @@ async function collectIncome(uid,amount,hours,last){
   await sb.from('player_cards').update({last_income_collected:new Date().toISOString()}).eq('uid',uid);
   const m=(currentUser.money||0)+amount;
   await sb.from('users').update({money:m}).eq('id',currentUser.id);
-  currentUser.money=m;updateHUD();showToast(`💵 Collected $${amount}!`);renderMyCards();
+  currentUser.money=m;updateHUD();showToast(`💵 Collected $${amount}!`);renderMyCards();checkMyCardsBadge();
 }
 
 // ── CARD HTML ──────────────────────────────────────────
@@ -2330,6 +2419,7 @@ function poolTileHTML(c){
 }
 
 async function renderAllCards(){
+  markTabSeen('allcards').then(()=>setNavBadge('allcards','allcards-nav-badge',0));
   const el=document.getElementById('allcards-content');
   if(!el)return;
   el.innerHTML='<div class="empty">Loading...</div>';
@@ -2584,7 +2674,7 @@ async function unlockSkillNode(nodeId){
   if(error){console.error('unlockSkillNode error:',error);showToast('Error: '+error.message);return;}
   currentUser.unlocked_skills=unlocked;
   showToast(`${n.icon} ${n.name} unlocked!`);
-  renderSkillTree();
+  renderSkillTree();checkSkillsBadge();
 }
 
 let _wheelTab=0,_wheelSpinning=false,_wheelSlotsCache={};
@@ -3171,6 +3261,7 @@ async function applyWheelReward(prize,tier){
 }
 
 async function renderPacks(){
+  markTabSeen('packs').then(()=>setNavBadge('packs','packs-nav-badge',0));
   const el=document.getElementById('packs-content');
   if(!el)return;
   const lvl=currentUser.level||1;
@@ -5973,6 +6064,7 @@ const NEWS_REACTIONS=[
 ];
 
 async function renderNews(){
+  markTabSeen('news').then(()=>setNavBadge('news','news-nav-badge',0));
   const el=document.getElementById('news-content');
   el.innerHTML='<div class="empty">Loading...</div>';
   const{data,error}=await sb.from('news').select('*').order('pinned',{ascending:false}).order('created_at',{ascending:false});
@@ -6308,6 +6400,7 @@ async function renderMyFeedback(){
   if(!el)return;
   const{data}=await sb.from('feedback').select('*').eq('author',currentUser.id).order('created_at',{ascending:false});
   if(!data||!data.length){el.innerHTML='<div class="empty">You haven\'t submitted any feedback yet.</div>';return;}
+  markFeedbackSeen(data.filter(f=>f.status!=='new').map(f=>f.id));
   el.innerHTML=data.map(f=>{
     const cat=getFeedbackCategory(f.category)||FEEDBACK_CATEGORIES[4];
     const statusBadge=f.status==='new'?`<span style="font-size:11px;padding:2px 8px;border-radius:6px;background:#374151;color:#d1d5db;">📥 Submitted</span>`
@@ -7467,10 +7560,9 @@ async function startBotFight(level){
     image_url:c.image_url||null,shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,usedFirstHit:false};
 
   const bot=buildBotFighter(level);
-  currentBotFight={player,bot,playerMoves:availableMoves,botMoves:bot.moves,level,cardUid:c.uid,
+  currentBotFight={player,bot,playerMoves:availableMoves,botMoves:bot.moves,level,cardUid:c.uid,busy:false,
     log:[`⚔️ ${player.name} steps up to face the ${bot.name} (Lv ${level})!`],ended:false};
   renderBotFightModal();
-  runBotFightLoop();
 }
 
 function applyBotFightFx(fxList){
@@ -7498,38 +7590,94 @@ function shakeBotArena(){
   setTimeout(()=>el.classList.remove('screen-shake'),320);
 }
 
-async function runBotFightLoop(){
+// Applies the shared start-of-turn dot tick + stamina regen to both fighters (same cadence
+// the old auto-loop used — fires before every single action, whether player's or the bot's).
+function botFightPreTurnTick(){
   const s=currentBotFight;
-  let turn='player',round=1;
-  while(!s.player.defeated&&!s.bot.defeated&&round<=40){
-    await sleep(900);
-    [s.player,s.bot].forEach(f=>{
-      if(f.dot>0&&f.dotTurns>0&&!f.defeated){
-        f.hp=Math.max(0,f.hp-f.dot);
-        s.log.push(`🔥 ${f.name} takes ${f.dot} damage-over-time (${f.dotTurns-1} turns left)`);
-        f.dotTurns--;if(f.dotTurns<=0)f.dot=0;
-        if(f.hp<=0){f.hp=0;f.defeated=true;s.log.push(`💀 ${f.name} was defeated!`);}
-      }
-    });
-    [s.player,s.bot].forEach(f=>{if(!f.defeated)f.stamina=Math.min(f.maxStamina,(f.stamina||0)+(f.staminaRegen||20));});
-    renderBotFightModal();
-    if(s.player.defeated||s.bot.defeated)break;
-
-    if(turn==='player'){
-      const move=pickAiMove(s.player,s.playerMoves);
-      const isFirst=!s.player.usedFirstHit;s.player.usedFirstHit=true;
-      const{log,fx}=resolveSparHit(s.player,s.bot,move,isFirst);
-      s.log.push(...log);renderBotFightModal();applyBotFightFx(fx);
-    } else {
-      const move=pickAiMove(s.bot,s.botMoves);
-      const{log,fx}=resolveSparHit(s.bot,s.player,move,false);
-      s.log.push(...log);renderBotFightModal();applyBotFightFx(fx);
+  [s.player,s.bot].forEach(f=>{
+    if(f.dot>0&&f.dotTurns>0&&!f.defeated){
+      f.hp=Math.max(0,f.hp-f.dot);
+      s.log.push(`🔥 ${f.name} takes ${f.dot} damage-over-time (${f.dotTurns-1} turns left)`);
+      f.dotTurns--;if(f.dotTurns<=0)f.dot=0;
+      if(f.hp<=0){f.hp=0;f.defeated=true;s.log.push(`💀 ${f.name} was defeated!`);}
     }
-    if(s.player.defeated||s.bot.defeated)break;
-    turn=turn==='player'?'bot':'player';round++;
+  });
+  [s.player,s.bot].forEach(f=>{if(!f.defeated)f.stamina=Math.min(f.maxStamina,(f.stamina||0)+(f.staminaRegen||20));});
+}
+
+// The bot's "intelligence" scales with its level: low levels mostly pick randomly (erratic,
+// wastes heals, ignores lethal openings), high levels play near-optimally (executes at low
+// HP, heals/shields defensively, prefers lifesteal while hurt, otherwise maximizes damage).
+function pickBotMoveIntelligent(bot,moves,player,level){
+  const intel=Math.min(1,level/45);
+  const affordable=moves.filter(m=>bot.stamina>=(m.stamina_cost||0));
+  if(!affordable.length)return moves.find(m=>(m.stamina_cost||0)===0)||moves[0];
+
+  if(Math.random()>=intel){
+    // Naive roll — just grabs something usable, no real strategy.
+    return affordable[rand(0,affordable.length-1)];
   }
+
+  const execMove=affordable.find(m=>m.type==='execute');
+  if(execMove&&player.hp/player.maxHp<=((execMove.execute_threshold||20)/100+0.05))return execMove;
+
+  if(bot.hp/bot.maxHp<0.35){
+    const heal=affordable.find(m=>m.type==='heal');
+    if(heal)return heal;
+    const shield=affordable.find(m=>m.type==='shield');
+    if(shield&&!bot.shielded)return shield;
+  }
+  if(bot.hp/bot.maxHp<0.6&&!bot.shielded&&Math.random()<0.5){
+    const shield=affordable.find(m=>m.type==='shield');
+    if(shield)return shield;
+  }
+  if(bot.hp/bot.maxHp<0.8){
+    const lifesteal=affordable.find(m=>m.type==='lifesteal');
+    if(lifesteal)return lifesteal;
+  }
+  const damaging=affordable.filter(m=>!['heal','shield','speed','taunt','counter','curse'].includes(m.type));
+  const pool=damaging.length?damaging:affordable;
+  return pool.reduce((best,m)=>((m.value||0)>(best.value||0)?m:best),pool[0]);
+}
+
+// Runs one full round: the player's chosen move, then (if the bot survives) the bot's
+// intelligence-scaled response. Move buttons are disabled via s.busy while this plays out.
+async function playerUseBotMove(idx){
+  const s=currentBotFight;
+  if(!s||s.ended||s.busy||s.player.defeated||s.bot.defeated)return;
+  const move=s.playerMoves[idx];
+  if(!move)return;
+  if(s.player.stamina<(move.stamina_cost||0)){showToast('Not enough stamina!');return;}
+
+  s.busy=true;
+  botFightPreTurnTick();
+  renderBotFightModal();
+  if(s.player.defeated||s.bot.defeated){await sleep(500);s.busy=false;finishBotFight(!s.player.defeated);return;}
+  await sleep(300);
+
+  const isFirst=!s.player.usedFirstHit;s.player.usedFirstHit=true;
+  const{log,fx}=resolveSparHit(s.player,s.bot,move,isFirst);
+  s.log.push(...log);renderBotFightModal();applyBotFightFx(fx);
   await sleep(700);
-  finishBotFight(!s.player.defeated);
+
+  if(s.bot.defeated){s.busy=false;finishBotFight(true);return;}
+  if(s.player.defeated){s.busy=false;finishBotFight(false);return;}
+
+  await sleep(400);
+  botFightPreTurnTick();
+  renderBotFightModal();
+  if(s.player.defeated||s.bot.defeated){await sleep(500);s.busy=false;finishBotFight(!s.player.defeated);return;}
+  await sleep(300);
+
+  const botMove=pickBotMoveIntelligent(s.bot,s.botMoves,s.player,s.level);
+  const{log:blog,fx:bfx}=resolveSparHit(s.bot,s.player,botMove,false);
+  s.log.push(...blog);renderBotFightModal();applyBotFightFx(bfx);
+  await sleep(700);
+
+  s.busy=false;
+  if(s.bot.defeated){finishBotFight(true);return;}
+  if(s.player.defeated){finishBotFight(false);return;}
+  renderBotFightModal();
 }
 
 async function finishBotFight(win){
@@ -7592,6 +7740,40 @@ function renderBotFightModal(){
   if(!el){el=document.createElement('div');el.id='botfight-overlay-wrap';document.body.appendChild(el);}
   const s=currentBotFight;
   if(!s){el.innerHTML='';return;}
+
+  let actionHTML='';
+  if(s.ended){
+    actionHTML=`<div style="text-align:center;padding:10px;border-radius:var(--radius);background:${s.resultWin?'rgba(22,163,74,0.12)':'rgba(220,38,38,0.12)'};border:1px solid ${s.resultWin?'#16a34a':'#dc2626'};margin-bottom:12px;">
+        <div style="font-size:15px;font-weight:700;color:${s.resultWin?'#16a34a':'#dc2626'};">${s.resultWin?'🏆 Victory!':'💀 Defeat'}</div>
+        <div style="font-size:13px;color:var(--text2);margin-top:4px;">${s.resultWin?`+$${s.resultMoney} · +${s.resultXp} XP${s.resultLeveledUp?' · Card leveled up to Lv'+s.resultLevel+'!':''}${s.resultAccountLevelUp?' · Advanced to Level '+(s.level+1)+'!':''}`:'No rewards this time — try a stronger card!'}</div>
+      </div>
+      <button class="btn btn-primary" style="width:100%;" onclick="closeBotFightModal()">Continue</button>`;
+  } else if(s.busy){
+    actionHTML=`<div style="text-align:center;font-size:12px;color:var(--text3);padding:14px 0;">⏳ Resolving turn...</div>`;
+  } else {
+    const typeColor={attack:'#3b82f6',heavy:'#ef4444',heal:'#22c55e',shield:'#f59e0b',dot:'#f97316',multi:'#8b5cf6',power:'#ec4899',combo:'#06b6d4',speed:'#84cc16',aoe:'#dc2626',lifesteal:'#e11d48',stamina_steal:'#7c3aed',taunt:'#92400e',curse:'#6b21a8',counter:'#065f46',execute:'#1c1917',scatter:'#0369a1'};
+    const stPct=Math.max(0,Math.round((s.player.stamina/s.player.maxStamina)*100));
+    actionHTML=`<div style="margin-bottom:2px;">
+      <div class="phase-label" style="margin-bottom:6px;">🃏 ${s.player.name} — choose an ability</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <span style="font-size:12px;color:var(--text3);white-space:nowrap;">⚡ Stamina</span>
+        <div class="bc-bar-wrap" style="flex:1;"><div class="bc-st-fill" style="width:${stPct}%;"></div></div>
+        <span style="font-size:12px;font-weight:700;color:var(--text2);white-space:nowrap;">${s.player.stamina}/${s.player.maxStamina}</span>
+      </div>
+      ${s.playerMoves.map((m,idx)=>{
+        const ok=s.player.stamina>=(m.stamina_cost||0);
+        const tc=typeColor[m.type]||'#6b7280';
+        const dmgLabel=m.type==='heal'?`+${m.value}HP`:m.type==='shield'?`${m.value}% block`:m.type==='speed'?'Dodge×2':m.type==='dot'?`${Math.round(m.value/3)}/t×${m.dot_turns||3}`:m.type==='multi'?`${m.value}×${m.hits_min||2}-${m.hits_max||4}`:m.value?`${m.value}dmg`:'';
+        return `<button class="ability-btn${!ok?' no-stamina':''}" ${!ok?'disabled':''} onclick="playerUseBotMove(${idx})" style="border-left:3px solid ${tc};">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span>${MOVE_ICONS[m.type]||'⚔️'} <strong>${m.name}</strong> <span style="font-size:11px;color:${tc};">${MOVE_LABELS[m.type]||m.type}</span></span>
+            <span style="font-size:12px;color:var(--text3);">⚡${m.stamina_cost||0} · ${dmgLabel}</span>
+          </div>
+        </button>`;
+      }).join('')}
+    </div>`;
+  }
+
   el.innerHTML=`<div class="tutorial-overlay">
     <div class="tutorial-card" style="width:520px;max-width:95vw;">
       <h3 style="margin-bottom:12px;text-align:center;">🤖 Bot Battle — Level ${s.level}</h3>
@@ -7603,13 +7785,7 @@ function renderBotFightModal(){
       <div class="battle-log-box" id="botfight-log" style="margin-bottom:14px;">
         ${s.log.map(l=>`<div class="log-entry">${l}</div>`).join('')}
       </div>
-      ${s.ended?`
-        <div style="text-align:center;padding:10px;border-radius:var(--radius);background:${s.resultWin?'rgba(22,163,74,0.12)':'rgba(220,38,38,0.12)'};border:1px solid ${s.resultWin?'#16a34a':'#dc2626'};margin-bottom:12px;">
-          <div style="font-size:15px;font-weight:700;color:${s.resultWin?'#16a34a':'#dc2626'};">${s.resultWin?'🏆 Victory!':'💀 Defeat'}</div>
-          <div style="font-size:13px;color:var(--text2);margin-top:4px;">${s.resultWin?`+$${s.resultMoney} · +${s.resultXp} XP${s.resultLeveledUp?' · Card leveled up to Lv'+s.resultLevel+'!':''}${s.resultAccountLevelUp?' · Advanced to Level '+(s.level+1)+'!':''}`:'No rewards this time — try a stronger card!'}</div>
-        </div>
-        <button class="btn btn-primary" style="width:100%;" onclick="closeBotFightModal()">Continue</button>
-      `:`<div style="text-align:center;font-size:12px;color:var(--text3);">Battle in progress...</div>`}
+      ${actionHTML}
     </div>
   </div>`;
   const logBox=document.getElementById('botfight-log');
@@ -7657,7 +7833,7 @@ async function collectTraining(uid){
   }
   await sb.from('player_cards').update({xp,level,atk,def,max_hp,unlocked_moves,training_until:null,training_xp_pending:0}).eq('uid',uid);
   showToast(`${c.name} gained XP!${level>c.level?' Leveled up to '+level+'!':''}`);
-  renderTraining();
+  renderTraining();checkTrainingBadge();
 }
 
 // ── PLAYERS & PROFILES ─────────────────────────────────────────────────
