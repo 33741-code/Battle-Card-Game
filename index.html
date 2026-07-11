@@ -7736,45 +7736,85 @@ async function finishBotFight(win){
   renderBotFightModal();
 }
 
-function renderBotCard(f){
-  const pct=f.maxHp?Math.max(0,Math.round((f.hp/f.maxHp)*100)):0;
-  const barColor=pct>50?'#16a34a':pct>20?'#eab308':'#dc2626';
-  const isBot=f.uid==='bot';
-  return `<div class="battle-card${f.shielded?' shielded-card':''}${f.defeated?' defeated-card':''}" id="fc-${f.uid}" style="width:150px;${isBot?`border-color:${f.tierColor};`:''}">
-    ${f.shielded?'<div class="shield-badge">🛡️</div>':''}
-    ${isBot?`<div class="battle-card-img-ph" style="font-size:40px;">${f.emoji}</div>`:(f.image_url?`<img src="${f.image_url}" class="battle-card-img">`:`<div class="battle-card-img-ph">${classEmoji(f.class_name)}</div>`)}
-    <div style="font-size:13px;font-weight:700;text-align:center;">${f.name}</div>
-    <div class="hp-bar-wrap"><div class="hp-bar" style="width:${pct}%;background:${barColor};"></div></div>
-    <div style="font-size:11px;color:var(--text3);text-align:center;">${f.hp}/${f.maxHp} HP</div>
+// Opponent-style card (top row) — mirrors buildOppCard() in the real battle screen:
+// HP bar + ATK/DEF only, no move list, no stamina.
+function buildBotOppCardHTML(bot,level){
+  const hpPct=Math.max(0,Math.round((bot.hp/bot.maxHp)*100));
+  const hpColor=hpPct>50?'#22c55e':hpPct>25?'#f59e0b':'#ef4444';
+  let cls='battle-card';
+  if(bot.defeated)cls+=' defeated-card';
+  if(bot.dot>0&&!bot.defeated)cls+=' dot-card';
+  if(bot.shielded&&!bot.defeated)cls+=' shielded-card';
+  return `<div class="${cls}" id="fc-${bot.uid}">
+    ${bot.shielded&&!bot.defeated?'<div class="shield-badge">🛡️</div>':''}
+    <div class="battle-card-img-ph" style="font-size:34px;">${bot.emoji}</div>
+    <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${bot.name}</div>
+    <span class="cat-badge" style="background:${bot.tierColor}22;color:${bot.tierColor};">Lv ${level} Bot</span>
+    <div style="font-size:10px;color:var(--text3);">⚔️${bot.atk} 🛡️${bot.def}</div>
+    <div class="bc-bar-wrap"><div class="bc-hp-fill" style="width:${hpPct}%;background:${hpColor};"></div></div>
+    <div style="font-size:10px;color:var(--text2);">❤️ ${bot.hp}/${bot.maxHp}${bot.dot>0?' 🔥'+bot.dotTurns+'t':''}</div>
+    ${bot.defeated?'<div style="font-size:11px;color:#ef4444;text-align:center;margin-top:2px;">💀 Defeated</div>':''}
+  </div>`;
+}
+// Player-style card (bottom row) — mirrors buildMyCard(): full stats, stamina bar, and the
+// move-list preview rows underneath, exactly like your real battle screen shows.
+function buildBotMyCardHTML(player,moves){
+  const hpPct=Math.max(0,Math.round((player.hp/player.maxHp)*100));
+  const hpColor=hpPct>50?'#22c55e':hpPct>25?'#f59e0b':'#ef4444';
+  const stPct=Math.max(0,Math.round((player.stamina/player.maxStamina)*100));
+  const col=classColor(player.class_name);
+  let cls='battle-card';
+  if(player.defeated)cls+=' defeated-card';
+  if(player.dot>0&&!player.defeated)cls+=' dot-card';
+  if(player.shielded&&!player.defeated)cls+=' shielded-card';
+  return `<div class="${cls}" id="fc-${player.uid}">
+    ${player.shielded&&!player.defeated?'<div class="shield-badge">🛡️</div>':''}
+    ${player.image_url?`<img class="battle-card-img" src="${player.image_url}">`:`<div class="battle-card-img-ph">${classEmoji(player.class_name)}</div>`}
+    <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${player.name}</div>
+    <span class="cat-badge" style="background:${col.bg};color:${col.fg};font-size:9px;">${player.class_name}</span>
+    <div style="font-size:10px;color:var(--text3);">⚔️${player.atk} 🛡️${player.def}${player.shielded?' 🛡️shielded':''}</div>
+    <div class="bc-bar-wrap"><div class="bc-hp-fill" style="width:${hpPct}%;background:${hpColor};"></div></div>
+    <div style="font-size:10px;color:var(--text2);">❤️ ${player.hp}/${player.maxHp}${player.dot>0?' 🔥'+player.dotTurns+'t':''}</div>
+    <div class="bc-bar-wrap"><div class="bc-st-fill" style="width:${stPct}%;"></div></div>
+    <div style="font-size:10px;color:var(--text3);">⚡ ${player.stamina}/${player.maxStamina}</div>
+    ${moves.map(m=>{
+      const ok=player.stamina>=(m.stamina_cost||0);
+      return `<div class="bc-move-row" style="color:${ok?'var(--text2)':'var(--text4)'};">${MOVE_ICONS[m.type]||'⚔️'} ${m.name}<span>⚡${m.stamina_cost||0}</span></div>`;
+    }).join('')}
+    ${player.defeated?'<div style="font-size:11px;color:#ef4444;text-align:center;margin-top:2px;">💀 Defeated</div>':''}
   </div>`;
 }
 
 function renderBotFightModal(){
-  let el=document.getElementById('botfight-overlay-wrap');
-  if(!el){el=document.createElement('div');el.id='botfight-overlay-wrap';document.body.appendChild(el);}
+  const el=document.getElementById('botbattle-content');
   const s=currentBotFight;
-  if(!s){el.innerHTML='';return;}
+  if(!el||!s)return;
 
   let actionHTML='';
   if(s.ended){
-    actionHTML=`<div style="text-align:center;padding:10px;border-radius:var(--radius);background:${s.resultWin?'rgba(22,163,74,0.12)':'rgba(220,38,38,0.12)'};border:1px solid ${s.resultWin?'#16a34a':'#dc2626'};margin-bottom:12px;">
-        <div style="font-size:15px;font-weight:700;color:${s.resultWin?'#16a34a':'#dc2626'};">${s.resultWin?'🏆 Victory!':'💀 Defeat'}</div>
+    actionHTML=`<div class="action-panel">
+      <div class="phase-label">🏁 Battle Over</div>
+      <div style="text-align:center;padding:6px 0;">
+        <div style="font-size:15px;font-weight:700;color:${s.resultWin?'#22c55e':'#ef4444'};">${s.resultWin?'🏆 Victory!':'💀 Defeat'}</div>
         <div style="font-size:13px;color:var(--text2);margin-top:4px;">${s.resultWin?`+$${s.resultMoney} · +${s.resultXp} XP${s.resultLeveledUp?' · Card leveled up to Lv'+s.resultLevel+'!':''}${s.resultAccountLevelUp?' · Advanced to Level '+(s.level+1)+'!':''}`:'No rewards this time — try a stronger card!'}</div>
       </div>
-      <button class="btn btn-primary" style="width:100%;" onclick="closeBotFightModal()">Continue</button>`;
+      <button class="btn btn-primary" onclick="closeBotFightModal()">Continue</button>
+    </div>`;
   } else if(s.busy){
-    actionHTML=`<div style="text-align:center;font-size:12px;color:var(--text3);padding:14px 0;">⏳ Resolving turn...</div>`;
+    actionHTML=`<div class="action-panel" style="text-align:center;">
+      <div style="font-size:13px;color:var(--text3);">⏳ Resolving turn...</div>
+    </div>`;
   } else {
     const typeColor={attack:'#3b82f6',heavy:'#ef4444',heal:'#22c55e',shield:'#f59e0b',dot:'#f97316',multi:'#8b5cf6',power:'#ec4899',combo:'#06b6d4',speed:'#84cc16',aoe:'#dc2626',lifesteal:'#e11d48',stamina_steal:'#7c3aed',taunt:'#92400e',curse:'#6b21a8',counter:'#065f46',execute:'#1c1917',scatter:'#0369a1'};
     const stPct=Math.max(0,Math.round((s.player.stamina/s.player.maxStamina)*100));
-    actionHTML=`<div style="margin-bottom:2px;">
-      <div class="phase-label" style="margin-bottom:6px;">🃏 ${s.player.name} — choose an ability</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+    actionHTML=`<div class="action-panel">
+      <div class="phase-label">🃏 ${s.player.name} — choose an ability</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
         <span style="font-size:12px;color:var(--text3);white-space:nowrap;">⚡ Stamina</span>
         <div class="bc-bar-wrap" style="flex:1;"><div class="bc-st-fill" style="width:${stPct}%;"></div></div>
         <span style="font-size:12px;font-weight:700;color:var(--text2);white-space:nowrap;">${s.player.stamina}/${s.player.maxStamina}</span>
       </div>
-      ${s.playerMoves.map((m,idx)=>{
+      ${s.playerMoves.length?s.playerMoves.map((m,idx)=>{
         const ok=s.player.stamina>=(m.stamina_cost||0);
         const tc=typeColor[m.type]||'#6b7280';
         const dmgLabel=m.type==='heal'?`+${m.value}HP`:m.type==='shield'?`${m.value}% block`:m.type==='speed'?'Dodge×2':m.type==='dot'?`${Math.round(m.value/3)}/t×${m.dot_turns||3}`:m.type==='multi'?`${m.value}×${m.hits_min||2}-${m.hits_max||4}`:m.value?`${m.value}dmg`:'';
@@ -7784,32 +7824,44 @@ function renderBotFightModal(){
             <span style="font-size:12px;color:var(--text3);">⚡${m.stamina_cost||0} · ${dmgLabel}</span>
           </div>
         </button>`;
-      }).join('')}
+      }).join(''):`<p style="font-size:13px;color:var(--text3);margin:0;">No moves available.</p>`}
     </div>`;
   }
 
-  el.innerHTML=`<div class="tutorial-overlay">
-    <div class="tutorial-card" style="width:520px;max-width:95vw;">
-      <h3 style="margin-bottom:12px;text-align:center;">🤖 Bot Battle — Level ${s.level}</h3>
-      <div id="botfight-arena" style="display:flex;align-items:flex-start;justify-content:center;gap:14px;margin-bottom:14px;">
-        ${renderBotCard(s.player)}
-        <div style="font-size:18px;font-weight:800;color:var(--text3);padding-top:40px;">VS</div>
-        ${renderBotCard(s.bot)}
+  const logHTML=[...s.log].reverse().slice(0,20).map(l=>{
+    let cls='log-entry';
+    if(l.includes('CRIT')||l.includes('EXECUTE'))cls+=' crit';
+    else if(l.includes('damage')||l.includes('defeated')||l.includes('dmg'))cls+=' dmg';
+    else if(l.includes('restored')||l.includes('HP!'))cls+=' heal-log';
+    return `<div class="${cls}">${l}</div>`;
+  }).join('');
+
+  const turnMsg=s.ended?'🏁 Battle Over':s.busy?'⏳ Resolving turn...':'⚡ Your Turn — Choose a move';
+
+  el.innerHTML=`
+    <div class="battle-arena-wrap" id="botfight-arena">
+      <div class="turn-bar ${(!s.ended&&!s.busy)?'turn-yours':'turn-opp'}">${turnMsg}</div>
+
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#fca5a5;margin-bottom:6px;padding:3px 8px;background:#2d0a0a;border-radius:6px;display:inline-block;">🔴 ${s.bot.name} (Lv ${s.level})</div>
+        <div class="battle-field-opp">${buildBotOppCardHTML(s.bot,s.level)}</div>
       </div>
-      <div class="battle-log-box" id="botfight-log" style="margin-bottom:14px;">
-        ${s.log.map(l=>`<div class="log-entry">${l}</div>`).join('')}
-      </div>
+
+      <div class="battle-log-box">${logHTML||'<div class="log-entry">Battle started!</div>'}</div>
+
       ${actionHTML}
-    </div>
-  </div>`;
-  const logBox=document.getElementById('botfight-log');
-  if(logBox)logBox.scrollTop=logBox.scrollHeight;
+
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#93c5fd;margin-bottom:6px;padding:3px 8px;background:#0c2340;border-radius:6px;display:inline-block;">🟢 ${s.player.name} (You)</div>
+        <div class="battle-field-mine">${buildBotMyCardHTML(s.player,s.playerMoves)}</div>
+      </div>
+
+      <button class="btn btn-sm" style="color:var(--text3);align-self:flex-start;margin-top:4px;" onclick="closeBotFightModal()">← Leave Battle</button>
+    </div>`;
 }
 
 function closeBotFightModal(){
   currentBotFight=null;
-  const el=document.getElementById('botfight-overlay-wrap');
-  if(el)el.innerHTML='';
   renderBotBattle();
 }
 
