@@ -123,6 +123,7 @@ textarea{resize:vertical;min-height:60px;}
 .row-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);}
 .row-item:last-child{border-bottom:none;}
 .empty{color:var(--text4);font-size:14px;text-align:center;padding:2rem;}
+.hidden{display:none;}
 .log-entry{font-size:12px;padding:5px 0;border-bottom:1px solid var(--log-border);color:var(--text3);line-height:1.5;}
 .log-entry:last-child{border-bottom:none;}
 .log-entry.highlight{color:#fbbf24;font-weight:600;}
@@ -448,6 +449,8 @@ document.addEventListener("DOMContentLoaded",function(){
       <button onclick="go('trade')">🤝 Trade</button>
       <button onclick="go('training')">🏋️ Training</button>
       <button onclick="go('botbattle')">🤖 Bot Battles</button>
+      <button onclick="go('raidboss')">👹 Raid Boss</button>
+      <button onclick="go('defense')">🛡️ Defense</button>
       <button onclick="go('quests')">📋 Quests</button>
       <button onclick="go('skills')">🌳 Skill Tree</button>
       <button onclick="go('leaderboard')">🏆 Leaderboard</button>
@@ -510,6 +513,10 @@ document.addEventListener("DOMContentLoaded",function(){
   <div id="screen-training" class="screen"><div id="training-content"></div></div>
   <!-- BOT BATTLES -->
   <div id="screen-botbattle" class="screen"><div id="botbattle-content"></div></div>
+  <!-- RAID BOSS -->
+  <div id="screen-raidboss" class="screen"><div id="raidboss-content"></div></div>
+  <!-- DEFENSE TEAM -->
+  <div id="screen-defense" class="screen"><div id="defense-content"></div></div>
 
   <!-- LEADERBOARD -->
   <div id="screen-leaderboard" class="screen"><div id="lb-content"></div></div>
@@ -1485,6 +1492,19 @@ const TITLE_EFFECTS={
 };
 
 const TYPE_CHART={fire:{ice:1.5,earth:1.3,wind:1.2,water:0.5,fire:0.7},ice:{earth:1.4,fire:0.5,lightning:0.8,ice:0.7,wind:1.2},lightning:{water:1.6,ice:1.2,earth:0.6,lightning:0.7},earth:{fire:1.3,lightning:1.4,ice:0.8,earth:0.7,wind:0.8},dark:{light:1.5,neutral:1.1,dark:0.5,void:0.8},light:{dark:1.5,void:1.3,light:0.6},water:{fire:1.5,earth:1.2,lightning:0.8,water:0.7},wind:{earth:1.3,lightning:1.2,wind:0.7},void:{light:1.4,neutral:1.2,void:0.5},neutral:{}};
+// Elements previously only affected damage math silently — this gives them a visible badge
+// so type match-ups (see TYPE_CHART above) actually read as a strategy layer in the UI.
+const ELEMENT_INFO={
+  fire:{emoji:'🔥',color:'#f97316'},ice:{emoji:'❄️',color:'#38bdf8'},lightning:{emoji:'⚡',color:'#facc15'},
+  earth:{emoji:'🪨',color:'#a16207'},water:{emoji:'💧',color:'#3b82f6'},wind:{emoji:'🌪️',color:'#84cc16'},
+  dark:{emoji:'🌑',color:'#7c3aed'},light:{emoji:'✨',color:'#fde68a'},void:{emoji:'🕳️',color:'#4c1d95'},
+  neutral:{emoji:'⚪',color:'#9ca3af'}
+};
+function elementBadge(el){
+  const e=ELEMENT_INFO[el]||ELEMENT_INFO.neutral;
+  const label=el?el.charAt(0).toUpperCase()+el.slice(1):'Neutral';
+  return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;color:${e.color};background:${e.color}1a;border:1px solid ${e.color}55;border-radius:6px;padding:1px 6px;white-space:nowrap;">${e.emoji} ${label}</span>`;
+}
 const MOVE_ICONS={attack:'⚔️',heavy:'💥',heal:'💚',shield:'🛡️',dot:'🔥',multi:'🌀',power:'⚡',combo:'🎯',speed:'💨',aoe:'💣',lifesteal:'🩸',stamina_steal:'⚡🔻',taunt:'😤',curse:'🌀',counter:'🔄',execute:'💀',scatter:'🎯💥',
   // Offensive
   piercing:'🗡️',chain:'⛓️',overcharge:'🔋',precision:'🎯',backstab:'🔪',crushing:'🔨',sunder:'💢',echo:'🔁',overwhelm:'📈',finisher:'☠️',
@@ -1635,7 +1655,7 @@ function showXpGain(source,gold,xp,newLevel){
   document.head.appendChild(s);
 })();
 function spin(id,on){const el=document.getElementById(id);if(el)el.style.display=on?'inline-block':'none';}
-function xpForCard(lv){return Math.round(50*Math.pow(lv,1.2));}
+function xpForCard(lv,rarity){return Math.round(50*Math.pow(lv,1.2)*(RARITY_XP_MULT[rarity]!=null?RARITY_XP_MULT[rarity]:1));}
 
 // Grants player XP with the usual skill/boost multipliers applied, handling level-ups and
 // milestone checks — used for sources like card combining that award player XP directly.
@@ -1665,8 +1685,8 @@ async function grantCardXpToAll(ownerId,amount){
     let{xp,level,atk,def,max_hp,unlocked_moves}={...c,unlocked_moves:c.unlocked_moves||[]};
     xp+=amount;
     let leveledUp=false;
-    while(xp>=xpForCard(level)){
-      xp-=xpForCard(level);level++;leveledUp=true;
+    while(xp>=xpForCard(level,c.rarity)){
+      xp-=xpForCard(level,c.rarity);level++;leveledUp=true;
       atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);
       def=Math.round(def*RARITY_STAT_MULT[c.rarity]);
       max_hp=Math.round((max_hp||c.hp||100)*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
@@ -2106,7 +2126,7 @@ function go(name){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
   const mc=document.querySelector('.main-content');if(mc)mc.scrollTop=0;
-  const names=['mycards','allcards','packs','wheel','items','battle','trade','training','botbattle','quests','skills','leaderboard','news','events','feedback','players','profile','admin'];
+  const names=['mycards','allcards','packs','wheel','items','battle','trade','training','botbattle','raidboss','defense','quests','skills','leaderboard','news','events','feedback','players','profile','admin'];
   document.querySelectorAll('.main-sidebar button').forEach((b,i)=>b.classList.toggle('active',names[i]===name));
   if(name==='mycards')renderMyCards();
   if(name==='allcards')renderAllCards();
@@ -2117,6 +2137,8 @@ function go(name){
   if(name==='trade')renderTrade();
   if(name==='training')renderTraining();
   if(name==='botbattle')renderBotBattle();
+  if(name==='raidboss')renderRaidBoss();
+  if(name==='defense')renderDefenseTab();
   if(name==='quests')renderQuestsTab();
   if(name==='skills')renderSkillTree();
   if(name==='leaderboard')renderLB();
@@ -2383,7 +2405,7 @@ async function collectIncome(uid,amount,hours,last){
 // ── CARD HTML ──────────────────────────────────────────
 function cardTileHTML(c,selectable){
   const col=classColor(c.class_name);
-  const needed=xpForCard(c.level);
+  const needed=xpForCard(c.level,c.rarity);
   const pct=Math.min(100,Math.round((c.xp/needed)*100));
   const imgHTML=c.image_url
     ? `<img class="card-img" src="${c.image_url}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`+`<div class="card-img-placeholder" style="display:none">${classEmoji(c.class_name)}</div>`
@@ -3446,8 +3468,8 @@ async function openPack(pt,sizeIdx){
       let max_hp=Math.max(base.max_hp||base.hp,c.max_hp||c.hp);
       let unlocked_moves=[...new Set([...(base.unlocked_moves||[]),...(c.unlocked_moves||[])])];
       let xp=(base.xp||0)+xpBonus;
-      while(xp>=xpForCard(level)){
-        xp-=xpForCard(level);level++;
+      while(xp>=xpForCard(level,base.rarity)){
+        xp-=xpForCard(level,base.rarity);level++;
         atk=Math.round(atk*RARITY_STAT_MULT[base.rarity]);
         def=Math.round(def*RARITY_STAT_MULT[base.rarity]);
         max_hp=Math.round(max_hp*(1+(RARITY_STAT_MULT[base.rarity]-1)*0.7));
@@ -5229,10 +5251,10 @@ async function awardRewards(state,battle){
     const sideSkills=onWin?wSkills:lSkills;
     let xp=onWin?30:10;if(surv)xp+=20;xp=Math.round(xp*RARITY_XP_MULT[c.rarity]*boostMultiplierFor(onWin?wuFresh:luFresh,'card_xp')*(1+(sideSkills.card_xp_pct||0)/100));
     let{xp:cx,level,atk,def,max_hp,unlocked_moves}={...c,unlocked_moves:c.unlocked_moves||[]};
-    const beforeXp=cx,beforeLevel=level,xpNeededAtStart=xpForCard(level);
+    const beforeXp=cx,beforeLevel=level,xpNeededAtStart=xpForCard(level,c.rarity);
     cx+=xp;
     let leveledUp=false;
-    while(cx>=xpForCard(level)){cx-=xpForCard(level);level++;leveledUp=true;atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);def=Math.round(def*RARITY_STAT_MULT[c.rarity]);max_hp=Math.round((max_hp||c.hp||100)*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
+    while(cx>=xpForCard(level,c.rarity)){cx-=xpForCard(level,c.rarity);level++;leveledUp=true;atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);def=Math.round(def*RARITY_STAT_MULT[c.rarity]);max_hp=Math.round((max_hp||c.hp||100)*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
       if(c.pool_card_id){const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',c.pool_card_id).single();if(pc&&pc.moves)pc.moves.forEach(m=>{if(m.unlock_level===level&&!unlocked_moves.includes(m.name))unlocked_moves.push(m.name);});}
     }
     await sb.from('player_cards').update({xp:cx,level,atk,def,max_hp,unlocked_moves}).eq('uid',uid);
@@ -5418,7 +5440,7 @@ async function renderBattleResultsSequence(results){
           await new Promise(r=>setTimeout(r,450));
           if(lvEl)lvEl.textContent=cr.afterLevel;
           fillEl.style.background='#a78bfa';
-          const afterPct=Math.min(100,Math.round((cr.afterXp/Math.max(1,xpForCard(cr.afterLevel)))*100));
+          const afterPct=Math.min(100,Math.round((cr.afterXp/Math.max(1,xpForCard(cr.afterLevel,cr.rarity)))*100));
           await new Promise(r=>setTimeout(r,150));
           fillEl.style.width='0%';
           await new Promise(r=>setTimeout(r,200));
@@ -5811,8 +5833,8 @@ async function adminGiveCardXP(){
   for(const c of cards){
     let{xp,level,atk,def,max_hp,unlocked_moves}={...c,unlocked_moves:c.unlocked_moves||[]};
     xp+=amt;
-    while(xp>=xpForCard(level)){
-      xp-=xpForCard(level);level++;
+    while(xp>=xpForCard(level,c.rarity)){
+      xp-=xpForCard(level,c.rarity);level++;
       atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);
       def=Math.round(def*RARITY_STAT_MULT[c.rarity]);
       max_hp=Math.round((max_hp||c.hp||100)*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
@@ -5918,7 +5940,7 @@ async function renderPool(){
 async function openModal(uid){
   const{data:c}=await sb.from('player_cards').select('*').eq('uid',uid).single();
   if(!c)return;currentModalCard=c;
-  const needed=xpForCard(c.level);const pct=Math.min(100,Math.round((c.xp/needed)*100));
+  const needed=xpForCard(c.level,c.rarity);const pct=Math.min(100,Math.round((c.xp/needed)*100));
   const col=classColor(c.class_name);
   document.getElementById('m-img-wrap').innerHTML=c.image_url?`<img src="${c.image_url}" style="width:100%;height:180px;object-fit:contain;border-radius:8px;background:var(--bg3);">`:`<div style="width:100%;height:180px;display:flex;align-items:center;justify-content:center;font-size:48px;background:var(--bg3);border-radius:8px;">${classEmoji(c.class_name)}</div>`;
   document.getElementById('m-name').textContent=c.name;
@@ -6025,8 +6047,8 @@ async function combineDuplicate(keepUid,sacrificeUid,cost){
   // Apply XP on top of the merged stats
   let xp=(keepCard.xp||0)+xpBonus;
   const oldLevel=level;
-  while(xp>=xpForCard(level)){
-    xp-=xpForCard(level);level++;
+  while(xp>=xpForCard(level,keepCard.rarity)){
+    xp-=xpForCard(level,keepCard.rarity);level++;
     atk=Math.round(atk*RARITY_STAT_MULT[keepCard.rarity]);
     def=Math.round(def*RARITY_STAT_MULT[keepCard.rarity]);
     max_hp=Math.round(max_hp*(1+(RARITY_STAT_MULT[keepCard.rarity]-1)*0.7));
@@ -6669,8 +6691,8 @@ async function ctxCombine(name,useAll){
     max_hp=Math.max(max_hp,s.max_hp||s.hp);
     unlocked_moves=[...new Set([...unlocked_moves,...(s.unlocked_moves||[])])];
     xp+=xpBonus;
-    while(xp>=xpForCard(level)){
-      xp-=xpForCard(level);level++;
+    while(xp>=xpForCard(level,base.rarity)){
+      xp-=xpForCard(level,base.rarity);level++;
       atk=Math.round(atk*RARITY_STAT_MULT[base.rarity]);
       def=Math.round(def*RARITY_STAT_MULT[base.rarity]);
       max_hp=Math.round(max_hp*(1+(RARITY_STAT_MULT[base.rarity]-1)*0.7));
@@ -7165,6 +7187,13 @@ async function renderTraining(){
 function sparCost(card){return Math.round(trainingCost(card)*0.45);}
 function sparXpWin(card){return Math.round(trainingXpTotal(card)*0.3);}
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+function timeAgo(iso){
+  const ms=Date.now()-new Date(iso).getTime();
+  if(ms<60000)return'just now';
+  if(ms<3600000)return Math.floor(ms/60000)+'m ago';
+  if(ms<86400000)return Math.floor(ms/3600000)+'h ago';
+  return Math.floor(ms/86400000)+'d ago';
+}
 
 // Scales a generic "Training Dummy" opponent off the same rarity table used to seed real
 // cards, ramped a little by the player's card level so sparring stays a real (winnable) fight.
@@ -7172,7 +7201,7 @@ function buildSparDummy(card){
   const base=RARITY_SUGGESTED[card.rarity]||RARITY_SUGGESTED[0];
   const lvlMult=1+Math.max(0,(card.level-1))*0.06;
   const hp=Math.round(base.hp*lvlMult*0.9);
-  return{uid:'dummy',name:'Training Dummy',class_name:null,atk:Math.round(base.atk*lvlMult*0.85),def:Math.round(base.def*lvlMult*0.85),
+  return{uid:'dummy',name:'Training Dummy',class_name:null,element:'neutral',atk:Math.round(base.atk*lvlMult*0.85),def:Math.round(base.def*lvlMult*0.85),
     maxHp:hp,hp,crit:(base.crit||0.1)*0.7,dodge:(base.dodge||0.05)*0.6,stamina:999,maxStamina:999,staminaRegen:999,
     shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,image_url:null};
 }
@@ -7200,6 +7229,10 @@ function resolveSparHit(attacker,defender,move,isFirstHit){
   let critMult=crit?1.5+Math.random()*0.5:1;
   if(crit&&attacker.critDmgBonusPct)critMult*=(1+attacker.critDmgBonusPct/100);
   const firstHitMult=(isFirstHit&&attacker.firstHitBonusPct)?(1+attacker.firstHitBonusPct/100):1;
+  // Same elemental type chart your real PvP battles use — previously missing from Sparring/
+  // Bot Battles/Raid Boss/Defense fights, which all share this function.
+  const tm=getTypeMult(attacker.element||'neutral',defender.element||'neutral');
+  const tmTag=tm>=1.25?' <span style="color:#4ade80;">(Super Effective!)</span>':tm<=0.75?' <span style="color:#f87171;">(Resisted)</span>':'';
 
   if(move.type==='heal'){
     const h=move.value||30;attacker.hp=Math.min(attacker.maxHp,attacker.hp+h);
@@ -7225,39 +7258,39 @@ function resolveSparHit(attacker,defender,move,isFirstHit){
     return{log,fx};
   }
   if(move.type==='dot'){
-    const dpt=Math.max(1,Math.round(((move.value||30)+(attacker.atk*0.15))/3));
+    const dpt=Math.max(1,Math.round((((move.value||30)+(attacker.atk*0.15))/3)*tm));
     defender.dot=dpt;defender.dotTurns=move.dot_turns||3;
-    log.push(`🔥 ${attacker.name} used ${move.name}${crit?' 💥 CRIT!':''} — ${defender.name} burns for ${dpt}/turn × ${defender.dotTurns}!`);
+    log.push(`🔥 ${attacker.name} used ${move.name}${crit?' 💥 CRIT!':''} — ${defender.name} burns for ${dpt}/turn × ${defender.dotTurns}!${tmTag}`);
     fx.push({uid:defender.uid,type:'hit',crit,amount:0});
   } else if(move.type==='multi'){
     const hits=rand(move.hits_min||2,move.hits_max||3);let tot=0;
-    for(let i=0;i<hits;i++)tot+=Math.max(1,Math.round(((move.value||30)/hits+attacker.atk*0.2-defender.def*0.3)*critMult));
+    for(let i=0;i<hits;i++)tot+=Math.max(1,Math.round(((move.value||30)/hits+attacker.atk*0.2-defender.def*0.3)*critMult*tm));
     if(defender.shielded){const bl=Math.round(tot*defender.shieldPct);tot=Math.max(1,tot-bl);log.push(`🛡️ Shield absorbed ${bl} damage!`);defender.shielded=false;}
     defender.hp=Math.max(0,defender.hp-tot);
-    log.push(`🌀 ${attacker.name} used ${move.name}${crit?' 💥 CRIT!':''} — ${hits} hits for ${tot} total!`);
+    log.push(`🌀 ${attacker.name} used ${move.name}${crit?' 💥 CRIT!':''} — ${hits} hits for ${tot} total!${tmTag}`);
     fx.push({uid:defender.uid,type:'hit',crit,amount:tot});
   } else if(move.type==='lifesteal'){
-    const dmg=Math.max(1,Math.round((move.value+attacker.atk*0.3-defender.def*0.5)*critMult));
+    const dmg=Math.max(1,Math.round((move.value+attacker.atk*0.3-defender.def*0.5)*critMult*tm));
     const stolen=Math.round(dmg*(move.steal_pct||0.5));
     if(defender.shielded){const bl=Math.round(dmg*defender.shieldPct);defender.hp=Math.max(0,defender.hp-(dmg-bl));defender.shielded=false;}else defender.hp=Math.max(0,defender.hp-dmg);
     attacker.hp=Math.min(attacker.maxHp,attacker.hp+stolen);
-    log.push(`🩸 ${attacker.name} used ${move.name}${crit?' 💥 CRIT!':''} — ${dmg} dmg, stole ${stolen} HP!`);
+    log.push(`🩸 ${attacker.name} used ${move.name}${crit?' 💥 CRIT!':''} — ${dmg} dmg, stole ${stolen} HP!${tmTag}`);
     fx.push({uid:defender.uid,type:'hit',crit,amount:dmg});
     if(stolen>0)fx.push({uid:attacker.uid,type:'heal',amount:stolen});
   } else if(move.type==='execute'){
     const threshold=(move.execute_threshold||20)/100;
     const hpPct=defender.hp/defender.maxHp;
-    let dmg=Math.max(1,Math.round((move.value-defender.def*0.5)*critMult));
+    let dmg=Math.max(1,Math.round((move.value-defender.def*0.5)*critMult*tm));
     if(hpPct<=threshold){dmg=defender.hp;log.push(`💀 EXECUTE! ${defender.name} is below ${move.execute_threshold||20}% HP!`);}
     defender.hp=Math.max(0,defender.hp-dmg);
-    log.push(`💀 ${attacker.name} used ${move.name}${crit?' 💥 CRIT!':''} — ${dmg} damage!`);
+    log.push(`💀 ${attacker.name} used ${move.name}${crit?' 💥 CRIT!':''} — ${dmg} damage!${tmTag}`);
     fx.push({uid:defender.uid,type:'hit',crit,amount:dmg});
   } else {
-    const dmg=Math.max(1,Math.round((move.value+attacker.atk*0.3-defender.def*0.5)*critMult*firstHitMult));
+    const dmg=Math.max(1,Math.round((move.value+attacker.atk*0.3-defender.def*0.5)*critMult*firstHitMult*tm));
     let dealt=dmg;
     if(defender.shielded){const bl=Math.round(dmg*defender.shieldPct);dealt=Math.max(1,dmg-bl);log.push(`🛡️ Shield absorbed ${bl} damage!`);defender.shielded=false;}
     defender.hp=Math.max(0,defender.hp-dealt);
-    log.push(`${MOVE_ICONS[move.type]||'⚔️'} ${attacker.name} used ${move.name}${crit?' 💥 CRIT!':''} — ${dealt} damage!`);
+    log.push(`${MOVE_ICONS[move.type]||'⚔️'} ${attacker.name} used ${move.name}${crit?' 💥 CRIT!':''} — ${dealt} damage!${tmTag}`);
     fx.push({uid:defender.uid,type:'hit',crit,amount:dealt});
   }
   if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
@@ -7286,7 +7319,7 @@ async function startSpar(uid){
 
   const skills=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
   const maxHp=Math.round((c.max_hp||c.hp)*(1+skills.hp_pct/100));
-  const player={uid:c.uid,name:c.name,class_name:c.class_name,atk:Math.round(c.atk*(1+skills.atk_pct/100)),def:Math.round(c.def*(1+skills.def_pct/100)),
+  const player={uid:c.uid,name:c.name,class_name:c.class_name,element:c.element||'neutral',atk:Math.round(c.atk*(1+skills.atk_pct/100)),def:Math.round(c.def*(1+skills.def_pct/100)),
     maxHp,hp:maxHp,stamina:c.stamina||50,maxStamina:c.max_stamina||100,staminaRegen:c.stamina_regen||25,
     crit:Math.min(0.95,(c.crit_chance||0.1)+skills.crit_pct/100),dodge:Math.min(0.95,(c.dodge_chance||0.05)+skills.dodge_pct/100),
     critDmgBonusPct:skills.crit_dmg_pct||0,firstHitBonusPct:skills.first_hit_pct||0,
@@ -7366,8 +7399,8 @@ async function finishSpar(win){
   const bonusXp=Math.round(baseXp*(1+skills.training_xp_pct/100));
   let xp=(c.xp||0)+bonusXp,level=c.level,atk=c.atk,def=c.def,max_hp=c.max_hp||c.hp;
   let unlocked_moves=[...(c.unlocked_moves||[])];
-  while(xp>=xpForCard(level)){
-    xp-=xpForCard(level);level++;
+  while(xp>=xpForCard(level,c.rarity)){
+    xp-=xpForCard(level,c.rarity);level++;
     atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);
     def=Math.round(def*RARITY_STAT_MULT[c.rarity]);
     max_hp=Math.round(max_hp*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
@@ -7433,16 +7466,16 @@ function closeSparModal(){
 // ── BOT BATTLES (PvE ladder, Level 1 → 50) ──────────────────────────────
 // Bot tiers give the ladder some visual/flavor progression as levels climb.
 const BOT_TIERS=[
-  {max:5,name:'Recruit Bot',emoji:'🤖',color:'#94a3b8'},
-  {max:10,name:'Combat Drone',emoji:'🛰️',color:'#60a5fa'},
-  {max:15,name:'Sentry Unit',emoji:'🗼',color:'#38bdf8'},
-  {max:20,name:'War Machine',emoji:'⚙️',color:'#f59e0b'},
-  {max:25,name:'Siege Bot',emoji:'💣',color:'#fb923c'},
-  {max:30,name:'Cyber Knight',emoji:'🛡️',color:'#a78bfa'},
-  {max:35,name:'Phantom Unit',emoji:'👻',color:'#c084fc'},
-  {max:40,name:'Titan Core',emoji:'🏛️',color:'#f43f5e'},
-  {max:45,name:'Nemesis Prime',emoji:'💀',color:'#dc2626'},
-  {max:50,name:'Omega Unit',emoji:'⚡',color:'#facc15'}
+  {max:5,name:'Recruit Bot',emoji:'🤖',color:'#94a3b8',element:'neutral',lore:'Fresh off the assembly line — all bark, mostly random swings.'},
+  {max:10,name:'Combat Drone',emoji:'🛰️',color:'#60a5fa',element:'wind',lore:'Fast and twitchy, but still learning which button does what.'},
+  {max:15,name:'Sentry Unit',emoji:'🗼',color:'#38bdf8',element:'earth',lore:'Built to hold ground. Starts actually thinking before it swings.'},
+  {max:20,name:'War Machine',emoji:'⚙️',color:'#f59e0b',element:'fire',lore:'Serious hardware. Rapid Fire adds up fast if you let it stack.'},
+  {max:25,name:'Siege Bot',emoji:'💣',color:'#fb923c',element:'water',lore:'Drains what it hits and just keeps coming.'},
+  {max:30,name:'Cyber Knight',emoji:'🛡️',color:'#a78bfa',element:'light',lore:"Knows when to guard now — don't expect many openings."},
+  {max:35,name:'Phantom Unit',emoji:'👻',color:'#c084fc',element:'dark',lore:'Termination protocols online — get it low and it goes for the kill.'},
+  {max:40,name:'Titan Core',emoji:'🏛️',color:'#f43f5e',element:'ice',lore:'Barrage rewrites what "multi-hit" means. Bring HP.'},
+  {max:45,name:'Nemesis Prime',emoji:'💀',color:'#dc2626',element:'void',lore:'Near-perfect decision making. Every opening it gives you is a trap.'},
+  {max:50,name:'Omega Unit',emoji:'⚡',color:'#facc15',element:'lightning',lore:"The ladder's final word. Optimal, relentless, and hits like a truck."}
 ];
 function botTierFor(level){return BOT_TIERS.find(t=>level<=t.max)||BOT_TIERS[BOT_TIERS.length-1];}
 
@@ -7456,7 +7489,7 @@ function buildBotFighter(level){
   const def=Math.round(7+growth*1.9);
   const crit=Math.min(0.4,0.04+level*0.006);
   const dodge=Math.min(0.35,0.03+level*0.005);
-  const bot={uid:'bot',name:tier.name,tierColor:tier.color,emoji:tier.emoji,
+  const bot={uid:'bot',name:tier.name,tierColor:tier.color,emoji:tier.emoji,element:tier.element,
     atk,def,maxHp:hp,hp,crit,dodge,stamina:999,maxStamina:999,staminaRegen:999,
     shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,image_url:null};
   bot.moves=buildBotMoveset(level,bot);
@@ -7533,7 +7566,8 @@ async function openBotLevelPicker(level){
   const rewardMoney=Math.round(botRewardMoney(level)*(isFrontier?1:0.4));
   const rewardXp=Math.round(botRewardXp(level)*(isFrontier?1:0.4));
   box.innerHTML=`<div class="box" style="border-color:${tier.color};margin-top:12px;">
-    <h4 style="margin-bottom:4px;">${tier.emoji} ${tier.name} — Level ${level}</h4>
+    <h4 style="margin-bottom:4px;">${tier.emoji} ${tier.name} — Level ${level} ${elementBadge(tier.element)}</h4>
+    <p style="font-size:12px;color:var(--text2);font-style:italic;margin-bottom:6px;">"${tier.lore}"</p>
     <p style="font-size:12px;color:var(--text3);margin-bottom:10px;">${isFrontier?'Win to advance to the next level!':'Already cleared — replay for a reduced reward.'} Reward on win: ~$${rewardMoney} + ${rewardXp} XP.</p>
     <div class="card-grid" style="grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-bottom:10px;">
       ${usable.map(c=>`<div class="card-tile${botFightSelectedCardUid===c.uid?' ctx-selected':''}" style="padding:8px;" onclick="botFightSelectedCardUid='${c.uid}';openBotLevelPicker(${level});">
@@ -7561,7 +7595,7 @@ async function startBotFight(level){
 
   const skills=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
   const maxHp=Math.round((c.max_hp||c.hp)*(1+skills.hp_pct/100));
-  const player={uid:c.uid,name:c.name,class_name:c.class_name,atk:Math.round(c.atk*(1+skills.atk_pct/100)),def:Math.round(c.def*(1+skills.def_pct/100)),
+  const player={uid:c.uid,name:c.name,class_name:c.class_name,element:c.element||'neutral',atk:Math.round(c.atk*(1+skills.atk_pct/100)),def:Math.round(c.def*(1+skills.def_pct/100)),
     maxHp,hp:maxHp,stamina:c.stamina||50,maxStamina:c.max_stamina||100,staminaRegen:c.stamina_regen||25,
     crit:Math.min(0.95,(c.crit_chance||0.1)+skills.crit_pct/100),dodge:Math.min(0.95,(c.dodge_chance||0.05)+skills.dodge_pct/100),
     critDmgBonusPct:skills.crit_dmg_pct||0,firstHitBonusPct:skills.first_hit_pct||0,
@@ -7718,8 +7752,8 @@ async function finishBotFight(win){
     const bonusXp=Math.round(xpReward*(1+skills.training_xp_pct/100));
     let xp=(c.xp||0)+bonusXp,level=c.level,atk=c.atk,def=c.def,max_hp=c.max_hp||c.hp;
     let unlocked_moves=[...(c.unlocked_moves||[])];
-    while(xp>=xpForCard(level)){
-      xp-=xpForCard(level);level++;
+    while(xp>=xpForCard(level,c.rarity)){
+      xp-=xpForCard(level,c.rarity);level++;
       atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);
       def=Math.round(def*RARITY_STAT_MULT[c.rarity]);
       max_hp=Math.round(max_hp*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
@@ -7738,7 +7772,7 @@ async function finishBotFight(win){
 
 // Opponent-style card (top row) — mirrors buildOppCard() in the real battle screen:
 // HP bar + ATK/DEF only, no move list, no stamina.
-function buildBotOppCardHTML(bot,level){
+function buildBotOppCardHTML(bot,badgeLabel){
   const hpPct=Math.max(0,Math.round((bot.hp/bot.maxHp)*100));
   const hpColor=hpPct>50?'#22c55e':hpPct>25?'#f59e0b':'#ef4444';
   let cls='battle-card';
@@ -7747,9 +7781,9 @@ function buildBotOppCardHTML(bot,level){
   if(bot.shielded&&!bot.defeated)cls+=' shielded-card';
   return `<div class="${cls}" id="fc-${bot.uid}">
     ${bot.shielded&&!bot.defeated?'<div class="shield-badge">🛡️</div>':''}
-    <div class="battle-card-img-ph" style="font-size:34px;">${bot.emoji}</div>
+    ${bot.image_url?`<img class="battle-card-img" src="${bot.image_url}">`:`<div class="battle-card-img-ph" style="font-size:34px;">${bot.emoji}</div>`}
     <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${bot.name}</div>
-    <span class="cat-badge" style="background:${bot.tierColor}22;color:${bot.tierColor};">Lv ${level} Bot</span>
+    <span class="cat-badge" style="background:${bot.tierColor}22;color:${bot.tierColor};">${badgeLabel}</span> ${elementBadge(bot.element)}
     <div style="font-size:10px;color:var(--text3);">⚔️${bot.atk} 🛡️${bot.def}</div>
     <div class="bc-bar-wrap"><div class="bc-hp-fill" style="width:${hpPct}%;background:${hpColor};"></div></div>
     <div style="font-size:10px;color:var(--text2);">❤️ ${bot.hp}/${bot.maxHp}${bot.dot>0?' 🔥'+bot.dotTurns+'t':''}</div>
@@ -7771,7 +7805,7 @@ function buildBotMyCardHTML(player,moves){
     ${player.shielded&&!player.defeated?'<div class="shield-badge">🛡️</div>':''}
     ${player.image_url?`<img class="battle-card-img" src="${player.image_url}">`:`<div class="battle-card-img-ph">${classEmoji(player.class_name)}</div>`}
     <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${player.name}</div>
-    <span class="cat-badge" style="background:${col.bg};color:${col.fg};font-size:9px;">${player.class_name}</span>
+    <span class="cat-badge" style="background:${col.bg};color:${col.fg};font-size:9px;">${player.class_name}</span> ${elementBadge(player.element)}
     <div style="font-size:10px;color:var(--text3);">⚔️${player.atk} 🛡️${player.def}${player.shielded?' 🛡️shielded':''}</div>
     <div class="bc-bar-wrap"><div class="bc-hp-fill" style="width:${hpPct}%;background:${hpColor};"></div></div>
     <div style="font-size:10px;color:var(--text2);">❤️ ${player.hp}/${player.maxHp}${player.dot>0?' 🔥'+player.dotTurns+'t':''}</div>
@@ -7844,7 +7878,7 @@ function renderBotFightModal(){
 
       <div>
         <div style="font-size:11px;font-weight:700;color:#fca5a5;margin-bottom:6px;padding:3px 8px;background:#2d0a0a;border-radius:6px;display:inline-block;">🔴 ${s.bot.name} (Lv ${s.level})</div>
-        <div class="battle-field-opp">${buildBotOppCardHTML(s.bot,s.level)}</div>
+        <div class="battle-field-opp">${buildBotOppCardHTML(s.bot,`Lv ${s.level} Bot`)}</div>
       </div>
 
       <div class="battle-log-box">${logHTML||'<div class="log-entry">Battle started!</div>'}</div>
@@ -7863,6 +7897,728 @@ function renderBotFightModal(){
 function closeBotFightModal(){
   currentBotFight=null;
   renderBotBattle();
+}
+
+// ── RAID BOSS (weekly, shared, leaderboard-ranked) ──────────────────────
+// A fresh boss every 7 days — same boss, same stats, for every player that week, so
+// "who did best" is a fair comparison. Rotation is deterministic (epoch-week based),
+// no server cron needed.
+const RAID_BOSSES=[
+  {name:'Grimlock, the Ashen King',emoji:'🐉',element:'fire',color:'#f97316',lore:'A dragon that burned an empire down and kept the throne warm with the embers.',hpMult:1.15,atkMult:1.0,defMult:0.95},
+  {name:'Abyssal Maw',emoji:'🦑',element:'water',color:'#3b82f6',lore:'Something the ocean floor was built to keep down. It got out anyway.',hpMult:1.3,atkMult:0.85,defMult:1.1},
+  {name:'The Glass Sentinel',emoji:'🗿',element:'earth',color:'#a16207',lore:'An ancient guardian construct. Its patience is longer than your attention span.',hpMult:1.4,atkMult:0.8,defMult:1.3},
+  {name:'Voltcaller Zeph',emoji:'🐺',element:'lightning',color:'#facc15',lore:'A storm given teeth. It doesn\'t walk toward you — it arrives.',hpMult:0.9,atkMult:1.35,defMult:0.75},
+  {name:'Wintermaw',emoji:'🐻',element:'ice',color:'#38bdf8',lore:'Legends say it sleeps for a century between meals. This is not that century.',hpMult:1.2,atkMult:1.05,defMult:1.0},
+  {name:'The Hollow Choir',emoji:'👥',element:'dark',color:'#7c3aed',lore:'Not one creature — many voices that agreed to share a body.',hpMult:1.0,atkMult:1.1,defMult:0.9},
+  {name:'Solmirath',emoji:'🦅',element:'light',color:'#fde68a',lore:'A radiant thing that judges first and explains never.',hpMult:1.05,atkMult:1.15,defMult:0.95},
+  {name:'The Unmaking',emoji:'🕳️',element:'void',color:'#4c1d95',lore:'It doesn\'t attack so much as un-happen things near it.',hpMult:1.1,atkMult:1.2,defMult:1.05}
+];
+function currentWeekNum(){return Math.floor(Date.now()/(7*24*3600*1000));}
+function currentWeekKey(){return 'W'+currentWeekNum();}
+function currentRaidBossDef(){return RAID_BOSSES[currentWeekNum()%RAID_BOSSES.length];}
+function raidResetMsLeft(){const wk=currentWeekNum();return((wk+1)*7*24*3600*1000)-Date.now();}
+function formatCountdown(ms){
+  if(ms<=0)return'resetting...';
+  const d=Math.floor(ms/86400000),h=Math.floor((ms%86400000)/3600000),m=Math.floor((ms%3600000)/60000);
+  return d>0?`${d}d ${h}h`:h>0?`${h}h ${m}m`:`${m}m`;
+}
+
+// Fixed, punishing stat baseline well above the bot ladder's cap — meant to be a genuine
+// "not everyone can even scratch this" endgame challenge, same for all players this week.
+function buildRaidBossFighter(def){
+  const boss={uid:'raidboss',name:def.name,tierColor:def.color,emoji:def.emoji,element:def.element,
+    atk:Math.round(360*def.atkMult),def:Math.round(240*def.defMult),maxHp:Math.round(6500*def.hpMult),
+    crit:0.16,dodge:0.1,stamina:999,maxStamina:999,staminaRegen:999,
+    shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,image_url:null};
+  boss.hp=boss.maxHp;
+  boss.moves=buildBotMoveset(50,boss); // full kit — everything the ladder ever unlocks
+  return boss;
+}
+
+let currentRaidFight=null;
+let raidFightSelectedCardUid=null;
+
+async function renderRaidBoss(){
+  const el=document.getElementById('raidboss-content');
+  el.innerHTML='<div class="empty">Loading...</div>';
+  const def=currentRaidBossDef();
+  const weekKey=currentWeekKey();
+  const{data:myScore,error:scoreErr}=await sb.from('raid_scores').select('*').eq('user_id',currentUser.id).eq('week_key',weekKey).maybeSingle();
+  if(scoreErr&&!scoreErr.message.includes('No rows')){
+    console.error('renderRaidBoss: failed to load score —',scoreErr.message);
+    el.innerHTML=`<div class="box" style="border-color:#dc2626;">
+      <h4 style="color:#dc2626;margin-bottom:6px;">⚠️ Couldn't load Raid Boss progress</h4>
+      <p style="font-size:13px;color:var(--text3);">${scoreErr.message.includes('relation')||scoreErr.message.includes('table')?"Your database is missing the <code>raid_scores</code> table. Ask Claude for the setup SQL if you haven't run it yet.":scoreErr.message}</p>
+    </div>`;
+    return;
+  }
+  raidFightSelectedCardUid=null;
+  const bestPct=(myScore&&myScore.best_pct)||0;
+  const won=(myScore&&myScore.won)||false;
+
+  const{data:board}=await sb.from('raid_scores').select('user_id,won,turns_taken,best_pct,card_name').eq('week_key',weekKey).order('won',{ascending:false}).order('turns_taken',{ascending:true}).order('best_pct',{ascending:false}).limit(15);
+
+  el.innerHTML=`
+    <h3 style="margin-bottom:0.5rem;">👹 Raid Boss</h3>
+    <p style="font-size:13px;color:var(--text3);margin-bottom:1rem;">One boss, shared by everyone, reset every week. Bring your best card — even partial damage counts toward the leaderboard.</p>
+    <div class="box" style="border-color:${def.color};">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px;">
+        <div style="font-size:44px;">${def.emoji}</div>
+        <div style="flex:1;">
+          <h4 style="margin-bottom:2px;">${def.name} ${elementBadge(def.element)}</h4>
+          <p style="font-size:12px;color:var(--text2);font-style:italic;">"${def.lore}"</p>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text3);margin-bottom:6px;">
+        <span>⏳ Resets in ${formatCountdown(raidResetMsLeft())}</span>
+        <span>${won?'🏆 You defeated this boss!':`Your best: ${bestPct}% damage dealt`}</span>
+      </div>
+    </div>
+    <div class="box">
+      <h4 style="margin-bottom:8px;">⚔️ Choose Your Champion</h4>
+      <div id="raid-card-picker"></div>
+    </div>
+    <div class="box">
+      <h4 style="margin-bottom:8px;">🏆 This Week's Leaderboard</h4>
+      ${board&&board.length?board.map((r,i)=>`<div class="row-item">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-weight:700;width:24px;">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)}</span>
+          <span style="font-weight:600;">${r.user_id}</span>
+          <span style="font-size:11px;color:var(--text3);">(${r.card_name||'?'})</span>
+        </div>
+        <div style="font-size:12px;color:${r.won?'#22c55e':'var(--text3)'};font-weight:${r.won?'700':'400'};">${r.won?`🏆 Cleared in ${r.turns_taken} turns`:`${r.best_pct}% damage`}</div>
+      </div>`).join(''):'<div class="empty">No attempts yet this week — be the first!</div>'}
+    </div>
+  `;
+  openRaidCardPicker();
+}
+
+async function openRaidCardPicker(){
+  const box=document.getElementById('raid-card-picker');
+  if(!box)return;
+  box.innerHTML='<div class="empty">Loading fighters...</div>';
+  const{data:cards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
+  const now=Date.now();
+  const usable=(cards||[]).filter(c=>(!c.training_until||now>=new Date(c.training_until).getTime())&&(c.unlocked_moves||[]).length>0);
+  if(!usable.length){box.innerHTML='<div class="empty">No available fighters — cards may be training, or have no moves unlocked yet!</div>';return;}
+  box.innerHTML=`<div class="card-grid" style="grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-bottom:10px;">
+      ${usable.map(c=>`<div class="card-tile${raidFightSelectedCardUid===c.uid?' ctx-selected':''}" style="padding:8px;" onclick="raidFightSelectedCardUid='${c.uid}';openRaidCardPicker();">
+        ${c.image_url?`<img src="${c.image_url}" style="width:100%;height:56px;object-fit:contain;">`:`<div style="font-size:26px;text-align:center;">${classEmoji(c.class_name)}</div>`}
+        <div style="font-size:11px;font-weight:600;text-align:center;margin-top:4px;">${c.name}</div>
+        <div style="font-size:10px;color:var(--text3);text-align:center;">Lv${c.level} ${RARITIES[c.rarity]} ${elementBadge(c.element||'neutral')}</div>
+      </div>`).join('')}
+    </div>
+    <button class="btn btn-primary" style="width:100%;" ${raidFightSelectedCardUid?'':'disabled'} onclick="startRaidFight()">⚔️ Challenge the Raid Boss</button>`;
+}
+
+async function startRaidFight(){
+  if(!raidFightSelectedCardUid)return;
+  const{data:c}=await sb.from('player_cards').select('*').eq('uid',raidFightSelectedCardUid).single();
+  if(!c){showToast('Card not found');return;}
+  if(!(c.unlocked_moves||[]).length){showToast('This card has no usable moves yet!');return;}
+  let moves=[];
+  if(c.pool_card_id){
+    const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',c.pool_card_id).single();
+    moves=(pc&&pc.moves)||[];
+  }
+  const availableMoves=moves.filter(m=>(c.unlocked_moves||[]).includes(m.name));
+  if(!availableMoves.length){showToast('This card has no usable moves yet!');return;}
+
+  const skills=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
+  const maxHp=Math.round((c.max_hp||c.hp)*(1+skills.hp_pct/100));
+  const player={uid:c.uid,name:c.name,class_name:c.class_name,element:c.element||'neutral',atk:Math.round(c.atk*(1+skills.atk_pct/100)),def:Math.round(c.def*(1+skills.def_pct/100)),
+    maxHp,hp:maxHp,stamina:c.stamina||50,maxStamina:c.max_stamina||100,staminaRegen:c.stamina_regen||25,
+    crit:Math.min(0.95,(c.crit_chance||0.1)+skills.crit_pct/100),dodge:Math.min(0.95,(c.dodge_chance||0.05)+skills.dodge_pct/100),
+    critDmgBonusPct:skills.crit_dmg_pct||0,firstHitBonusPct:skills.first_hit_pct||0,
+    image_url:c.image_url||null,shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,usedFirstHit:false};
+
+  const def=currentRaidBossDef();
+  const boss=buildRaidBossFighter(def);
+  currentRaidFight={player,boss,bossDef:def,playerMoves:availableMoves,bossMoves:boss.moves,cardUid:c.uid,busy:false,turns:0,
+    log:[`👹 ${player.name} steps up to challenge ${boss.name}!`],ended:false};
+  renderRaidFightModal();
+}
+
+function applyRaidFightFx(fxList){
+  let anyCrit=false,anyBig=false;
+  fxList.forEach(fx=>{
+    if(fx.type==='dodge'){flashCardFx(fx.uid,'fx-dodge',450);showTextPopup(fx.uid,'MISS!','miss-popup');}
+    else if(fx.type==='hit'){
+      if(fx.amount>0)showDmgPopup(fx.uid,fx.amount,false);
+      flashCardFx(fx.uid,fx.crit?'fx-crit':'fx-hit',fx.crit?500:350);
+      if(fx.crit){showTextPopup(fx.uid,'CRIT!','crit-popup');anyCrit=true;}
+      const f=[currentRaidFight.player,currentRaidFight.boss].find(x=>x.uid===fx.uid);
+      if(f&&fx.amount>=f.maxHp*0.2)anyBig=true;
+    } else if(fx.type==='heal'){
+      if(fx.amount>0)showDmgPopup(fx.uid,fx.amount,true);
+      flashCardFx(fx.uid,'fx-heal',600);
+    }
+  });
+  if(anyCrit){screenFlash();shakeRaidArena();}
+  else if(anyBig)shakeRaidArena();
+}
+function shakeRaidArena(){
+  const el=document.getElementById('raidfight-arena');
+  if(!el)return;
+  el.classList.remove('screen-shake');void el.offsetWidth;el.classList.add('screen-shake');
+  setTimeout(()=>el.classList.remove('screen-shake'),320);
+}
+function raidFightPreTurnTick(){
+  const s=currentRaidFight;
+  [s.player,s.boss].forEach(f=>{
+    if(f.dot>0&&f.dotTurns>0&&!f.defeated){
+      f.hp=Math.max(0,f.hp-f.dot);
+      s.log.push(`🔥 ${f.name} takes ${f.dot} damage-over-time (${f.dotTurns-1} turns left)`);
+      f.dotTurns--;if(f.dotTurns<=0)f.dot=0;
+      if(f.hp<=0){f.hp=0;f.defeated=true;s.log.push(`💀 ${f.name} was defeated!`);}
+    }
+  });
+  [s.player,s.boss].forEach(f=>{if(!f.defeated)f.stamina=Math.min(f.maxStamina,(f.stamina||0)+(f.staminaRegen||20));});
+}
+
+async function playerUseRaidMove(idx){
+  const s=currentRaidFight;
+  if(!s||s.ended||s.busy||s.player.defeated||s.boss.defeated)return;
+  const move=s.playerMoves[idx];
+  if(!move)return;
+  if(s.player.stamina<(move.stamina_cost||0)){showToast('Not enough stamina!');return;}
+
+  s.busy=true;
+  raidFightPreTurnTick();
+  renderRaidFightModal();
+  if(s.player.defeated||s.boss.defeated){await sleep(500);s.busy=false;finishRaidFight(!s.player.defeated);return;}
+  await sleep(300);
+
+  const isFirst=!s.player.usedFirstHit;s.player.usedFirstHit=true;
+  const{log,fx}=resolveSparHit(s.player,s.boss,move,isFirst);
+  s.log.push(...log);renderRaidFightModal();applyRaidFightFx(fx);
+  await sleep(700);
+
+  if(s.boss.defeated){s.turns++;s.busy=false;finishRaidFight(true);return;}
+  if(s.player.defeated){s.busy=false;finishRaidFight(false);return;}
+
+  await sleep(400);
+  raidFightPreTurnTick();
+  renderRaidFightModal();
+  if(s.player.defeated||s.boss.defeated){await sleep(500);s.busy=false;finishRaidFight(!s.player.defeated);return;}
+  await sleep(300);
+
+  // Raid Boss always plays at maximum intelligence — it's meant to be the hardest fight in the game.
+  const bossMove=pickBotMoveIntelligent(s.boss,s.bossMoves,s.player,999);
+  const{log:blog,fx:bfx}=resolveSparHit(s.boss,s.player,bossMove,false);
+  s.log.push(...blog);renderRaidFightModal();applyRaidFightFx(bfx);
+  await sleep(700);
+
+  s.turns++;
+  s.busy=false;
+  if(s.boss.defeated){finishRaidFight(true);return;}
+  if(s.player.defeated){finishRaidFight(false);return;}
+  renderRaidFightModal();
+}
+
+const RAID_CLEAR_BONUS_MONEY=3000,RAID_CLEAR_BONUS_XP=2000;
+function raidMoneyForPct(pct){return Math.round(pct*30);}
+function raidXpForPct(pct){return Math.round(pct*22);}
+
+async function finishRaidFight(win){
+  const s=currentRaidFight;
+  const{data:c}=await sb.from('player_cards').select('*').eq('uid',s.cardUid).single();
+  if(!c){closeRaidFightModal();return;}
+  const weekKey=currentWeekKey();
+  const{data:prev}=await sb.from('raid_scores').select('*').eq('user_id',currentUser.id).eq('week_key',weekKey).maybeSingle();
+  const prevBestPct=(prev&&prev.best_pct)||0;
+  const prevWon=(prev&&prev.won)||false;
+  const damageDealt=Math.max(0,s.boss.maxHp-s.boss.hp);
+  const thisPct=Math.min(100,Math.round((win?s.boss.maxHp:damageDealt)/s.boss.maxHp*100));
+
+  let moneyReward=0,xpReward=0,isNewBest=false,noteMsg='';
+  if(win&&!prevWon){
+    const improvement=Math.max(0,100-prevBestPct);
+    moneyReward=raidMoneyForPct(improvement)+RAID_CLEAR_BONUS_MONEY;
+    xpReward=raidXpForPct(improvement)+RAID_CLEAR_BONUS_XP;
+    isNewBest=true;
+    noteMsg=`🏆 First clear this week! +$${moneyReward}, +${xpReward} XP`;
+  } else if(win&&prevWon){
+    if(!prev.turns_taken||s.turns<prev.turns_taken){moneyReward=200;xpReward=150;isNewBest=true;noteMsg=`⚡ New best clear time: ${s.turns} turns! +$200, +150 XP`;}
+    else noteMsg=`Cleared again in ${s.turns} turns (your best stays ${prev.turns_taken}).`;
+  } else {
+    const improvement=Math.max(0,thisPct-prevBestPct);
+    if(improvement>0){
+      moneyReward=raidMoneyForPct(improvement);xpReward=raidXpForPct(improvement);isNewBest=true;
+      noteMsg=`📈 New personal best: ${thisPct}% damage! +$${moneyReward}, +${xpReward} XP`;
+    } else noteMsg=`No new personal best this week (still ${prevBestPct}%). Come back stronger!`;
+  }
+
+  if(moneyReward>0){
+    const newMoney=(currentUser.money||0)+moneyReward;
+    const{error:moneyErr}=await sb.from('users').update({money:newMoney}).eq('id',currentUser.id);
+    if(!moneyErr){currentUser.money=newMoney;updateHUD();}
+  }
+  if(xpReward>0){
+    const skills=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
+    const bonusXp=Math.round(xpReward*(1+skills.training_xp_pct/100));
+    let xp=(c.xp||0)+bonusXp,level=c.level,atk=c.atk,def=c.def,max_hp=c.max_hp||c.hp;
+    let unlocked_moves=[...(c.unlocked_moves||[])];
+    while(xp>=xpForCard(level,c.rarity)){
+      xp-=xpForCard(level,c.rarity);level++;
+      atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);
+      def=Math.round(def*RARITY_STAT_MULT[c.rarity]);
+      max_hp=Math.round(max_hp*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
+      if(c.pool_card_id){
+        const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',c.pool_card_id).single();
+        if(pc&&pc.moves)pc.moves.forEach(m=>{if(m.unlock_level===level&&!unlocked_moves.includes(m.name))unlocked_moves.push(m.name);});
+      }
+    }
+    await sb.from('player_cards').update({xp,level,atk,def,max_hp,unlocked_moves}).eq('uid',s.cardUid);
+    s.resultLevel=level;s.resultLeveledUp=level>c.level;
+  }
+
+  if(isNewBest){
+    const record={user_id:currentUser.id,week_key:weekKey,won:win||prevWon,turns_taken:win?(prevWon&&prev.turns_taken&&prev.turns_taken<s.turns?prev.turns_taken:s.turns):(prev?prev.turns_taken:null),best_pct:Math.max(thisPct,prevBestPct),card_name:c.name,updated_at:new Date().toISOString()};
+    const{error:upsertErr}=await sb.from('raid_scores').upsert(record,{onConflict:'user_id,week_key'});
+    if(upsertErr)console.error('finishRaidFight: leaderboard upsert failed —',upsertErr.message);
+  }
+
+  s.resultWin=win;s.resultMoney=moneyReward;s.resultXp=xpReward;s.resultNote=noteMsg;s.ended=true;
+  showToast(noteMsg);
+  renderRaidFightModal();
+}
+
+function renderRaidFightModal(){
+  const el=document.getElementById('raidboss-content');
+  const s=currentRaidFight;
+  if(!el||!s)return;
+
+  let actionHTML='';
+  if(s.ended){
+    actionHTML=`<div class="action-panel">
+      <div class="phase-label">🏁 Battle Over</div>
+      <div style="text-align:center;padding:6px 0;">
+        <div style="font-size:15px;font-weight:700;color:${s.resultWin?'#22c55e':'#ef4444'};">${s.resultWin?'🏆 Boss Defeated!':'💀 Defeat'}</div>
+        <div style="font-size:13px;color:var(--text2);margin-top:4px;">${s.resultNote}${s.resultLeveledUp?' · Card leveled up to Lv'+s.resultLevel+'!':''}</div>
+      </div>
+      <button class="btn btn-primary" onclick="closeRaidFightModal()">Continue</button>
+    </div>`;
+  } else if(s.busy){
+    actionHTML=`<div class="action-panel" style="text-align:center;"><div style="font-size:13px;color:var(--text3);">⏳ Resolving turn...</div></div>`;
+  } else {
+    const typeColor={attack:'#3b82f6',heavy:'#ef4444',heal:'#22c55e',shield:'#f59e0b',dot:'#f97316',multi:'#8b5cf6',power:'#ec4899',combo:'#06b6d4',speed:'#84cc16',aoe:'#dc2626',lifesteal:'#e11d48',stamina_steal:'#7c3aed',taunt:'#92400e',curse:'#6b21a8',counter:'#065f46',execute:'#1c1917',scatter:'#0369a1'};
+    const stPct=Math.max(0,Math.round((s.player.stamina/s.player.maxStamina)*100));
+    actionHTML=`<div class="action-panel">
+      <div class="phase-label">🃏 ${s.player.name} — choose an ability</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+        <span style="font-size:12px;color:var(--text3);white-space:nowrap;">⚡ Stamina</span>
+        <div class="bc-bar-wrap" style="flex:1;"><div class="bc-st-fill" style="width:${stPct}%;"></div></div>
+        <span style="font-size:12px;font-weight:700;color:var(--text2);white-space:nowrap;">${s.player.stamina}/${s.player.maxStamina}</span>
+      </div>
+      ${s.playerMoves.map((m,idx)=>{
+        const ok=s.player.stamina>=(m.stamina_cost||0);
+        const tc=typeColor[m.type]||'#6b7280';
+        const dmgLabel=m.type==='heal'?`+${m.value}HP`:m.type==='shield'?`${m.value}% block`:m.type==='speed'?'Dodge×2':m.type==='dot'?`${Math.round(m.value/3)}/t×${m.dot_turns||3}`:m.type==='multi'?`${m.value}×${m.hits_min||2}-${m.hits_max||4}`:m.value?`${m.value}dmg`:'';
+        return `<button class="ability-btn${!ok?' no-stamina':''}" ${!ok?'disabled':''} onclick="playerUseRaidMove(${idx})" style="border-left:3px solid ${tc};">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span>${MOVE_ICONS[m.type]||'⚔️'} <strong>${m.name}</strong> <span style="font-size:11px;color:${tc};">${MOVE_LABELS[m.type]||m.type}</span></span>
+            <span style="font-size:12px;color:var(--text3);">⚡${m.stamina_cost||0} · ${dmgLabel}</span>
+          </div>
+        </button>`;
+      }).join('')}
+    </div>`;
+  }
+
+  const logHTML=[...s.log].reverse().slice(0,20).map(l=>{
+    let cls='log-entry';
+    if(l.includes('CRIT')||l.includes('EXECUTE'))cls+=' crit';
+    else if(l.includes('damage')||l.includes('defeated')||l.includes('dmg'))cls+=' dmg';
+    else if(l.includes('restored')||l.includes('HP!'))cls+=' heal-log';
+    return `<div class="${cls}">${l}</div>`;
+  }).join('');
+  const turnMsg=s.ended?'🏁 Battle Over':s.busy?'⏳ Resolving turn...':'⚡ Your Turn — Choose a move';
+
+  el.innerHTML=`
+    <div class="battle-arena-wrap" id="raidfight-arena">
+      <div class="turn-bar ${(!s.ended&&!s.busy)?'turn-yours':'turn-opp'}">${turnMsg}</div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#fca5a5;margin-bottom:6px;padding:3px 8px;background:#2d0a0a;border-radius:6px;display:inline-block;">🔴 ${s.boss.name}</div>
+        <div class="battle-field-opp">${buildBotOppCardHTML(s.boss,'Raid Boss')}</div>
+      </div>
+      <div class="battle-log-box">${logHTML||'<div class="log-entry">The raid begins!</div>'}</div>
+      ${actionHTML}
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#93c5fd;margin-bottom:6px;padding:3px 8px;background:#0c2340;border-radius:6px;display:inline-block;">🟢 ${s.player.name} (You)</div>
+        <div class="battle-field-mine">${buildBotMyCardHTML(s.player,s.playerMoves)}</div>
+      </div>
+      <button class="btn btn-sm" style="color:var(--text3);align-self:flex-start;margin-top:4px;" onclick="closeRaidFightModal()">← Leave Raid</button>
+    </div>`;
+}
+
+function closeRaidFightModal(){
+  currentRaidFight=null;
+  renderRaidBoss();
+}
+
+// ── DEFENSE TEAM (async PvP) ─────────────────────────────────────────────
+// Each player sets one card as their "defense." Friends can challenge it anytime — the
+// defense card fights back on its own (AI-controlled), so nobody needs to be online at once.
+const DEFENSE_COOLDOWN_HOURS=12;
+
+async function renderDefenseTab(){
+  const el=document.getElementById('defense-content');
+  el.innerHTML='<div class="empty">Loading...</div>';
+
+  const{data:me,error:meErr}=await sb.from('users').select('defense_card_uid,defense_wins,defense_losses,friends').eq('id',currentUser.id).single();
+  if(meErr){
+    console.error('renderDefenseTab: failed to load —',meErr.message);
+    el.innerHTML=`<div class="box" style="border-color:#dc2626;">
+      <h4 style="color:#dc2626;margin-bottom:6px;">⚠️ Couldn't load Defense Team</h4>
+      <p style="font-size:13px;color:var(--text3);">${meErr.message.includes('column')?"Your database is missing defense columns. Ask Claude for the setup SQL if you haven't run it yet.":meErr.message}</p>
+    </div>`;
+    return;
+  }
+  currentUser.defense_card_uid=me.defense_card_uid;
+  currentUser.defense_wins=me.defense_wins||0;
+  currentUser.defense_losses=me.defense_losses||0;
+  currentUser.friends=me.friends||[];
+
+  const{data:myCards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
+  const idleCards=(myCards||[]).filter(c=>(c.unlocked_moves||[]).length>0);
+  const defenseCard=(myCards||[]).find(c=>c.uid===me.defense_card_uid);
+
+  let friendRows=[];
+  if((me.friends||[]).length){
+    const{data:friendUsers}=await sb.from('users').select('id,avatar,level,defense_card_uid').in('id',me.friends);
+    const{data:recentAttacks}=await sb.from('defense_attacks').select('defender_id,attacked_at').eq('attacker_id',currentUser.id).gte('attacked_at',new Date(Date.now()-DEFENSE_COOLDOWN_HOURS*3600*1000).toISOString());
+    const cooldownMap={};
+    (recentAttacks||[]).forEach(a=>{
+      const t=new Date(a.attacked_at).getTime();
+      if(!cooldownMap[a.defender_id]||t>cooldownMap[a.defender_id])cooldownMap[a.defender_id]=t;
+    });
+    const defenderCardIds=(friendUsers||[]).map(f=>f.defense_card_uid).filter(Boolean);
+    const{data:defenderCards}=defenderCardIds.length?await sb.from('player_cards').select('uid,name,level,rarity,element,image_url').in('uid',defenderCardIds):{data:[]};
+    friendRows=(friendUsers||[]).map(f=>{
+      const dc=(defenderCards||[]).find(c=>c.uid===f.defense_card_uid);
+      const lastAttack=cooldownMap[f.id];
+      const msLeft=lastAttack?(lastAttack+DEFENSE_COOLDOWN_HOURS*3600*1000-Date.now()):0;
+      return{...f,defCard:dc,onCooldown:msLeft>0,cooldownLabel:formatCountdown(msLeft)};
+    });
+  }
+
+  const{data:activity}=await sb.from('defense_attacks').select('*').eq('defender_id',currentUser.id).order('attacked_at',{ascending:false}).limit(5);
+
+  el.innerHTML=`
+    <h3 style="margin-bottom:0.5rem;">🛡️ Defense Team</h3>
+    <p style="font-size:13px;color:var(--text3);margin-bottom:1rem;">Set a card to guard your account. Friends can challenge it anytime, even while you're offline — it fights back on its own.</p>
+
+    <div class="box">
+      <h4 style="margin-bottom:8px;">Your Defender</h4>
+      ${defenseCard?`<div class="row-item">
+        <div style="display:flex;align-items:center;gap:10px;">
+          ${defenseCard.image_url?`<img src="${defenseCard.image_url}" style="width:36px;height:36px;object-fit:contain;border-radius:6px;background:var(--bg3);">`:`<span style="font-size:22px;">${classEmoji(defenseCard.class_name)}</span>`}
+          <div>
+            <div style="font-size:14px;font-weight:600;">${defenseCard.name} <span style="font-size:11px;color:var(--text3);">Lv${defenseCard.level} ${RARITIES[defenseCard.rarity]}</span> ${elementBadge(defenseCard.element||'neutral')}</div>
+            <div style="font-size:12px;color:var(--text3);">🛡️ ${currentUser.defense_wins||0} successful defenses · ${currentUser.defense_losses||0} losses</div>
+          </div>
+        </div>
+        <button class="btn btn-sm" onclick="document.getElementById('defense-card-picker').classList.toggle('hidden')">Change</button>
+      </div>`:`<div class="empty">No defender set yet — pick one below!</div>`}
+      <div id="defense-card-picker" class="${defenseCard?'hidden':''}" style="margin-top:10px;">
+        <div class="card-grid" style="grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;">
+          ${idleCards.map(c=>`<div class="card-tile${me.defense_card_uid===c.uid?' ctx-selected':''}" style="padding:8px;" onclick="setDefenseCard('${c.uid}')">
+            ${c.image_url?`<img src="${c.image_url}" style="width:100%;height:56px;object-fit:contain;">`:`<div style="font-size:26px;text-align:center;">${classEmoji(c.class_name)}</div>`}
+            <div style="font-size:11px;font-weight:600;text-align:center;margin-top:4px;">${c.name}</div>
+            <div style="font-size:10px;color:var(--text3);text-align:center;">Lv${c.level} ${RARITIES[c.rarity]}</div>
+          </div>`).join('')||'<div class="empty">No cards with unlocked moves yet.</div>'}
+        </div>
+      </div>
+    </div>
+
+    <div class="box">
+      <h4 style="margin-bottom:8px;">⚔️ Attack a Friend's Defense</h4>
+      ${friendRows.length?friendRows.map(f=>`<div class="row-item">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:22px;">${displayAvatar(f)}</span>
+          <div>
+            <div style="font-size:14px;font-weight:600;">${f.id} <span style="font-size:11px;color:var(--text3);">Lv${f.level||1}</span></div>
+            <div style="font-size:12px;color:var(--text3);">${f.defCard?`🛡️ ${f.defCard.name} (Lv${f.defCard.level} ${RARITIES[f.defCard.rarity]}) ${elementBadge(f.defCard.element||'neutral')}`:'No defender set'}</div>
+          </div>
+        </div>
+        ${f.defCard?(f.onCooldown?`<button class="btn btn-sm" disabled>⏳ ${f.cooldownLabel}</button>`:`<button class="btn btn-sm" onclick="openAttackPicker('${f.id}')">⚔️ Attack</button>`):`<button class="btn btn-sm" disabled>No defender</button>`}
+      </div>`).join(''):'<div class="empty">Add some friends to challenge their defenses!</div>'}
+      <div id="attack-card-picker"></div>
+    </div>
+
+    <div class="box">
+      <h4 style="margin-bottom:8px;">📜 Recent Defense Activity</h4>
+      ${activity&&activity.length?activity.map(a=>`<div class="log-entry">${a.winner_id===currentUser.id?'🛡️':'💥'} <strong>${a.attacker_id}</strong> attacked your defense — ${a.winner_id===currentUser.id?'you held!':'they won.'} <span style="color:var(--text3);">(${timeAgo(a.attacked_at)})</span></div>`).join(''):'<div class="empty">No one has attacked your defense yet.</div>'}
+    </div>
+  `;
+}
+
+async function setDefenseCard(uid){
+  const{error}=await sb.from('users').update({defense_card_uid:uid}).eq('id',currentUser.id);
+  if(error){showToast('Failed to set defender: '+error.message);return;}
+  currentUser.defense_card_uid=uid;
+  showToast('Defender set!');
+  renderDefenseTab();
+}
+
+let attackPickerFriendId=null;
+let attackFightSelectedCardUid=null;
+
+async function openAttackPicker(friendId){
+  attackPickerFriendId=friendId;
+  attackFightSelectedCardUid=null;
+  const box=document.getElementById('attack-card-picker');
+  if(!box)return;
+  box.innerHTML='<div class="empty">Loading fighters...</div>';
+  const{data:cards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
+  const now=Date.now();
+  const usable=(cards||[]).filter(c=>(!c.training_until||now>=new Date(c.training_until).getTime())&&(c.unlocked_moves||[]).length>0);
+  if(!usable.length){box.innerHTML='<div class="empty">No available fighters — cards may be training, or have no moves unlocked yet!</div>';return;}
+  box.innerHTML=`<div class="box" style="margin-top:10px;">
+    <h4 style="margin-bottom:8px;">Choose your attacker</h4>
+    <div class="card-grid" style="grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-bottom:10px;">
+      ${usable.map(c=>`<div class="card-tile${attackFightSelectedCardUid===c.uid?' ctx-selected':''}" style="padding:8px;" onclick="attackFightSelectedCardUid='${c.uid}';openAttackPicker('${friendId}');">
+        ${c.image_url?`<img src="${c.image_url}" style="width:100%;height:56px;object-fit:contain;">`:`<div style="font-size:26px;text-align:center;">${classEmoji(c.class_name)}</div>`}
+        <div style="font-size:11px;font-weight:600;text-align:center;margin-top:4px;">${c.name}</div>
+        <div style="font-size:10px;color:var(--text3);text-align:center;">Lv${c.level} ${RARITIES[c.rarity]}</div>
+      </div>`).join('')}
+    </div>
+    <button class="btn btn-primary" style="width:100%;" ${attackFightSelectedCardUid?'':'disabled'} onclick="startDefenseFight()">⚔️ Attack!</button>
+  </div>`;
+}
+
+let currentDefenseFight=null;
+
+async function startDefenseFight(){
+  if(!attackFightSelectedCardUid||!attackPickerFriendId)return;
+  const{data:c}=await sb.from('player_cards').select('*').eq('uid',attackFightSelectedCardUid).single();
+  if(!c){showToast('Card not found');return;}
+  const{data:defender}=await sb.from('users').select('id,defense_card_uid').eq('id',attackPickerFriendId).single();
+  if(!defender||!defender.defense_card_uid){showToast('This friend has no defender set!');return;}
+  const{data:dc}=await sb.from('player_cards').select('*').eq('uid',defender.defense_card_uid).single();
+  if(!dc){showToast('Defender card not found!');return;}
+
+  let myMoves=[],defMoves=[];
+  if(c.pool_card_id){const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',c.pool_card_id).single();myMoves=(pc&&pc.moves)||[];}
+  if(dc.pool_card_id){const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',dc.pool_card_id).single();defMoves=(pc&&pc.moves)||[];}
+  const availableMoves=myMoves.filter(m=>(c.unlocked_moves||[]).includes(m.name));
+  const defenderMoves=defMoves.filter(m=>(dc.unlocked_moves||[]).includes(m.name));
+  if(!availableMoves.length){showToast('This card has no usable moves yet!');return;}
+  if(!defenderMoves.length){showToast("This defender has no usable moves — an easy win, but there's nothing to fight with. Try another friend!");return;}
+
+  const skills=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
+  const maxHp=Math.round((c.max_hp||c.hp)*(1+skills.hp_pct/100));
+  const player={uid:c.uid,name:c.name,class_name:c.class_name,element:c.element||'neutral',atk:Math.round(c.atk*(1+skills.atk_pct/100)),def:Math.round(c.def*(1+skills.def_pct/100)),
+    maxHp,hp:maxHp,stamina:c.stamina||50,maxStamina:c.max_stamina||100,staminaRegen:c.stamina_regen||25,
+    crit:Math.min(0.95,(c.crit_chance||0.1)+skills.crit_pct/100),dodge:Math.min(0.95,(c.dodge_chance||0.05)+skills.dodge_pct/100),
+    critDmgBonusPct:skills.crit_dmg_pct||0,firstHitBonusPct:skills.first_hit_pct||0,
+    image_url:c.image_url||null,shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,usedFirstHit:false};
+
+  const defFighter={uid:dc.uid,name:dc.name,class_name:dc.class_name,element:dc.element||'neutral',tierColor:'#ef4444',
+    atk:dc.atk,def:dc.def,maxHp:dc.max_hp||dc.hp,hp:dc.max_hp||dc.hp,stamina:dc.stamina||50,maxStamina:dc.max_stamina||100,staminaRegen:dc.stamina_regen||25,
+    crit:dc.crit_chance||0.1,dodge:dc.dodge_chance||0.05,image_url:dc.image_url||null,
+    shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false};
+
+  currentDefenseFight={player,defender:defFighter,defenderId:attackPickerFriendId,defenderLevel:dc.level,
+    playerMoves:availableMoves,defenderMoves,cardUid:c.uid,busy:false,
+    log:[`⚔️ ${player.name} attacks ${defFighter.name}'s defense!`],ended:false};
+  renderDefenseFightModal();
+}
+
+function applyDefenseFightFx(fxList){
+  let anyCrit=false,anyBig=false;
+  fxList.forEach(fx=>{
+    if(fx.type==='dodge'){flashCardFx(fx.uid,'fx-dodge',450);showTextPopup(fx.uid,'MISS!','miss-popup');}
+    else if(fx.type==='hit'){
+      if(fx.amount>0)showDmgPopup(fx.uid,fx.amount,false);
+      flashCardFx(fx.uid,fx.crit?'fx-crit':'fx-hit',fx.crit?500:350);
+      if(fx.crit){showTextPopup(fx.uid,'CRIT!','crit-popup');anyCrit=true;}
+      const f=[currentDefenseFight.player,currentDefenseFight.defender].find(x=>x.uid===fx.uid);
+      if(f&&fx.amount>=f.maxHp*0.25)anyBig=true;
+    } else if(fx.type==='heal'){
+      if(fx.amount>0)showDmgPopup(fx.uid,fx.amount,true);
+      flashCardFx(fx.uid,'fx-heal',600);
+    }
+  });
+  if(anyCrit){screenFlash();shakeDefenseArena();}
+  else if(anyBig)shakeDefenseArena();
+}
+function shakeDefenseArena(){
+  const el=document.getElementById('defensefight-arena');
+  if(!el)return;
+  el.classList.remove('screen-shake');void el.offsetWidth;el.classList.add('screen-shake');
+  setTimeout(()=>el.classList.remove('screen-shake'),320);
+}
+function defenseFightPreTurnTick(){
+  const s=currentDefenseFight;
+  [s.player,s.defender].forEach(f=>{
+    if(f.dot>0&&f.dotTurns>0&&!f.defeated){
+      f.hp=Math.max(0,f.hp-f.dot);
+      s.log.push(`🔥 ${f.name} takes ${f.dot} damage-over-time (${f.dotTurns-1} turns left)`);
+      f.dotTurns--;if(f.dotTurns<=0)f.dot=0;
+      if(f.hp<=0){f.hp=0;f.defeated=true;s.log.push(`💀 ${f.name} was defeated!`);}
+    }
+  });
+  [s.player,s.defender].forEach(f=>{if(!f.defeated)f.stamina=Math.min(f.maxStamina,(f.stamina||0)+(f.staminaRegen||20));});
+}
+
+async function playerUseDefenseMove(idx){
+  const s=currentDefenseFight;
+  if(!s||s.ended||s.busy||s.player.defeated||s.defender.defeated)return;
+  const move=s.playerMoves[idx];
+  if(!move)return;
+  if(s.player.stamina<(move.stamina_cost||0)){showToast('Not enough stamina!');return;}
+
+  s.busy=true;
+  defenseFightPreTurnTick();
+  renderDefenseFightModal();
+  if(s.player.defeated||s.defender.defeated){await sleep(500);s.busy=false;finishDefenseFight(!s.player.defeated);return;}
+  await sleep(300);
+
+  const isFirst=!s.player.usedFirstHit;s.player.usedFirstHit=true;
+  const{log,fx}=resolveSparHit(s.player,s.defender,move,isFirst);
+  s.log.push(...log);renderDefenseFightModal();applyDefenseFightFx(fx);
+  await sleep(700);
+
+  if(s.defender.defeated){s.busy=false;finishDefenseFight(true);return;}
+  if(s.player.defeated){s.busy=false;finishDefenseFight(false);return;}
+
+  await sleep(400);
+  defenseFightPreTurnTick();
+  renderDefenseFightModal();
+  if(s.player.defeated||s.defender.defeated){await sleep(500);s.busy=false;finishDefenseFight(!s.player.defeated);return;}
+  await sleep(300);
+
+  // Defense card AI intelligence scales with its own level — same curve as bots, so a
+  // high-level defender is a genuinely smart, dangerous guardian.
+  const defMove=pickBotMoveIntelligent(s.defender,s.defenderMoves,s.player,s.defenderLevel);
+  const{log:blog,fx:bfx}=resolveSparHit(s.defender,s.player,defMove,false);
+  s.log.push(...blog);renderDefenseFightModal();applyDefenseFightFx(bfx);
+  await sleep(700);
+
+  s.busy=false;
+  if(s.defender.defeated){finishDefenseFight(true);return;}
+  if(s.player.defeated){finishDefenseFight(false);return;}
+  renderDefenseFightModal();
+}
+
+async function finishDefenseFight(attackerWon){
+  const s=currentDefenseFight;
+  const winnerId=attackerWon?currentUser.id:s.defenderId;
+  const{error:logErr}=await sb.from('defense_attacks').insert({attacker_id:currentUser.id,defender_id:s.defenderId,winner_id:winnerId});
+  if(logErr)console.error('finishDefenseFight: activity log insert failed —',logErr.message);
+
+  let moneyReward=0,xpReward=0;
+  if(attackerWon){
+    moneyReward=Math.round(150+s.defenderLevel*15);
+    xpReward=Math.round(120+s.defenderLevel*12);
+    const{data:def}=await sb.from('users').select('defense_losses').eq('id',s.defenderId).single();
+    await sb.from('users').update({defense_losses:((def&&def.defense_losses)||0)+1}).eq('id',s.defenderId);
+  } else {
+    moneyReward=40;xpReward=30;
+    const{data:def}=await sb.from('users').select('defense_wins').eq('id',s.defenderId).single();
+    await sb.from('users').update({defense_wins:((def&&def.defense_wins)||0)+1}).eq('id',s.defenderId);
+  }
+
+  const newMoney=(currentUser.money||0)+moneyReward;
+  const{error:moneyErr}=await sb.from('users').update({money:newMoney}).eq('id',currentUser.id);
+  if(!moneyErr){currentUser.money=newMoney;updateHUD();}
+
+  const{data:c}=await sb.from('player_cards').select('*').eq('uid',s.cardUid).single();
+  if(c){
+    const skills=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
+    const bonusXp=Math.round(xpReward*(1+skills.training_xp_pct/100));
+    let xp=(c.xp||0)+bonusXp,level=c.level,atk=c.atk,def=c.def,max_hp=c.max_hp||c.hp;
+    let unlocked_moves=[...(c.unlocked_moves||[])];
+    while(xp>=xpForCard(level,c.rarity)){
+      xp-=xpForCard(level,c.rarity);level++;
+      atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);
+      def=Math.round(def*RARITY_STAT_MULT[c.rarity]);
+      max_hp=Math.round(max_hp*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
+      if(c.pool_card_id){
+        const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',c.pool_card_id).single();
+        if(pc&&pc.moves)pc.moves.forEach(m=>{if(m.unlock_level===level&&!unlocked_moves.includes(m.name))unlocked_moves.push(m.name);});
+      }
+    }
+    await sb.from('player_cards').update({xp,level,atk,def,max_hp,unlocked_moves}).eq('uid',s.cardUid);
+    s.resultLevel=level;s.resultLeveledUp=level>c.level;
+  }
+
+  s.resultWin=attackerWon;s.resultMoney=moneyReward;s.resultXp=xpReward;s.ended=true;
+  showToast(attackerWon?`Victory! +$${moneyReward}, +${xpReward} XP`:`Defeated — the defense held. +$${moneyReward}, +${xpReward} XP anyway`);
+  renderDefenseFightModal();
+}
+
+function renderDefenseFightModal(){
+  const el=document.getElementById('defense-content');
+  const s=currentDefenseFight;
+  if(!el||!s)return;
+
+  let actionHTML='';
+  if(s.ended){
+    actionHTML=`<div class="action-panel">
+      <div class="phase-label">🏁 Battle Over</div>
+      <div style="text-align:center;padding:6px 0;">
+        <div style="font-size:15px;font-weight:700;color:${s.resultWin?'#22c55e':'#ef4444'};">${s.resultWin?'🏆 Victory!':'💀 Defense Held'}</div>
+        <div style="font-size:13px;color:var(--text2);margin-top:4px;">+$${s.resultMoney} · +${s.resultXp} XP${s.resultLeveledUp?' · Card leveled up to Lv'+s.resultLevel+'!':''}</div>
+      </div>
+      <button class="btn btn-primary" onclick="closeDefenseFightModal()">Continue</button>
+    </div>`;
+  } else if(s.busy){
+    actionHTML=`<div class="action-panel" style="text-align:center;"><div style="font-size:13px;color:var(--text3);">⏳ Resolving turn...</div></div>`;
+  } else {
+    const typeColor={attack:'#3b82f6',heavy:'#ef4444',heal:'#22c55e',shield:'#f59e0b',dot:'#f97316',multi:'#8b5cf6',power:'#ec4899',combo:'#06b6d4',speed:'#84cc16',aoe:'#dc2626',lifesteal:'#e11d48',stamina_steal:'#7c3aed',taunt:'#92400e',curse:'#6b21a8',counter:'#065f46',execute:'#1c1917',scatter:'#0369a1'};
+    const stPct=Math.max(0,Math.round((s.player.stamina/s.player.maxStamina)*100));
+    actionHTML=`<div class="action-panel">
+      <div class="phase-label">🃏 ${s.player.name} — choose an ability</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+        <span style="font-size:12px;color:var(--text3);white-space:nowrap;">⚡ Stamina</span>
+        <div class="bc-bar-wrap" style="flex:1;"><div class="bc-st-fill" style="width:${stPct}%;"></div></div>
+        <span style="font-size:12px;font-weight:700;color:var(--text2);white-space:nowrap;">${s.player.stamina}/${s.player.maxStamina}</span>
+      </div>
+      ${s.playerMoves.map((m,idx)=>{
+        const ok=s.player.stamina>=(m.stamina_cost||0);
+        const tc=typeColor[m.type]||'#6b7280';
+        const dmgLabel=m.type==='heal'?`+${m.value}HP`:m.type==='shield'?`${m.value}% block`:m.type==='speed'?'Dodge×2':m.type==='dot'?`${Math.round(m.value/3)}/t×${m.dot_turns||3}`:m.type==='multi'?`${m.value}×${m.hits_min||2}-${m.hits_max||4}`:m.value?`${m.value}dmg`:'';
+        return `<button class="ability-btn${!ok?' no-stamina':''}" ${!ok?'disabled':''} onclick="playerUseDefenseMove(${idx})" style="border-left:3px solid ${tc};">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span>${MOVE_ICONS[m.type]||'⚔️'} <strong>${m.name}</strong> <span style="font-size:11px;color:${tc};">${MOVE_LABELS[m.type]||m.type}</span></span>
+            <span style="font-size:12px;color:var(--text3);">⚡${m.stamina_cost||0} · ${dmgLabel}</span>
+          </div>
+        </button>`;
+      }).join('')}
+    </div>`;
+  }
+
+  const logHTML=[...s.log].reverse().slice(0,20).map(l=>{
+    let cls='log-entry';
+    if(l.includes('CRIT')||l.includes('EXECUTE'))cls+=' crit';
+    else if(l.includes('damage')||l.includes('defeated')||l.includes('dmg'))cls+=' dmg';
+    else if(l.includes('restored')||l.includes('HP!'))cls+=' heal-log';
+    return `<div class="${cls}">${l}</div>`;
+  }).join('');
+  const turnMsg=s.ended?'🏁 Battle Over':s.busy?'⏳ Resolving turn...':'⚡ Your Turn — Choose a move';
+
+  el.innerHTML=`
+    <div class="battle-arena-wrap" id="defensefight-arena">
+      <div class="turn-bar ${(!s.ended&&!s.busy)?'turn-yours':'turn-opp'}">${turnMsg}</div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#fca5a5;margin-bottom:6px;padding:3px 8px;background:#2d0a0a;border-radius:6px;display:inline-block;">🔴 ${s.defenderId}'s Defense</div>
+        <div class="battle-field-opp">${buildBotOppCardHTML(s.defender,'Defender')}</div>
+      </div>
+      <div class="battle-log-box">${logHTML||'<div class="log-entry">The attack begins!</div>'}</div>
+      ${actionHTML}
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#93c5fd;margin-bottom:6px;padding:3px 8px;background:#0c2340;border-radius:6px;display:inline-block;">🟢 ${s.player.name} (You)</div>
+        <div class="battle-field-mine">${buildBotMyCardHTML(s.player,s.playerMoves)}</div>
+      </div>
+      <button class="btn btn-sm" style="color:var(--text3);align-self:flex-start;margin-top:4px;" onclick="closeDefenseFightModal()">← Retreat</button>
+    </div>`;
+}
+
+function closeDefenseFightModal(){
+  currentDefenseFight=null;
+  renderDefenseTab();
 }
 
 async function startTraining(uid,cost,xp,durHours){
@@ -7887,8 +8643,8 @@ async function collectTraining(uid){
   let level=c.level;
   let atk=c.atk;let def=c.def;let max_hp=c.max_hp||c.hp;
   let unlocked_moves=[...(c.unlocked_moves||[])];
-  while(xp>=xpForCard(level)){
-    xp-=xpForCard(level);level++;
+  while(xp>=xpForCard(level,c.rarity)){
+    xp-=xpForCard(level,c.rarity);level++;
     atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);
     def=Math.round(def*RARITY_STAT_MULT[c.rarity]);
     max_hp=Math.round(max_hp*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
