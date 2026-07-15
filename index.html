@@ -1505,6 +1505,118 @@ function elementBadge(el){
   const label=el?el.charAt(0).toUpperCase()+el.slice(1):'Neutral';
   return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;color:${e.color};background:${e.color}1a;border:1px solid ${e.color}55;border-radius:6px;padding:1px 6px;white-space:nowrap;">${e.emoji} ${label}</span>`;
 }
+
+// ── STATUS-EFFECT ENGINE ─────────────────────────────────────────────────
+// Generic framework backing every buff/debuff move type below. Two kinds of timed effects:
+// 1) `buffTimers` — a reversible ledger of stat multipliers/additions (handles ANY number of
+//    stacked buffs/debuffs on the same stat correctly, even from different sources).
+// 2) simple turn-counters for on/off control effects (silence, root, fear, etc).
+function defaultFighterStatus(){
+  return{
+    atkMult:1,defMult:1,dmgTakenMult:1,dodgeAdd:0,critAdd:0,staminaGainMult:1,maxStaminaMult:1,
+    buffTimers:[],
+    silenceTurns:0,rootTurns:0,disarmTurns:0,blindTurns:0,blindMissChance:0.3,fearTurns:0,fearChance:0.3,dotImmuneTurns:0,phaseTurns:0,
+    unstoppableTurns:0,
+    markTurns:0,markMult:1,
+    cloneHp:0,barrierHp:0,
+    extraTurns:0,
+    momentumStreak:0,
+    echoMove:null,
+    reflectPct:0,reflectTurns:0,
+    guardianAuraPct:0,guardianAuraTurns:0,
+    lastMoveType:null,dodgedLastTurn:false,actedBefore:false,
+    secondChanceArmed:false,riposteArmed:false,
+    juggernautStacks:0,
+    permDefReductionPct:0,permAtkReductionPct:0,
+    regen:0,regenTurns:0,
+    manaBurn:0,manaBurnTurns:0,
+    secondWindArmed:null,
+    reboundTurns:0,reboundUsedThisTurn:false,
+    absorbTurns:0,absorbPct:0,
+    dotAmplifyTurns:0,dotAmplifyMult:1,
+    empowerNextPct:0,
+    battleTranceTurns:0,battleTranceRefund:0
+  };
+}
+// Applies a stat multiplier for N turns and remembers how to cleanly revert it later, even
+// if several different buffs/debuffs are stacking on the same field at once.
+function applyTimedMult(fighter,field,mult,turns){
+  fighter[field]=(fighter[field]==null?1:fighter[field])*mult;
+  fighter.buffTimers=fighter.buffTimers||[];
+  fighter.buffTimers.push({field,mult,turns,kind:'mult'});
+}
+function applyTimedAdd(fighter,field,amount,turns){
+  fighter[field]=(fighter[field]||0)+amount;
+  fighter.buffTimers=fighter.buffTimers||[];
+  fighter.buffTimers.push({field,amount,turns,kind:'add'});
+}
+function tickBuffTimers(fighter){
+  if(!fighter.buffTimers||!fighter.buffTimers.length)return;
+  fighter.buffTimers=fighter.buffTimers.filter(t=>{
+    t.turns--;
+    if(t.turns<=0){
+      if(t.kind==='mult')fighter[t.field]=fighter[t.field]/t.mult;
+      else fighter[t.field]=(fighter[t.field]||0)-t.amount;
+      return false;
+    }
+    return true;
+  });
+}
+const SIMPLE_STATUS_COUNTERS=['silenceTurns','rootTurns','disarmTurns','blindTurns','fearTurns','dotImmuneTurns','phaseTurns','unstoppableTurns','markTurns','reflectTurns','guardianAuraTurns'];
+function tickSimpleCounters(fighter){
+  SIMPLE_STATUS_COUNTERS.forEach(k=>{
+    if(fighter[k]>0){
+      fighter[k]--;
+      if(fighter[k]===0){
+        if(k==='markTurns')fighter.markMult=1;
+        if(k==='reflectTurns')fighter.reflectPct=0;
+        if(k==='guardianAuraTurns')fighter.guardianAuraPct=0;
+      }
+    }
+  });
+}
+// Full per-turn tick for one fighter: dot (respecting Iron Skin immunity), stat-timer
+// reversion, control-effect countdowns, and stamina regen (respecting Slow/Haste/Cripple).
+// Every battle mode's "start of turn" step should call this for each active fighter.
+function tickFighterStatus(fighter,log){
+  if(fighter.defeated)return;
+  if(fighter.dot>0&&fighter.dotTurns>0){
+    if(fighter.dotImmuneTurns>0){
+      log.push(`🦾 ${fighter.name}'s Iron Skin blocks the burn!`);
+    } else {
+      const dotAmt=fighter.dotAmplifyTurns>0?Math.round(fighter.dot*fighter.dotAmplifyMult):fighter.dot;
+      fighter.hp=Math.max(0,fighter.hp-dotAmt);
+      log.push(`🔥 ${fighter.name} takes ${dotAmt} damage-over-time (${fighter.dotTurns-1} turns left)`);
+    }
+    fighter.dotTurns--;if(fighter.dotTurns<=0)fighter.dot=0;
+    if(fighter.hp<=0){fighter.hp=0;fighter.defeated=true;log.push(`💀 ${fighter.name} was defeated!`);}
+  }
+  if(fighter.regen>0&&fighter.regenTurns>0&&!fighter.defeated){
+    fighter.hp=Math.min(fighter.maxHp,fighter.hp+fighter.regen);
+    log.push(`💚 ${fighter.name} regenerates ${fighter.regen} HP (${fighter.regenTurns-1} turns left)`);
+    fighter.regenTurns--;if(fighter.regenTurns<=0)fighter.regen=0;
+  }
+  if(fighter.manaBurn>0&&fighter.manaBurnTurns>0&&!fighter.defeated){
+    fighter.stamina=Math.max(0,fighter.stamina-fighter.manaBurn);
+    log.push(`🔥🔋 ${fighter.name} loses ${fighter.manaBurn} stamina to Mana Burn (${fighter.manaBurnTurns-1} turns left)`);
+    fighter.manaBurnTurns--;if(fighter.manaBurnTurns<=0)fighter.manaBurn=0;
+  }
+  if(fighter.secondWindArmed&&!fighter.defeated&&fighter.hp/fighter.maxHp<=fighter.secondWindArmed.threshold){
+    fighter.hp=Math.min(fighter.maxHp,fighter.hp+fighter.secondWindArmed.value);
+    log.push(`🌬️ ${fighter.name}'s Second Wind triggers, healing ${fighter.secondWindArmed.value} HP!`);
+    fighter.secondWindArmed=null;
+  }
+  fighter.reboundUsedThisTurn=false;
+  if(fighter.unstoppableTurns>0){
+    fighter.silenceTurns=0;fighter.rootTurns=0;fighter.disarmTurns=0;fighter.blindTurns=0;fighter.fearTurns=0;
+  }
+  tickBuffTimers(fighter);
+  tickSimpleCounters(fighter);
+  if(fighter.defeated)return;
+  const maxStam=Math.round((fighter.maxStamina||100)*(fighter.maxStaminaMult!=null?fighter.maxStaminaMult:1));
+  const regen=Math.max(0,Math.round((fighter.staminaRegen||20)*(fighter.staminaGainMult!=null?fighter.staminaGainMult:1)));
+  fighter.stamina=Math.min(maxStam,(fighter.stamina||0)+regen);
+}
 const MOVE_ICONS={attack:'⚔️',heavy:'💥',heal:'💚',shield:'🛡️',dot:'🔥',multi:'🌀',power:'⚡',combo:'🎯',speed:'💨',aoe:'💣',lifesteal:'🩸',stamina_steal:'⚡🔻',taunt:'😤',curse:'🌀',counter:'🔄',execute:'💀',scatter:'🎯💥',
   // Offensive
   piercing:'🗡️',chain:'⛓️',overcharge:'🔋',precision:'🎯',backstab:'🔪',crushing:'🔨',sunder:'💢',echo:'🔁',overwhelm:'📈',finisher:'☠️',
@@ -1515,7 +1627,17 @@ const MOVE_ICONS={attack:'⚔️',heavy:'💥',heal:'💚',shield:'🛡️',dot:
   // Buff / Enhancement
   rage:'😡',focus:'🧘',haste:'💨',empower:'💪',blessing:'🙏',adrenaline:'💉',momentum:'🌊',overclock:'⚙️',battle_trance:'🌀⚡',guardian_aura:'👼',
   // Special / Advanced
-  clone:'👥',time_skip:'⏭️',swap:'🔄',rewind:'⏪',sacrifice:'🩸',gamble:'🎲',mark:'🎯❌',phase:'👻',corrupt:'🌑',amplify:'📡'
+  clone:'👥',time_skip:'⏭️',swap:'🔄',rewind:'⏪',sacrifice:'🩸',gamble:'🎲',mark:'🎯❌',phase:'👻',corrupt:'🌑',amplify:'📡',
+  // Team / Squad
+  team_heal:'💞',team_shield:'🛡️👥',team_stamina_drain:'⚡🔻👥',team_regen:'💚👥',team_haste:'💨👥',team_fortify:'🏰👥',team_rally:'📣',team_cleanse:'🧼👥',enemy_team_weaken:'📉👥',enemy_team_expose:'🎯👥',
+  // Elemental / Tactical
+  weakpoint_strike:'🎯',detonate:'💥',overload_strike:'⚡',riposte:'⚔️',bleed:'🩸',frostbite:'❄️',shockwave:'⚡',entangle:'🕸️',ambush:'🗡️',true_strike:'🎯',
+  // Advanced Buff
+  bloodlust:'🩸',vengeance:'⚔️',last_stand:'🛡️',overheal:'💚',foresight:'👁️',juggernaut:'🗿',adrenal_surge:'💉',unstoppable:'🦾',eclipse:'🌑',static_charge:'⚡',
+  // Ultimate / Special
+  ultimate_strike:'💥',soul_drain:'👻',berserk:'😤',second_chance:'✨',void_step:'🕳️',martyrdom:'🕊️',execution_protocol:'💀',overdrive:'⚙️',corrupted_strike:'🌑',mirror_strike:'🪞',
+  // Support / Control
+  cleansing_wave:'🌊',warding_totem:'🗿',focus_fire:'🎯',opportunist:'😏',sap_strength:'🩹',stormcall:'⛈️',guard_break:'💢',momentum_shift:'🔄',second_wind_team:'🌬️',finality:'⏳'
 };
 const MOVE_LABELS={attack:'Attack',heavy:'Heavy Attack',heal:'Heal',shield:'Shield',dot:'Damage-over-Time',multi:'Multi-hit',power:'Power Move',combo:'Combo',speed:'Speed Boost',aoe:'AOE (hits all enemies)',lifesteal:'Life Steal',stamina_steal:'Stamina Steal',taunt:'Taunt',curse:'Curse',counter:'Counter',execute:'Execute',scatter:'Scatter (pick X targets)',
   // Offensive
@@ -1527,7 +1649,17 @@ const MOVE_LABELS={attack:'Attack',heavy:'Heavy Attack',heal:'Heal',shield:'Shie
   // Buff / Enhancement
   rage:'Rage (ATK increases when hit)',focus:'Focus (crit chance increases each turn)',haste:'Haste (extra stamina per turn)',empower:'Empower (next attack deals bonus dmg)',blessing:'Blessing (boosts all stats slightly)',adrenaline:'Adrenaline (acts twice next turn)',momentum:'Momentum (dmg increases per consecutive attack)',overclock:'Overclock (huge speed boost, self-dmg)',battle_trance:'Battle Trance (crits restore stamina)',guardian_aura:'Guardian Aura (allies take reduced dmg)',
   // Special / Advanced
-  clone:'Clone (decoy absorbs one hit)',time_skip:'Time Skip (gain an extra turn)',swap:'Swap (swap stamina/buffs with enemy)',rewind:'Rewind (restore stats to prior turn)',sacrifice:'Sacrifice (lose HP for huge buff)',gamble:'Gamble (random powerful effect)',mark:'Mark (next hit on target = double dmg)',phase:'Phase (untargetable for 1 turn)',corrupt:'Corrupt (converts enemy buffs to debuffs)',amplify:'Amplify (doubles DoT dmg on target)'
+  clone:'Clone (decoy absorbs one hit)',time_skip:'Time Skip (gain an extra turn)',swap:'Swap (swap stamina/buffs with enemy)',rewind:'Rewind (restore stats to prior turn)',sacrifice:'Sacrifice (lose HP for huge buff)',gamble:'Gamble (random powerful effect)',mark:'Mark (next hit on target = double dmg)',phase:'Phase (untargetable for 1 turn)',corrupt:'Corrupt (converts enemy buffs to debuffs)',amplify:'Amplify (doubles DoT dmg on target)',
+  // Team / Squad
+  team_heal:'Team Heal (heals the whole team)',team_shield:'Team Shield (shields the whole team)',team_stamina_drain:'Team Stamina Drain (drains whole enemy team)',team_regen:'Team Regen (whole team heals over time)',team_haste:'Team Haste (whole team gains stamina/turn)',team_fortify:'Team Fortify (whole team DEF up)',team_rally:'Team Rally (whole team ATK up)',team_cleanse:'Team Cleanse (removes team debuffs)',enemy_team_weaken:'Enemy Team Weaken (whole enemy ATK down)',enemy_team_expose:'Enemy Team Expose (whole enemy takes more dmg)',
+  // Elemental / Tactical
+  weakpoint_strike:'Weakpoint Strike (bonus dmg vs debuffed target)',detonate:'Detonate (burst dmg from target\'s DoT)',overload_strike:'Overload Strike (dmg scales with own missing HP)',riposte:'Riposte (counters the next hit taken)',bleed:'Bleed (DoT that reduces healing received)',frostbite:'Frostbite (DoT that reduces dodge)',shockwave:'Shockwave (dmg + chance to drain stamina)',entangle:'Entangle (dmg + prevents dodge)',ambush:'Ambush (bonus dmg on first move of battle)',true_strike:'True Strike (cannot be dodged)',
+  // Advanced Buff
+  bloodlust:'Bloodlust (heals % of dmg dealt for a duration)',vengeance:'Vengeance (ATK scales with own missing HP)',last_stand:'Last Stand (huge DEF buff below HP threshold)',overheal:'Overheal (heal beyond max HP becomes a shield)',foresight:'Foresight (guaranteed dodge next turn)',juggernaut:'Juggernaut (stacking DEF buff each use)',adrenal_surge:'Adrenal Surge (instantly refill stamina)',unstoppable:'Unstoppable (immune to control effects)',eclipse:'Eclipse (reduces target crit & dodge)',static_charge:'Static Charge (chance to stun target)',
+  // Ultimate / Special
+  ultimate_strike:'Ultimate Strike (colossal single-target dmg)',soul_drain:'Soul Drain (heals % of target\'s MAX HP)',berserk:'Berserk (huge ATK, but DEF drops)',second_chance:'Second Chance (survive a lethal blow once)',void_step:'Void Step (cleanses self + shields)',martyrdom:'Martyrdom (lose HP for a huge barrier)',execution_protocol:'Execution Protocol (instakills all low-HP enemies)',overdrive:'Overdrive (deals dmg and acts again)',corrupted_strike:'Corrupted Strike (dmg + corrupts a buff)',mirror_strike:'Mirror Strike (copies enemy\'s last move)',
+  // Support / Control
+  cleansing_wave:'Cleansing Wave (cleanses self + heals)',warding_totem:'Warding Totem (shield + DEF buff)',focus_fire:'Focus Fire (bonus dmg vs target below 50% HP)',opportunist:'Opportunist (bonus dmg vs non-attack last move)',sap_strength:'Sap Strength (dmg + permanently reduces ATK)',stormcall:'Stormcall (dmg + applies a burn)',guard_break:'Guard Break (removes shield + bonus dmg)',momentum_shift:'Momentum Shift (strips all enemy buffs)',second_wind_team:'Team Second Wind (heals low-HP teammates)',finality:'Finality (dmg grows the longer the fight lasts)'
 };
 
 // Move type field definitions — what extra fields each type needs
@@ -1609,7 +1741,67 @@ const MOVE_FIELDS={
   mark:      [{key:'stamina_cost',label:'Stamina Cost',ph:'30',base:30},{key:'mark_mult',label:'Next Hit Damage Multiplier',ph:'2',base:2,step:'0.1',noscale:true},{key:'mark_turns',label:'Lasts (turns)',ph:'2',base:2,noscale:true}],
   phase:     [{key:'stamina_cost',label:'Stamina Cost',ph:'50',base:50}],
   corrupt:   [{key:'stamina_cost',label:'Stamina Cost',ph:'45',base:45},{key:'corrupt_turns',label:'Lasts (turns)',ph:'2',base:2,noscale:true}],
-  amplify:   [{key:'stamina_cost',label:'Stamina Cost',ph:'35',base:35},{key:'amplify_dot_mult',label:'DoT Damage Multiplier',ph:'2',base:2,step:'0.1',noscale:true},{key:'amplify_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}]
+  amplify:   [{key:'stamina_cost',label:'Stamina Cost',ph:'35',base:35},{key:'amplify_dot_mult',label:'DoT Damage Multiplier',ph:'2',base:2,step:'0.1',noscale:true},{key:'amplify_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}],
+
+  // ── Team / Squad Ability Types ───────────────────────────────────────
+  team_heal:  [{key:'value',label:'HP Restored (whole team)',ph:'60',base:60},{key:'stamina_cost',label:'Stamina Cost',ph:'70',base:70}],
+  team_shield:[{key:'value',label:'Block % (0-100, whole team)',ph:'60',base:60,noscale:true},{key:'stamina_cost',label:'Stamina Cost',ph:'70',base:70}],
+  team_stamina_drain:[{key:'value',label:'Stamina Drained per Enemy',ph:'25',base:25,noscale:true},{key:'stamina_cost',label:'Stamina Cost',ph:'60',base:60}],
+  team_regen:[{key:'value',label:'Heal per Turn (whole team)',ph:'20',base:20},{key:'stamina_cost',label:'Stamina Cost',ph:'60',base:60},{key:'regen_turns',label:'Turns',ph:'3',base:3,noscale:true}],
+  team_haste:[{key:'value',label:'Extra Stamina per Turn (whole team)',ph:'12',base:12,noscale:true},{key:'stamina_cost',label:'Stamina Cost',ph:'50',base:50},{key:'haste_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}],
+  team_fortify:[{key:'def_boost_pct',label:'DEF Increase % (whole team)',ph:'25',base:25,noscale:true},{key:'stamina_cost',label:'Stamina Cost',ph:'55',base:55},{key:'fortify_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}],
+  team_rally:[{key:'rage_atk_pct',label:'ATK Increase % (whole team)',ph:'20',base:20,noscale:true},{key:'stamina_cost',label:'Stamina Cost',ph:'55',base:55},{key:'rage_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}],
+  team_cleanse:[{key:'stamina_cost',label:'Stamina Cost',ph:'50',base:50}],
+  enemy_team_weaken:[{key:'weaken_pct',label:'ATK Reduction % (whole enemy team)',ph:'20',base:20,noscale:true},{key:'stamina_cost',label:'Stamina Cost',ph:'65',base:65},{key:'weaken_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}],
+  enemy_team_expose:[{key:'expose_pct',label:'Increased Dmg Taken % (whole enemy team)',ph:'20',base:20,noscale:true},{key:'stamina_cost',label:'Stamina Cost',ph:'65',base:65},{key:'expose_turns',label:'Lasts (turns)',ph:'2',base:2,noscale:true}],
+
+  // ── Elemental / Tactical Ability Types ───────────────────────────────
+  weakpoint_strike:[{key:'value',label:'Base Damage',ph:'60',base:60},{key:'stamina_cost',label:'Stamina Cost',ph:'45',base:45},{key:'bonus_pct',label:'Bonus Dmg % vs Debuffed Target',ph:'60',base:60,noscale:true}],
+  detonate:  [{key:'value',label:'Base Damage',ph:'30',base:30},{key:'stamina_cost',label:'Stamina Cost',ph:'40',base:40},{key:'detonate_mult',label:'DoT Burst Multiplier',ph:'2',base:2,step:'0.1',noscale:true}],
+  overload_strike:[{key:'value',label:'Base Damage',ph:'55',base:55},{key:'stamina_cost',label:'Stamina Cost',ph:'50',base:50},{key:'overload_bonus_pct',label:'Max Bonus % (at low HP)',ph:'100',base:100,noscale:true}],
+  riposte:   [{key:'stamina_cost',label:'Stamina Cost',ph:'35',base:35},{key:'counter_mult',label:'Counter Damage Multiplier',ph:'2',base:2,step:'0.1',noscale:true}],
+  bleed:     [{key:'value',label:'Total Damage',ph:'75',base:75},{key:'stamina_cost',label:'Stamina Cost',ph:'40',base:40},{key:'dot_turns',label:'Turns',ph:'3',base:3,noscale:true},{key:'heal_reduction_pct',label:'Healing Received Reduction %',ph:'50',base:50,noscale:true}],
+  frostbite: [{key:'value',label:'Total Damage',ph:'75',base:75},{key:'stamina_cost',label:'Stamina Cost',ph:'40',base:40},{key:'dot_turns',label:'Turns',ph:'3',base:3,noscale:true},{key:'dodge_reduction_pct',label:'Dodge Reduction %',ph:'20',base:20,noscale:true}],
+  shockwave: [{key:'value',label:'Damage',ph:'60',base:60},{key:'stamina_cost',label:'Stamina Cost',ph:'50',base:50},{key:'stamina_drain_chance',label:'Stamina Drain Chance (0-1)',ph:'0.5',base:0.5,step:'0.05',noscale:true},{key:'stamina_drain',label:'Stamina Drained',ph:'20',base:20,noscale:true}],
+  entangle:  [{key:'value',label:'Damage',ph:'55',base:55},{key:'stamina_cost',label:'Stamina Cost',ph:'50',base:50},{key:'root_turns',label:'Root Turns',ph:'2',base:2,noscale:true}],
+  ambush:    [{key:'value',label:'Base Damage',ph:'65',base:65},{key:'stamina_cost',label:'Stamina Cost',ph:'45',base:45},{key:'ambush_bonus_pct',label:'Bonus Dmg % on First Move',ph:'80',base:80,noscale:true}],
+  true_strike:[{key:'value',label:'Damage',ph:'65',base:65},{key:'stamina_cost',label:'Stamina Cost',ph:'55',base:55}],
+
+  // ── Advanced Buff Ability Types ───────────────────────────────────────
+  bloodlust: [{key:'bloodlust_pct',label:'Heal % of Damage Dealt',ph:'30',base:30,noscale:true},{key:'stamina_cost',label:'Stamina Cost',ph:'35',base:35},{key:'bloodlust_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}],
+  vengeance: [{key:'stamina_cost',label:'Stamina Cost',ph:'40',base:40},{key:'vengeance_max_pct',label:'Max ATK Bonus % (at low HP)',ph:'100',base:100,noscale:true},{key:'vengeance_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}],
+  last_stand:[{key:'stamina_cost',label:'Stamina Cost',ph:'40',base:40},{key:'trigger_hp_pct',label:'Triggers Below HP %',ph:'30',base:30,noscale:true},{key:'def_boost_pct',label:'DEF Boost %',ph:'100',base:100,noscale:true},{key:'last_stand_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}],
+  overheal:  [{key:'value',label:'Heal Amount',ph:'60',base:60},{key:'stamina_cost',label:'Stamina Cost',ph:'35',base:35}],
+  foresight: [{key:'stamina_cost',label:'Stamina Cost',ph:'30',base:30}],
+  juggernaut:[{key:'stamina_cost',label:'Stamina Cost',ph:'30',base:30},{key:'stack_pct',label:'DEF Increase % per Stack',ph:'8',base:8,noscale:true},{key:'juggernaut_turns',label:'Lasts (turns)',ph:'2',base:2,noscale:true}],
+  adrenal_surge:[{key:'stamina_cost',label:'Stamina Cost',ph:'0',base:0}],
+  unstoppable:[{key:'stamina_cost',label:'Stamina Cost',ph:'45',base:45},{key:'unstoppable_turns',label:'Lasts (turns)',ph:'2',base:2,noscale:true}],
+  eclipse:   [{key:'stamina_cost',label:'Stamina Cost',ph:'40',base:40},{key:'crit_reduction_pct',label:'Crit Chance Reduction %',ph:'15',base:15,noscale:true},{key:'dodge_reduction_pct',label:'Dodge Reduction %',ph:'15',base:15,noscale:true},{key:'eclipse_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}],
+  static_charge:[{key:'stamina_cost',label:'Stamina Cost',ph:'40',base:40},{key:'stun_chance',label:'Stun Chance (0-1)',ph:'0.4',base:0.4,step:'0.05',noscale:true},{key:'stun_turns',label:'Lasts (turns)',ph:'2',base:2,noscale:true}],
+
+  // ── Ultimate / Special Ability Types ─────────────────────────────────
+  ultimate_strike:[{key:'value',label:'Damage',ph:'220',base:220},{key:'stamina_cost',label:'Stamina Cost',ph:'140',base:140}],
+  soul_drain:[{key:'value',label:'Damage',ph:'70',base:70},{key:'stamina_cost',label:'Stamina Cost',ph:'55',base:55},{key:'soul_drain_pct',label:'Heal % of Target Max HP',ph:'15',base:15,noscale:true}],
+  berserk:   [{key:'stamina_cost',label:'Stamina Cost',ph:'40',base:40},{key:'atk_boost_pct',label:'ATK Boost %',ph:'50',base:50,noscale:true},{key:'def_reduction_pct',label:'DEF Reduction %',ph:'30',base:30,noscale:true},{key:'berserk_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}],
+  second_chance:[{key:'stamina_cost',label:'Stamina Cost',ph:'50',base:50}],
+  void_step: [{key:'stamina_cost',label:'Stamina Cost',ph:'45',base:45},{key:'shield_pct',label:'Shield Block % (0-100)',ph:'50',base:50,noscale:true}],
+  martyrdom: [{key:'stamina_cost',label:'Stamina Cost',ph:'40',base:40},{key:'hp_loss_pct',label:'HP Lost %',ph:'40',base:40,noscale:true}],
+  execution_protocol:[{key:'stamina_cost',label:'Stamina Cost',ph:'100',base:100},{key:'execute_threshold',label:'Instakill Below HP%',ph:'15',base:15,noscale:true}],
+  overdrive: [{key:'value',label:'Damage',ph:'60',base:60},{key:'stamina_cost',label:'Stamina Cost',ph:'80',base:80}],
+  corrupted_strike:[{key:'value',label:'Damage',ph:'60',base:60},{key:'stamina_cost',label:'Stamina Cost',ph:'50',base:50}],
+  mirror_strike:[{key:'value',label:'Fallback Damage',ph:'50',base:50},{key:'stamina_cost',label:'Stamina Cost',ph:'45',base:45}],
+
+  // ── Support / Control Ability Types ──────────────────────────────────
+  cleansing_wave:[{key:'value',label:'Heal Amount',ph:'40',base:40},{key:'stamina_cost',label:'Stamina Cost',ph:'40',base:40}],
+  warding_totem:[{key:'shield_pct',label:'Shield Block % (0-100)',ph:'50',base:50,noscale:true},{key:'stamina_cost',label:'Stamina Cost',ph:'45',base:45},{key:'def_boost_pct',label:'DEF Boost %',ph:'20',base:20,noscale:true},{key:'totem_turns',label:'Lasts (turns)',ph:'3',base:3,noscale:true}],
+  focus_fire:[{key:'value',label:'Base Damage',ph:'55',base:55},{key:'stamina_cost',label:'Stamina Cost',ph:'45',base:45},{key:'bonus_pct',label:'Bonus Dmg % vs <50% HP',ph:'40',base:40,noscale:true}],
+  opportunist:[{key:'value',label:'Base Damage',ph:'55',base:55},{key:'stamina_cost',label:'Stamina Cost',ph:'40',base:40},{key:'bonus_pct',label:'Bonus Dmg % vs Non-Attack',ph:'70',base:70,noscale:true}],
+  sap_strength:[{key:'value',label:'Damage',ph:'55',base:55},{key:'stamina_cost',label:'Stamina Cost',ph:'45',base:45},{key:'atk_reduction_pct',label:'Permanent ATK Reduction %',ph:'10',base:10,noscale:true}],
+  stormcall: [{key:'value',label:'Damage',ph:'55',base:55},{key:'stamina_cost',label:'Stamina Cost',ph:'50',base:50},{key:'burn_value',label:'Burn Total Damage',ph:'15',base:15},{key:'dot_turns',label:'Burn Turns',ph:'2',base:2,noscale:true}],
+  guard_break:[{key:'value',label:'Damage',ph:'55',base:55},{key:'stamina_cost',label:'Stamina Cost',ph:'45',base:45},{key:'break_bonus_pct',label:'Bonus Dmg % on Shield Break',ph:'50',base:50,noscale:true}],
+  momentum_shift:[{key:'stamina_cost',label:'Stamina Cost',ph:'40',base:40}],
+  second_wind_team:[{key:'value',label:'Heal Amount',ph:'50',base:50},{key:'stamina_cost',label:'Stamina Cost',ph:'60',base:60},{key:'trigger_hp_pct',label:'Triggers Below HP %',ph:'30',base:30,noscale:true}],
+  finality:  [{key:'value',label:'Base Damage',ph:'60',base:60},{key:'stamina_cost',label:'Stamina Cost',ph:'55',base:55},{key:'growth_pct',label:'Dmg Growth % per Turn Elapsed',ph:'5',base:5,noscale:true}]
 };
 const QUEUE_SIZES={0:1,1:3,2:5};
 
@@ -2172,7 +2364,12 @@ const MOVE_TYPE_GROUPS=[
   {label:'Defensive / Sustain',types:['barrier','reflect','fortify','regenerate','cleanse','absorb','guard_stance','second_wind','iron_skin','rebound']},
   {label:'Debuff / Control',types:['silence','blind','slow','weaken','expose','root','disarm','mana_burn','cripple','fear']},
   {label:'Buff / Enhancement',types:['rage','focus','haste','empower','blessing','adrenaline','momentum','overclock','battle_trance','guardian_aura']},
-  {label:'Special / Advanced',types:['clone','time_skip','swap','rewind','sacrifice','gamble','mark','phase','corrupt','amplify']}
+  {label:'Special / Advanced',types:['clone','time_skip','swap','rewind','sacrifice','gamble','mark','phase','corrupt','amplify']},
+  {label:'Team / Squad',types:['team_heal','team_shield','team_stamina_drain','team_regen','team_haste','team_fortify','team_rally','team_cleanse','enemy_team_weaken','enemy_team_expose']},
+  {label:'Elemental / Tactical',types:['weakpoint_strike','detonate','overload_strike','riposte','bleed','frostbite','shockwave','entangle','ambush','true_strike']},
+  {label:'Advanced Buff',types:['bloodlust','vengeance','last_stand','overheal','foresight','juggernaut','adrenal_surge','unstoppable','eclipse','static_charge']},
+  {label:'Ultimate / Special',types:['ultimate_strike','soul_drain','berserk','second_chance','void_step','martyrdom','execution_protocol','overdrive','corrupted_strike','mirror_strike']},
+  {label:'Support / Control',types:['cleansing_wave','warding_totem','focus_fire','opportunist','sap_strength','stormcall','guard_break','momentum_shift','second_wind_team','finality']}
 ];
 
 function moveTypeOptions(selected){
@@ -5054,158 +5251,21 @@ async function useMove(fighterUid,moveName,targetUid){
   if(!move||attacker.stamina<effectiveStaminaCost){showToast('Not enough stamina!');return;}
   const log=[];
   const moveFx=[]; // precise per-uid visual targeting for this move — {uid,type:'hit'|'dodge'|'heal',crit,amount}
-  [...state.fighters1,...state.fighters2].forEach(f=>{
-    if(f.dot>0&&f.dotTurns>0&&!f.defeated){f.hp=Math.max(0,f.hp-f.dot);log.push(`🔥 ${f.name} takes ${f.dot} damage-over-time (${f.dotTurns-1} turns left)`);f.dotTurns--;if(f.dotTurns<=0)f.dot=0;if(f.hp<=0){f.hp=0;f.defeated=true;log.push(`💀 ${f.name} was defeated!`);}}
-  });
-  [...state.fighters1,...state.fighters2].forEach(f=>{if(!f.defeated)f.stamina=Math.min(f.maxStamina,(f.stamina||0)+f.staminaRegen);});
+  [...state.fighters1,...state.fighters2].forEach(f=>tickFighterStatus(f,log));
   // Steady Recovery skill perk — regen % max HP at the start of the acting player's turn, for their whole team
   state[myKey].forEach(f=>{if(!f.defeated&&f.turnRegenPct>0){const heal=Math.round(f.maxHp*(f.turnRegenPct/100));if(heal>0){f.hp=Math.min(f.maxHp,f.hp+heal);}}});
-  attacker.stamina=Math.max(0,attacker.stamina-effectiveStaminaCost);
   if(!state.usedUids)state.usedUids=[];
   const isFirstHit=!state.usedUids.includes(attacker.uid);
   if(!state.usedUids.includes(attacker.uid))state.usedUids.push(attacker.uid);
   const defender=targetUid?state[oppKey].find(f=>f.uid===targetUid):null;
-  const typeMult=defender?getTypeMult(attacker.element,defender.element||'neutral'):1;
-  const crit=Math.random()<(attacker.crit||0.1);
-  let critMult=crit?1.5+Math.random()*0.5:1;
-  if(crit&&attacker.critDmgBonusPct)critMult*=(1+attacker.critDmgBonusPct/100);
-  const firstHitMult=(isFirstHit&&attacker.firstHitBonusPct)?(1+attacker.firstHitBonusPct/100):1;
+  const moveForResolve={...move,stamina_cost:effectiveStaminaCost};
 
-  if(move.type==='heal'){
-    const h=move.value||30;attacker.hp=Math.min(attacker.maxHp,attacker.hp+h);
-    log.push(`💚 ${attacker.name} used ${moveName} and restored ${h} HP!`);
-    moveFx.push({uid:attacker.uid,type:'heal',amount:h});
-  } else if(move.type==='shield'){
-    attacker.shielded=true;attacker.shieldPct=(move.value||75)/100;
-    log.push(`🛡️ ${attacker.name} used ${moveName} — shields ${move.value||75}% of the next hit!`);
-  } else if(move.type==='speed'){
-    attacker.speedBuff=true;log.push(`💨 ${attacker.name} used ${moveName} — dodge chance doubled next turn!`);
-  } else if(defender){
-    const dodged=Math.random()<(attacker.speedBuff?defender.dodge*2:defender.dodge||0.05);
-    if(dodged){log.push(`💨 ${defender.name} dodged ${attacker.name}'s ${moveName}!`);moveFx.push({uid:defender.uid,type:'dodge'});}
-    else{
-      let dmg=0;
-      if(move.type==='dot'){
-        const dpt=Math.max(1,Math.round(((move.value||30)+(attacker.atk*0.15))/3));defender.dot=dpt;defender.dotTurns=move.dot_turns||3;
-        log.push(`🔥 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${defender.name} burns for ${dpt} dmg/turn × ${defender.dotTurns} turns!`);
-        moveFx.push({uid:defender.uid,type:'hit',crit,amount:0});
-      } else if(move.type==='multi'){
-        const hits=rand(move.hits_min||2,move.hits_max||3);let tot=0;
-        for(let i=0;i<hits;i++){const d=Math.max(1,Math.round(((move.value||30)/hits+(attacker.atk*0.2)-defender.def*0.3)*typeMult*critMult));tot+=d;}
-        if(defender.shielded){const bl=Math.round(tot*defender.shieldPct);tot=Math.max(1,tot-bl);log.push(`🛡️ Shield absorbed ${bl} damage!`);defender.shielded=false;}
-        defender.hp=Math.max(0,defender.hp-tot);
-        log.push(`🌀 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${hits} hits for ${tot} total!${typeMult>1?' ⚡ Super effective!':''}`);
-        moveFx.push({uid:defender.uid,type:'hit',crit,amount:tot});
-        if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
-      } else if(move.type==='combo'){
-        const triggered=Math.random()<0.4;
-        dmg=Math.max(1,Math.round((move.value-defender.def*0.4)*typeMult*critMult*(triggered?1.5:1)));
-        if(defender.shielded){const bl=Math.round(dmg*defender.shieldPct);dmg=Math.max(1,dmg-bl);log.push(`🛡️ Shield absorbed ${bl} damage!`);defender.shielded=false;}
-        defender.hp=Math.max(0,defender.hp-dmg);
-        log.push(`🎯 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''}${triggered?' COMBO!':''} — ${dmg} damage!`);
-        moveFx.push({uid:defender.uid,type:'hit',crit,amount:dmg});
-        if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
-      } else {
-        dmg=Math.max(1,Math.round((move.value+(attacker.atk*0.3)-defender.def*0.5)*typeMult*critMult*firstHitMult));
-        if(defender.shielded){const bl=Math.round(dmg*defender.shieldPct);dmg=Math.max(1,dmg-bl);log.push(`🛡️ Shield absorbed ${bl} damage!`);defender.shielded=false;}
-        defender.hp=Math.max(0,defender.hp-dmg);
-        log.push(`${MOVE_ICONS[move.type]||'⚔️'} ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${dmg} damage!${typeMult>1?' ⚡ Super effective!':''}`);
-        moveFx.push({uid:defender.uid,type:'hit',crit,amount:dmg});
-        if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
-      }
-    }
-    attacker.speedBuff=false;
-  } else if(move.type==='aoe'){
-    // Hits ALL opponents not just one — each target rolls and displays its own crit independently
-    const targets=state[oppKey].filter(f=>!f.defeated);
-    let totalDealt=0,anyTargetCrit=false;
-    targets.forEach(t=>{
-      const tm=getTypeMult(attacker.element,t.element||'neutral');
-      const crit2=Math.random()<(attacker.crit||0.1);
-      if(crit2)anyTargetCrit=true;
-      const dmg=Math.max(1,Math.round((move.value-t.def*0.4)*tm*(crit2?1.5:1)));
-      let dealt=dmg;
-      if(t.shielded){const bl=Math.round(dmg*t.shieldPct);t.hp=Math.max(0,t.hp-(dmg-bl));t.shielded=false;log.push(`🛡️ ${t.name} shield absorbed ${bl}!`);dealt=dmg-bl;}
-      else t.hp=Math.max(0,t.hp-dmg);
-      totalDealt+=dmg;
-      moveFx.push({uid:t.uid,type:'hit',crit:crit2,amount:dealt});
-      if(t.hp<=0){t.hp=0;t.defeated=true;log.push(`💀 ${t.name} was defeated!`);}
-    });
-    log.push(`💣 ${attacker.name} used ${moveName}${anyTargetCrit?' 💥 CRIT!':''} — hit ${targets.length} enemies for ${totalDealt} total damage!`);
-  } else if(move.type==='scatter'){
-    // Pick up to scatter_targets enemies, deal damage to each — each rolls its own crit independently
-    const targets=state[oppKey].filter(f=>!f.defeated);
-    const numTargets=Math.min(move.scatter_targets||2,targets.length);
-    // Shuffle and pick
-    const picked=[...targets].sort(()=>Math.random()-0.5).slice(0,numTargets);
-    let totalDealt=0,anyTargetCrit=false;
-    picked.forEach(t=>{
-      const tm=getTypeMult(attacker.element,t.element||'neutral');
-      const crit2=Math.random()<(attacker.crit||0.1);
-      if(crit2)anyTargetCrit=true;
-      const dmg=Math.max(1,Math.round((move.value+(attacker.atk*0.3)-t.def*0.5)*tm*(crit2?1.5:1)));
-      let dealt=dmg;
-      if(t.shielded){const bl=Math.round(dmg*t.shieldPct);t.hp=Math.max(0,t.hp-(dmg-bl));t.shielded=false;dealt=dmg-bl;}
-      else t.hp=Math.max(0,t.hp-dmg);
-      totalDealt+=dmg;
-      moveFx.push({uid:t.uid,type:'hit',crit:crit2,amount:dealt});
-      if(t.hp<=0){t.hp=0;t.defeated=true;log.push(`💀 ${t.name} was defeated!`);}
-    });
-    log.push(`🎯💥 ${attacker.name} used ${moveName}${anyTargetCrit?' 💥 CRIT!':''} — hit ${picked.map(t=>t.name).join(' & ')} for ${totalDealt} total damage!`);
-  } else if(move.type==='lifesteal'){
-    if(defender){
-      const tm=getTypeMult(attacker.element,defender.element||'neutral');
-      const dmg=Math.max(1,Math.round((move.value+(attacker.atk*0.3)-defender.def*0.5)*tm*critMult));
-      const stolen=Math.round(dmg*(move.steal_pct||0.5));
-      if(defender.shielded){const bl=Math.round(dmg*defender.shieldPct);defender.hp=Math.max(0,defender.hp-(dmg-bl));defender.shielded=false;}
-      else defender.hp=Math.max(0,defender.hp-dmg);
-      attacker.hp=Math.min(attacker.maxHp,attacker.hp+stolen);
-      log.push(`🩸 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${dmg} dmg, stole ${stolen} HP!`);
-      moveFx.push({uid:defender.uid,type:'hit',crit,amount:dmg});
-      if(stolen>0)moveFx.push({uid:attacker.uid,type:'heal',amount:stolen});
-      if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
-    }
-  } else if(move.type==='stamina_steal'){
-    if(defender){
-      const tm=getTypeMult(attacker.element,defender.element||'neutral');
-      const dmg=Math.max(1,Math.round((move.value-defender.def*0.5)*tm*critMult));
-      const stealAmt=Math.round(move.steal_stamina||25);
-      defender.hp=Math.max(0,defender.hp-dmg);
-      const actualSteal=Math.min(stealAmt,defender.stamina);
-      defender.stamina=Math.max(0,defender.stamina-actualSteal);
-      attacker.stamina=Math.min(attacker.maxStamina,attacker.stamina+actualSteal);
-      log.push(`⚡🔻 ${attacker.name} used ${moveName} — ${dmg} dmg + stole ${actualSteal} stamina from ${defender.name}!`);
-      moveFx.push({uid:defender.uid,type:'hit',crit,amount:dmg});
-      if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
-    }
-  } else if(move.type==='taunt'){
-    attacker.taunting=move.taunt_turns||2;
-    log.push(`😤 ${attacker.name} used ${moveName} — all enemies must target them for ${move.taunt_turns||2} turns!`);
-  } else if(move.type==='curse'){
-    if(defender){
-      const pct=(move.value||20)/100;
-      defender.cursed=true;defender.curse_atk_mult=1-pct;defender.curseTurns=move.curse_turns||3;
-      log.push(`🌀 ${attacker.name} used ${moveName} — ${defender.name}'s ATK reduced by ${move.value||20}% for ${move.curse_turns||3} turns!`);
-    }
-  } else if(move.type==='counter'){
-    attacker.countering=true;attacker.counter_mult=(move.value||150)/100;
-    log.push(`🔄 ${attacker.name} used ${moveName} — will counter the next attack for ${move.value||150}% damage!`);
-  } else if(move.type==='execute'){
-    if(defender){
-      const tm=getTypeMult(attacker.element,defender.element||'neutral');
-      const threshold=(move.execute_threshold||20)/100;
-      const hpPct=defender.hp/defender.maxHp;
-      let dmg=Math.max(1,Math.round((move.value-defender.def*0.5)*tm*critMult));
-      if(hpPct<=threshold){
-        dmg=defender.hp; // instant kill below threshold
-        log.push(`💀 EXECUTE! ${defender.name} is below ${move.execute_threshold||20}% HP!`);
-      }
-      defender.hp=Math.max(0,defender.hp-dmg);
-      log.push(`💀 ${attacker.name} used ${moveName}${crit?' 💥 CRIT!':''} — ${dmg} damage!`);
-      moveFx.push({uid:defender.uid,type:'hit',crit,amount:dmg});
-      if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
-    }
-  }
+  // Every move type (classic through the full 100+ roster, including team-wide abilities)
+  // resolves through the same engine Sparring/Bot Battle/Raid Boss/Defense use — team
+  // arrays make team_heal/team_shield/etc. actually hit everyone in real 3v3/5v5.
+  const{log:mLog,fx:mFx,extraTurn}=resolveSparHit(attacker,defender||attacker,moveForResolve,isFirstHit,{attackerTeam:state[myKey],defenderTeam:state[oppKey]});
+  log.push(...mLog);moveFx.push(...mFx);
+
   state.lastMoveFx=moveFx;
   state.log.push(...log);
   const a1=state.fighters1.filter(f=>!f.defeated).length;const a2=state.fighters2.filter(f=>!f.defeated).length;
@@ -5221,9 +5281,13 @@ async function useMove(fighterUid,moveName,targetUid){
     await new Promise(r=>setTimeout(r,650)); // let the final hit's effects play before the results screen takes over
     await awardRewards(state,currentBattle);return;
   }
-  state.turn=isP1?currentBattle.player2:currentBattle.player1;
-  state.phase=isP1?'action2':'action1';
-  state.log.push(`── ${state.turn}'s turn ──`);
+  if(!extraTurn){
+    state.turn=isP1?currentBattle.player2:currentBattle.player1;
+    state.phase=isP1?'action2':'action1';
+    state.log.push(`── ${state.turn}'s turn ──`);
+  } else {
+    state.log.push(`⏭️ ${attacker.name} acts again!`);
+  }
   const{error:moveErr}=await sb.from('live_battles').update({state:JSON.stringify(state)}).eq('id',currentBattle.id);
   if(moveErr){console.error('useMove save error:',moveErr);showToast('Error saving move — try again');return;}
   // Update locally right away — don't rely solely on the realtime echo coming back
@@ -7203,98 +7267,998 @@ function buildSparDummy(card){
   const hp=Math.round(base.hp*lvlMult*0.9);
   return{uid:'dummy',name:'Training Dummy',class_name:null,element:'neutral',atk:Math.round(base.atk*lvlMult*0.85),def:Math.round(base.def*lvlMult*0.85),
     maxHp:hp,hp,crit:(base.crit||0.1)*0.7,dodge:(base.dodge||0.05)*0.6,stamina:999,maxStamina:999,staminaRegen:999,
-    shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,image_url:null};
+    shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,image_url:null,...defaultFighterStatus()};
 }
 
 // Picks a move for an AI-controlled fighter: prioritizes healing when low, otherwise the
 // strongest affordable damaging move it has unlocked.
 function pickAiMove(fighter,moves){
-  const affordable=moves.filter(m=>fighter.stamina>=(m.stamina_cost||0));
+  const POWER_TYPES=new Set(['heavy','power','execute','overcharge','piercing','precision','finisher','crushing','sunder','ultimate_strike','meteor','execution_protocol','overdrive']);
+  const HEAVY_TYPES=new Set(['heavy','power','overclock']);
+  let affordable=moves.filter(m=>fighter.stamina>=(m.stamina_cost||0));
+  if(fighter.silenceTurns>0)affordable=affordable.filter(m=>!POWER_TYPES.has(m.type));
+  if(fighter.disarmTurns>0)affordable=affordable.filter(m=>!HEAVY_TYPES.has(m.type));
+  if(!affordable.length)affordable=moves.filter(m=>fighter.stamina>=(m.stamina_cost||0));
   if(!affordable.length)return moves.find(m=>(m.stamina_cost||0)===0)||moves[0];
   if(fighter.hp/fighter.maxHp<0.4){
     const heal=affordable.find(m=>m.type==='heal');
     if(heal)return heal;
   }
-  const damaging=affordable.filter(m=>!['heal','shield','speed','taunt','counter','curse'].includes(m.type));
+  const damaging=affordable.filter(m=>!UTILITY_MOVE_TYPES.has(m.type));
   const pool=damaging.length?damaging:affordable;
   return pool.reduce((best,m)=>((m.value||0)>(best.value||0)?m:best),pool[0]);
 }
 
-// A trimmed, single-target version of the real battle's useMove() damage logic — same
-// formulas and move types, just resolved locally/instantly instead of over Supabase.
-function resolveSparHit(attacker,defender,move,isFirstHit){
+// Core damage-application primitive — every move type below funnels its damage through this
+// so shields, decoys (Clone), barriers, team-wide Guardian Aura, and Reflect all interact
+// correctly no matter which move dealt the hit.
+function dealDamage(attacker,target,rawDmg,ctx,log,fx){
+  ctx=ctx||{};
+  let dmg=Math.max(1,Math.round(rawDmg*(target.dmgTakenMult!=null?target.dmgTakenMult:1)));
+  // Team-wide Guardian Aura — any living ally of the target reduces incoming damage
+  const team=ctx.defenderTeam||[target];
+  const guardian=team.find(f=>!f.defeated&&f.guardianAuraTurns>0&&f.guardianAuraPct>0);
+  if(guardian)dmg=Math.max(1,Math.round(dmg*(1-guardian.guardianAuraPct/100)));
+  // Clone decoy absorbs first
+  if(target.cloneHp>0){
+    const absorbed=Math.min(target.cloneHp,dmg);
+    target.cloneHp-=absorbed;dmg-=absorbed;
+    log.push(`👥 The decoy absorbs ${absorbed} damage!${target.cloneHp<=0?' The clone shatters!':''}`);
+    if(dmg<=0)return{dealt:0};
+  }
+  // Barrier (flat-HP shield pool from the Barrier move)
+  if(target.barrierHp>0){
+    const absorbed=Math.min(target.barrierHp,dmg);
+    target.barrierHp-=absorbed;dmg-=absorbed;
+    log.push(`🧱 Barrier absorbs ${absorbed} damage!`);
+    if(dmg<=0)return{dealt:0};
+  }
+  // Standard % shield
+  if(target.shielded){
+    const bl=Math.round(dmg*target.shieldPct);
+    dmg=Math.max(1,dmg-bl);
+    log.push(`🛡️ Shield absorbed ${bl} damage!`);
+    target.shielded=false;
+  }
+  target.hp=Math.max(0,target.hp-dmg);
+  fx.push({uid:target.uid,type:'hit',crit:!!ctx.crit,amount:dmg});
+  // Reflect — bounces a % of the final damage back at the attacker
+  if(target.reflectPct>0&&target.reflectTurns>0&&attacker){
+    const reflected=Math.round(dmg*(target.reflectPct/100));
+    if(reflected>0){
+      attacker.hp=Math.max(0,attacker.hp-reflected);
+      log.push(`🪞 ${target.name}'s Reflect bounces ${reflected} damage back at ${attacker.name}!`);
+      fx.push({uid:attacker.uid,type:'hit',crit:false,amount:reflected});
+      if(attacker.hp<=0){attacker.hp=0;attacker.defeated=true;log.push(`💀 ${attacker.name} was defeated!`);}
+    }
+  }
+  if(target.hp<=0){
+    if(target.secondChanceArmed){
+      target.hp=1;target.secondChanceArmed=false;
+      log.push(`✨ ${target.name} refuses to fall — Second Chance triggers, surviving at 1 HP!`);
+    } else {
+      target.hp=0;target.defeated=true;log.push(`💀 ${target.name} was defeated!`);
+    }
+  }
+  return{dealt:dmg};
+}
+// Types that should never be picked by AI as "the highest-value damaging move" — buffs,
+// debuffs, and other utility effects that don't deal direct single-number damage.
+const UTILITY_MOVE_TYPES=new Set(['heal','shield','speed','taunt','counter','curse',
+  'fortify','regenerate','cleanse','absorb','guard_stance','second_wind','iron_skin','rebound','reflect','barrier',
+  'silence','blind','slow','weaken','expose','root','disarm','mana_burn','cripple','fear',
+  'rage','focus','haste','empower','blessing','adrenaline','overclock','battle_trance','guardian_aura',
+  'clone','time_skip','swap','rewind','sacrifice','gamble','mark','phase','corrupt',
+  'team_heal','team_shield','team_regen','team_haste','team_fortify','team_rally','team_cleanse',
+  'enemy_team_weaken','enemy_team_expose','bloodlust','vengeance','last_stand','overheal','foresight',
+  'juggernaut','adrenal_surge','unstoppable','static_charge','void_step','martyrdom','second_chance',
+  'cleansing_wave','warding_totem','riposte']);
+
+
+function checkMiss(attacker,defender,log,fx,moveName){
+  if(defender.phaseTurns>0){
+    log.push(`👻 ${defender.name} is phased out — ${moveName} passes right through!`);
+    fx.push({uid:defender.uid,type:'dodge'});
+    return true;
+  }
+  if(attacker.blindTurns>0&&Math.random()<attacker.blindMissChance){
+    log.push(`😵 ${attacker.name} is blinded and misses with ${moveName}!`);
+    fx.push({uid:attacker.uid,type:'dodge'});
+    return true;
+  }
+  if(defender.rootTurns>0)return false;
+  const dodgeChance=Math.max(0,(attacker.speedBuff?(defender.dodge*2):(defender.dodge||0.05))+(defender.dodgeAdd||0));
+  attacker.speedBuff=false;
+  if(Math.random()<dodgeChance){
+    log.push(`💨 ${defender.name} dodged ${attacker.name}'s ${moveName}!`);
+    fx.push({uid:defender.uid,type:'dodge'});
+    defender.dodgedLastTurn=true;
+    return true;
+  }
+  defender.dodgedLastTurn=false;
+  return false;
+}
+function effAtk(f){return f.atk*(f.atkMult!=null?f.atkMult:1);}
+function effDef(f){return f.def*(f.defMult!=null?f.defMult:1);}
+
+// ── MASTER MOVE-RESOLUTION ENGINE ───────────────────────────────────────
+// Every move type in the game — classic, the 50 "listed but not yet implemented" types,
+// and 50 new ones (including team-wide abilities) — resolves through this one function.
+// ctx: {attackerTeam, defenderTeam} — solo modes pass single-fighter arrays; real 3v3/5v5
+// PvP passes the actual team so team-wide moves affect everyone.
+function resolveSparHit(attacker,defender,move,isFirstHit,ctx){
+  ctx=ctx||{};
+  const attackerTeam=(ctx.attackerTeam||[attacker]).filter(f=>f);
+  const defenderTeam=(ctx.defenderTeam||[defender]).filter(f=>f);
   const log=[],fx=[];
+  const dmgCtx={defenderTeam,crit:false};
+
+  // Echo: resolve a queued repeat before this turn's chosen move
+  if(attacker.echoMove){
+    const eq=attacker.echoMove;attacker.echoMove=null;
+    if(!defender.defeated){
+      const r=dealDamage(attacker,defender,eq.dmg,dmgCtx,log,fx);
+      log.push(`🔁 ${attacker.name}'s Echo repeats for ${r.dealt} damage!`);
+    }
+  }
+  // Fear: chance to skip the whole turn
+  if(attacker.fearTurns>0&&Math.random()<attacker.fearChance){
+    log.push(`😱 ${attacker.name} is gripped by fear and skips their turn!`);
+    return{log,fx};
+  }
+  // Silence/Disarm gate specific move categories (enforced here as a safety net even
+  // though the UI should already prevent selecting these moves)
+  const POWER_TYPES=new Set(['heavy','power','execute','overcharge','piercing','precision','finisher','crushing','sunder','ultimate_strike','meteor','execution_protocol','overdrive']);
+  const HEAVY_TYPES=new Set(['heavy','power','overclock']);
+  if(attacker.silenceTurns>0&&POWER_TYPES.has(move.type)){
+    log.push(`🤐 ${attacker.name} is silenced and can't use ${move.name}!`);
+    return{log,fx};
+  }
+  if(attacker.disarmTurns>0&&HEAVY_TYPES.has(move.type)){
+    log.push(`🚫 ${attacker.name} is disarmed and can't use ${move.name}!`);
+    return{log,fx};
+  }
+
+  attacker.actedBefore=true;
   attacker.stamina=Math.max(0,attacker.stamina-(move.stamina_cost||0));
-  const crit=Math.random()<(attacker.crit||0.1);
-  let critMult=crit?1.5+Math.random()*0.5:1;
+  const staminaWasFull=attacker.stamina+(move.stamina_cost||0)>=attacker.maxStamina;
+
+  const crit=move.type==='precision'?true:Math.random()<Math.max(0,(attacker.crit||0.1)+(attacker.critAdd||0));
+  dmgCtx.crit=crit;
+  let critMult=crit?(move.crit_mult||(1.5+Math.random()*0.5)):1;
   if(crit&&attacker.critDmgBonusPct)critMult*=(1+attacker.critDmgBonusPct/100);
+  if(crit&&attacker.battleTranceTurns>0){
+    attacker.stamina=Math.min(attacker.maxStamina,attacker.stamina+attacker.battleTranceRefund);
+    log.push(`🌀⚡ Battle Trance restores ${attacker.battleTranceRefund} stamina from the crit!`);
+  }
   const firstHitMult=(isFirstHit&&attacker.firstHitBonusPct)?(1+attacker.firstHitBonusPct/100):1;
-  // Same elemental type chart your real PvP battles use — previously missing from Sparring/
-  // Bot Battles/Raid Boss/Defense fights, which all share this function.
+  let empowerMult=1;
+  if(attacker.empowerNextPct>0){empowerMult=1+attacker.empowerNextPct/100;attacker.empowerNextPct=0;}
   const tm=getTypeMult(attacker.element||'neutral',defender.element||'neutral');
   const tmTag=tm>=1.25?' <span style="color:#4ade80;">(Super Effective!)</span>':tm<=0.75?' <span style="color:#f87171;">(Resisted)</span>':'';
+  const dmgMult=critMult*firstHitMult*empowerMult*tm;
+  const critTag=crit?' 💥 CRIT!':'';
 
-  if(move.type==='heal'){
-    const h=move.value||30;attacker.hp=Math.min(attacker.maxHp,attacker.hp+h);
-    log.push(`💚 ${attacker.name} used ${move.name} and restored ${h} HP!`);
-    fx.push({uid:attacker.uid,type:'heal',amount:h});
-    return{log,fx};
+  const isMomentumType=move.type==='momentum'||move.type==='overwhelm';
+  if(isMomentumType&&attacker.lastMoveType===move.type)attacker.momentumStreak=(attacker.momentumStreak||0)+1;
+  else if(isMomentumType)attacker.momentumStreak=0;
+  attacker.lastMoveType=move.type;
+
+  switch(move.type){
+    // ── Already-working classics — unchanged formulas, now via shared helpers ──
+    case'heal':{
+      const h=move.value||30;attacker.hp=Math.min(attacker.maxHp,attacker.hp+h);
+      log.push(`💚 ${attacker.name} used ${move.name} and restored ${h} HP!`);
+      fx.push({uid:attacker.uid,type:'heal',amount:h});
+      break;
+    }
+    case'shield':{
+      attacker.shielded=true;attacker.shieldPct=(move.value||75)/100;
+      log.push(`🛡️ ${attacker.name} used ${move.name} — shields the next hit!`);
+      break;
+    }
+    case'speed':{
+      attacker.speedBuff=true;
+      log.push(`💨 ${attacker.name} used ${move.name} — dodge chance doubled next turn!`);
+      break;
+    }
+    case'dot':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const dpt=Math.max(1,Math.round((((move.value||30)+effAtk(attacker)*0.15)/3)*tm));
+      defender.dot=dpt;defender.dotTurns=move.dot_turns||3;
+      log.push(`🔥 ${attacker.name} used ${move.name}${critTag} — ${defender.name} burns for ${dpt}/turn × ${defender.dotTurns}!${tmTag}`);
+      fx.push({uid:defender.uid,type:'hit',crit,amount:0});
+      break;
+    }
+    case'multi':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const hits=rand(move.hits_min||2,move.hits_max||3);let tot=0;
+      for(let i=0;i<hits;i++)tot+=Math.max(1,Math.round(((move.value||30)/hits+effAtk(attacker)*0.2-effDef(defender)*0.3)*dmgMult));
+      const r=dealDamage(attacker,defender,tot,dmgCtx,log,fx);
+      log.push(`🌀 ${attacker.name} used ${move.name}${critTag} — ${hits} hits for ${r.dealt} total!${tmTag}`);
+      break;
+    }
+    case'lifesteal':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      const stolen=Math.round(r.dealt*(move.steal_pct||0.5));
+      attacker.hp=Math.min(attacker.maxHp,attacker.hp+stolen);
+      log.push(`🩸 ${attacker.name} used ${move.name}${critTag} — ${r.dealt} dmg, stole ${stolen} HP!${tmTag}`);
+      if(stolen>0)fx.push({uid:attacker.uid,type:'heal',amount:stolen});
+      break;
+    }
+    case'execute':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const threshold=(move.execute_threshold||20)/100;
+      const hpPct=defender.hp/defender.maxHp;
+      let dmg=Math.max(1,Math.round((move.value-effDef(defender)*0.5)*dmgMult));
+      if(hpPct<=threshold){dmg=defender.hp;log.push(`💀 EXECUTE! ${defender.name} is below ${move.execute_threshold||20}% HP!`);}
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      log.push(`💀 ${attacker.name} used ${move.name}${critTag} — ${r.dealt} damage!${tmTag}`);
+      break;
+    }
+    case'combo':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const isCombo=Math.random()<(move.combo_chance||0.4);
+      let dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      if(isCombo)dmg=Math.round(dmg*(move.combo_mult||1.5));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      log.push(`🎯 ${attacker.name} used ${move.name}${critTag}${isCombo?' — COMBO!':''} — ${r.dealt} damage!${tmTag}`);
+      break;
+    }
+    case'aoe':case'scatter':{
+      const targets=defenderTeam.filter(f=>!f.defeated).slice(0,move.scatter_targets||defenderTeam.length);
+      if(!targets.length){log.push(`${attacker.name}'s ${move.name} finds no targets.`);break;}
+      let totalDealt=0;
+      targets.forEach(t=>{
+        if(checkMiss(attacker,t,log,fx,move.name))return;
+        const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.25-effDef(t)*0.4)*dmgMult));
+        const r=dealDamage(attacker,t,dmg,{defenderTeam,crit},log,fx);
+        totalDealt+=r.dealt;
+      });
+      log.push(`💣 ${attacker.name} used ${move.name}${critTag} — hit ${targets.length} target(s) for ${totalDealt} total!${tmTag}`);
+      break;
+    }
+    case'stamina_steal':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      const stolen=Math.min(defender.stamina,move.steal_stamina||25);
+      defender.stamina-=stolen;attacker.stamina=Math.min(attacker.maxStamina,attacker.stamina+stolen);
+      log.push(`⚡🔻 ${attacker.name} used ${move.name}${critTag} — ${r.dealt} dmg, drained ${stolen} stamina!${tmTag}`);
+      break;
+    }
+    case'taunt':{
+      defender.tauntedBy=attacker.uid;defender.tauntTurns=move.taunt_turns||2;
+      log.push(`😤 ${attacker.name} taunts ${defender.name} — forced to attack for ${defender.tauntTurns} turns!`);
+      break;
+    }
+    case'curse':{
+      applyTimedMult(defender,'atkMult',1-(move.value||20)/100,move.curse_turns||3);
+      log.push(`🌑 ${attacker.name} curses ${defender.name} — ATK reduced ${move.value||20}% for ${move.curse_turns||3} turns!`);
+      break;
+    }
+    case'counter':{
+      attacker.counterMult=(move.value||150)/100;attacker.counterArmed=true;
+      log.push(`🔄 ${attacker.name} readies a counter-attack!`);
+      break;
+    }
+
+    // ── Offensive ──
+    case'piercing':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*(1-(move.pierce_pct||40)/100)*0.5)*dmgMult));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      log.push(`🗡️ ${attacker.name} used ${move.name}${critTag} — pierced for ${r.dealt} damage!${tmTag}`);
+      break;
+    }
+    case'chain':{
+      const targets=defenderTeam.filter(f=>!f.defeated).slice(0,Math.min(move.chain_targets||3,defenderTeam.length)||1);
+      if(!targets.length)targets.push(defender);
+      let tot=0,val=move.value||45;
+      targets.forEach((t,i)=>{
+        if(checkMiss(attacker,t,log,fx,move.name))return;
+        const dmg=Math.max(1,Math.round((val+effAtk(attacker)*0.25-effDef(t)*0.4)*dmgMult));
+        const r=dealDamage(attacker,t,dmg,{defenderTeam,crit},log,fx);
+        tot+=r.dealt;val=val*(1-(move.chain_falloff||20)/100);
+      });
+      log.push(`⛓️ ${attacker.name} used ${move.name}${critTag} — chained across ${targets.length} target(s) for ${tot} total!${tmTag}`);
+      break;
+    }
+    case'overcharge':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      let dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      if(staminaWasFull){dmg=Math.round(dmg*(1+(move.overcharge_bonus_pct||60)/100));log.push(`🔋 Full stamina — Overcharge empowered!`);}
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      log.push(`🔋 ${attacker.name} used ${move.name}${critTag} — ${r.dealt} damage!${tmTag}`);
+      break;
+    }
+    case'precision':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      log.push(`🎯 ${attacker.name} used ${move.name} — GUARANTEED CRIT — ${r.dealt} damage!${tmTag}`);
+      break;
+    }
+    case'backstab':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      let dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      if(attacker.dodgedLastTurn){dmg=Math.round(dmg*(1+(move.backstab_bonus_pct||75)/100));log.push(`🔪 Bonus damage — dodged last turn!`);}
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      log.push(`🔪 ${attacker.name} used ${move.name}${critTag} — ${r.dealt} damage!${tmTag}`);
+      attacker.dodgedLastTurn=false;
+      break;
+    }
+    case'crushing':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      defender.def=Math.max(1,Math.round(defender.def*(1-(move.def_reduction_pct||15)/100)));
+      log.push(`🔨 ${attacker.name} used ${move.name}${critTag} — ${r.dealt} dmg, DEF permanently reduced!${tmTag}`);
+      break;
+    }
+    case'sunder':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      let dealt=dmg;
+      if(defender.shielded||defender.barrierHp>0){
+        dealt=Math.round(dmg*(move.sunder_shield_mult||2));
+        log.push(`💢 Sunder shatters the shield first!`);
+      }
+      const r=dealDamage(attacker,defender,dealt,dmgCtx,log,fx);
+      log.push(`💢 ${attacker.name} used ${move.name}${critTag} — ${r.dealt} damage!${tmTag}`);
+      break;
+    }
+    case'echo':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      attacker.echoMove={dmg:Math.round(r.dealt*(move.echo_pct||50)/100)};
+      log.push(`🔁 ${attacker.name} used ${move.name}${critTag} — ${r.dealt} damage, echo queued!${tmTag}`);
+      break;
+    }
+    case'overwhelm':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const growth=1+(attacker.momentumStreak||0)*(move.overwhelm_growth_pct||15)/100;
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult*growth));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      log.push(`📈 ${attacker.name} used ${move.name}${critTag} — ${r.dealt} damage (streak ×${growth.toFixed(2)})!${tmTag}`);
+      break;
+    }
+    case'finisher':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const missingPct=1-defender.hp/defender.maxHp;
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult*(1+missingPct*(move.finisher_max_bonus_pct||120)/100)));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      log.push(`☠️ ${attacker.name} used ${move.name}${critTag} — ${r.dealt} damage!${tmTag}`);
+      break;
+    }
+
+    // ── Defensive / Sustain ──
+    case'barrier':{
+      attacker.barrierHp+=move.value||80;
+      const explode=Math.round((move.value||80)*(move.barrier_explode_pct||60)/100);
+      const r=dealDamage(null,defender,explode,dmgCtx,log,fx);
+      log.push(`🧱 ${attacker.name} raises a Barrier (${move.value||80} HP) and detonates outward for ${r.dealt}!`);
+      break;
+    }
+    case'reflect':{
+      attacker.reflectPct=move.reflect_pct||40;attacker.reflectTurns=move.reflect_turns||2;
+      log.push(`🪞 ${attacker.name} used ${move.name} — reflecting ${attacker.reflectPct}% damage for ${attacker.reflectTurns} turns!`);
+      break;
+    }
+    case'fortify':{
+      applyTimedMult(attacker,'defMult',1+(move.def_boost_pct||30)/100,move.fortify_turns||3);
+      log.push(`🏰 ${attacker.name} fortifies — DEF up ${move.def_boost_pct||30}% for ${move.fortify_turns||3} turns!`);
+      break;
+    }
+    case'regenerate':{
+      attacker.regen=move.value||25;attacker.regenTurns=move.regen_turns||3;
+      log.push(`💚 ${attacker.name} used ${move.name} — regenerating ${attacker.regen} HP/turn for ${attacker.regenTurns} turns!`);
+      break;
+    }
+    case'cleanse':{
+      attacker.dot=0;attacker.dotTurns=0;attacker.silenceTurns=0;attacker.rootTurns=0;attacker.disarmTurns=0;
+      attacker.blindTurns=0;attacker.fearTurns=0;attacker.manaBurn=0;attacker.manaBurnTurns=0;
+      attacker.buffTimers=(attacker.buffTimers||[]).filter(t=>{
+        const isDebuff=(t.kind==='mult'&&t.mult<1)||(t.kind==='add'&&t.amount<0);
+        if(isDebuff){if(t.kind==='mult')attacker[t.field]=attacker[t.field]/t.mult;else attacker[t.field]=(attacker[t.field]||0)-t.amount;}
+        return!isDebuff;
+      });
+      log.push(`🧼 ${attacker.name} cleanses all debuffs!`);
+      break;
+    }
+    case'absorb':{
+      attacker.absorbTurns=move.absorb_turns||2;attacker.absorbPct=move.absorb_stamina_pct||50;
+      log.push(`🌀 ${attacker.name} used ${move.name} — converting ${attacker.absorbPct}% of damage taken into stamina!`);
+      break;
+    }
+    case'guard_stance':{
+      applyTimedMult(attacker,'dmgTakenMult',1-(move.dmg_reduction_pct||35)/100,move.guard_turns||2);
+      log.push(`🛡️ ${attacker.name} takes a Guard Stance — incoming dmg down ${move.dmg_reduction_pct||35}% for ${move.guard_turns||2} turns!`);
+      break;
+    }
+    case'second_wind':{
+      attacker.secondWindArmed={threshold:(move.trigger_hp_pct||25)/100,value:move.value||70};
+      log.push(`🌬️ ${attacker.name} primes Second Wind — will heal ${move.value||70} HP below ${move.trigger_hp_pct||25}% HP!`);
+      break;
+    }
+    case'iron_skin':{
+      attacker.dotImmuneTurns=move.iron_skin_turns||2;
+      log.push(`🦾 ${attacker.name} used ${move.name} — immune to DoT for ${attacker.dotImmuneTurns} turns!`);
+      break;
+    }
+    case'rebound':{
+      attacker.reboundTurns=move.rebound_turns||1;
+      log.push(`↩️ ${attacker.name} used ${move.name} — the next hit against them this turn deals 0 damage!`);
+      break;
+    }
+
+    // ── Debuff / Control (cast on defender) ──
+    case'silence':{
+      defender.silenceTurns=move.silence_turns||2;
+      log.push(`🤐 ${attacker.name} silences ${defender.name} for ${defender.silenceTurns} turns!`);
+      break;
+    }
+    case'blind':{
+      defender.blindTurns=move.blind_turns||2;defender.blindMissChance=(move.blind_accuracy_reduction_pct||40)/100;
+      log.push(`🌫️ ${attacker.name} blinds ${defender.name} for ${defender.blindTurns} turns!`);
+      break;
+    }
+    case'slow':{
+      applyTimedMult(defender,'staminaGainMult',1-(move.slow_pct||40)/100,move.slow_turns||2);
+      log.push(`🐌 ${attacker.name} slows ${defender.name} — stamina gain down ${move.slow_pct||40}%!`);
+      break;
+    }
+    case'weaken':{
+      applyTimedMult(defender,'atkMult',1-(move.weaken_pct||25)/100,move.weaken_turns||3);
+      log.push(`📉 ${attacker.name} weakens ${defender.name} — ATK down ${move.weaken_pct||25}% for ${move.weaken_turns||3} turns!`);
+      break;
+    }
+    case'expose':{
+      applyTimedMult(defender,'dmgTakenMult',1+(move.expose_pct||25)/100,move.expose_turns||2);
+      log.push(`🎯 ${attacker.name} exposes ${defender.name} — takes ${move.expose_pct||25}% more damage!`);
+      break;
+    }
+    case'root':{
+      defender.rootTurns=move.root_turns||2;
+      log.push(`🌳 ${attacker.name} roots ${defender.name} — can't dodge for ${defender.rootTurns} turns!`);
+      break;
+    }
+    case'disarm':{
+      defender.disarmTurns=move.disarm_turns||2;
+      log.push(`🚫 ${attacker.name} disarms ${defender.name} — no heavy attacks for ${defender.disarmTurns} turns!`);
+      break;
+    }
+    case'mana_burn':{
+      defender.manaBurn=move.mana_burn_amount||15;defender.manaBurnTurns=move.mana_burn_turns||3;
+      log.push(`🔥🔋 ${attacker.name} burns ${defender.name}'s stamina — ${defender.manaBurn}/turn for ${defender.manaBurnTurns} turns!`);
+      break;
+    }
+    case'cripple':{
+      applyTimedMult(defender,'maxStaminaMult',1-(move.cripple_pct||30)/100,move.cripple_turns||3);
+      defender.stamina=Math.min(defender.stamina,Math.round(defender.maxStamina*(defender.maxStaminaMult||1)));
+      log.push(`🦵 ${attacker.name} cripples ${defender.name} — max stamina down ${move.cripple_pct||30}%!`);
+      break;
+    }
+    case'fear':{
+      defender.fearTurns=move.fear_turns||2;defender.fearChance=move.fear_chance||0.3;
+      log.push(`😱 ${attacker.name} instills fear in ${defender.name} for ${defender.fearTurns} turns!`);
+      break;
+    }
+
+    // ── Buff / Enhancement (self) ──
+    case'rage':{
+      applyTimedMult(attacker,'atkMult',1+(move.rage_atk_pct||10)/100,move.rage_turns||3);
+      log.push(`😡 ${attacker.name} enters a Rage — ATK up for ${move.rage_turns||3} turns!`);
+      break;
+    }
+    case'focus':{
+      applyTimedAdd(attacker,'critAdd',(move.focus_crit_pct_per_turn||8)/100,move.focus_turns||4);
+      log.push(`🧘 ${attacker.name} focuses — crit chance up for ${move.focus_turns||4} turns!`);
+      break;
+    }
+    case'haste':{
+      applyTimedAdd(attacker,'staminaRegen',move.haste_stamina_bonus||15,move.haste_turns||3);
+      log.push(`💨 ${attacker.name} used Haste — +${move.haste_stamina_bonus||15} stamina/turn for ${move.haste_turns||3} turns!`);
+      break;
+    }
+    case'empower':{
+      attacker.empowerNextPct=move.empower_bonus_pct||50;
+      log.push(`💪 ${attacker.name} empowers their next attack (+${attacker.empowerNextPct}% dmg)!`);
+      break;
+    }
+    case'blessing':{
+      const pct=(move.blessing_pct||12)/100;
+      applyTimedMult(attacker,'atkMult',1+pct,move.blessing_turns||3);
+      applyTimedMult(attacker,'defMult',1+pct,move.blessing_turns||3);
+      applyTimedAdd(attacker,'dodgeAdd',pct/2,move.blessing_turns||3);
+      applyTimedAdd(attacker,'critAdd',pct/2,move.blessing_turns||3);
+      log.push(`🙏 ${attacker.name} is blessed — all stats up for ${move.blessing_turns||3} turns!`);
+      break;
+    }
+    case'adrenaline':{
+      attacker.extraTurns=(attacker.extraTurns||0)+1;
+      log.push(`💉 ${attacker.name} used Adrenaline — acts again this round!`);
+      break;
+    }
+    case'momentum':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const growth=1+(attacker.momentumStreak||0)*(move.momentum_growth_pct||12)/100;
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult*growth));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      log.push(`🌊 ${attacker.name} used ${move.name}${critTag} — ${r.dealt} damage (streak ×${growth.toFixed(2)})!${tmTag}`);
+      break;
+    }
+    case'overclock':{
+      attacker.speedBuff=true;
+      const selfDmg=Math.round(attacker.maxHp*(move.overclock_self_dmg_pct||10)/100);
+      attacker.hp=Math.max(1,attacker.hp-selfDmg);
+      log.push(`⚙️ ${attacker.name} overclocks — dodge doubled, but takes ${selfDmg} self-damage!`);
+      break;
+    }
+    case'battle_trance':{
+      attacker.battleTranceTurns=move.trance_turns||3;attacker.battleTranceRefund=move.trance_stamina_per_crit||20;
+      log.push(`🌀⚡ ${attacker.name} enters Battle Trance — crits restore stamina for ${attacker.battleTranceTurns} turns!`);
+      break;
+    }
+    case'guardian_aura':{
+      attacker.guardianAuraPct=move.guardian_dmg_reduction_pct||20;attacker.guardianAuraTurns=move.guardian_turns||3;
+      log.push(`👼 ${attacker.name} raises a Guardian Aura — allies take ${attacker.guardianAuraPct}% less damage!`);
+      break;
+    }
+
+    // ── Special / Advanced ──
+    case'clone':{
+      attacker.cloneHp=Math.round(attacker.maxHp*(move.clone_hp_pct||30)/100);
+      log.push(`👥 ${attacker.name} creates a decoy (${attacker.cloneHp} HP) to absorb the next hit!`);
+      break;
+    }
+    case'time_skip':{
+      attacker.extraTurns=(attacker.extraTurns||0)+1;
+      log.push(`⏭️ ${attacker.name} skips ahead in time — acts again!`);
+      break;
+    }
+    case'swap':{
+      const tmp=attacker.stamina;attacker.stamina=defender.stamina;defender.stamina=tmp;
+      log.push(`🔄 ${attacker.name} swaps stamina with ${defender.name}!`);
+      break;
+    }
+    case'rewind':{
+      const healBack=Math.round(attacker.maxHp*0.25);
+      attacker.hp=Math.min(attacker.maxHp,attacker.hp+healBack);
+      attacker.stamina=Math.min(attacker.maxStamina,attacker.stamina+Math.round((move.stamina_cost||60)*0.5));
+      log.push(`⏪ ${attacker.name} rewinds — recovers ${healBack} HP and some stamina!`);
+      break;
+    }
+    case'sacrifice':{
+      const hpLoss=Math.round(attacker.hp*(move.sacrifice_hp_pct||30)/100);
+      attacker.hp=Math.max(1,attacker.hp-hpLoss);
+      applyTimedMult(attacker,'atkMult',1+(move.sacrifice_buff_pct||50)/100,move.sacrifice_turns||3);
+      log.push(`🩸 ${attacker.name} sacrifices ${hpLoss} HP for a massive ATK surge!`);
+      break;
+    }
+    case'gamble':{
+      const roll=Math.random();
+      const maxV=move.gamble_max_value||150;
+      if(roll<0.3){
+        const dmg=Math.round(maxV*(0.5+Math.random()*0.5));
+        const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+        log.push(`🎲 ${attacker.name} gambles — JACKPOT! ${r.dealt} damage!`);
+      } else if(roll<0.6){
+        const h=Math.round(maxV*0.6);attacker.hp=Math.min(attacker.maxHp,attacker.hp+h);
+        log.push(`🎲 ${attacker.name} gambles — lucky heal for ${h} HP!`);
+        fx.push({uid:attacker.uid,type:'heal',amount:h});
+      } else if(roll<0.85){
+        applyTimedMult(attacker,'atkMult',1.5,3);
+        log.push(`🎲 ${attacker.name} gambles — ATK surge!`);
+      } else {
+        const selfDmg=Math.round(maxV*0.3);attacker.hp=Math.max(1,attacker.hp-selfDmg);
+        log.push(`🎲 ${attacker.name} gambles — it backfires for ${selfDmg} self-damage!`);
+      }
+      break;
+    }
+    case'mark':{
+      defender.markTurns=move.mark_turns||2;defender.markMult=move.mark_mult||2;
+      log.push(`🎯❌ ${attacker.name} marks ${defender.name} — next hit lands for ${defender.markMult}× damage!`);
+      break;
+    }
+    case'phase':{
+      attacker.phaseTurns=1;
+      log.push(`👻 ${attacker.name} phases out — untargetable next turn!`);
+      break;
+    }
+    case'corrupt':{
+      let converted=0;
+      (defender.buffTimers||[]).forEach(t=>{
+        if(t.kind==='mult'&&t.mult>1){defender[t.field]=defender[t.field]/t.mult/t.mult;converted++;}
+      });
+      log.push(converted>0?`🌑 ${attacker.name} corrupts ${converted} of ${defender.name}'s buffs into debuffs!`:`🌑 ${attacker.name} finds no buffs to corrupt.`);
+      break;
+    }
+    case'amplify':{
+      defender.dotAmplifyTurns=move.amplify_turns||3;defender.dotAmplifyMult=move.amplify_dot_mult||2;
+      log.push(`📡 ${attacker.name} amplifies ${defender.name}'s DoT damage ×${defender.dotAmplifyMult} for ${defender.dotAmplifyTurns} turns!`);
+      break;
+    }
+
+    // ── NEW: Team / Squad (solo modes: degrade to self/single-enemy target) ──
+    case'team_heal':{
+      const h=move.value||60;
+      attackerTeam.forEach(f=>{if(!f.defeated){f.hp=Math.min(f.maxHp,f.hp+h);fx.push({uid:f.uid,type:'heal',amount:h});}});
+      log.push(`💚 ${attacker.name} used ${move.name} — the whole team heals ${h} HP!`);
+      break;
+    }
+    case'team_shield':{
+      const pct=(move.value||60)/100;
+      attackerTeam.forEach(f=>{if(!f.defeated){f.shielded=true;f.shieldPct=pct;}});
+      log.push(`🛡️ ${attacker.name} used ${move.name} — the whole team is shielded!`);
+      break;
+    }
+    case'team_stamina_drain':{
+      const amt=move.value||25;let total=0;
+      defenderTeam.forEach(f=>{if(!f.defeated){const d=Math.min(f.stamina,amt);f.stamina-=d;total+=d;}});
+      attacker.stamina=Math.min(attacker.maxStamina,attacker.stamina+Math.round(total*0.5));
+      log.push(`⚡🔻 ${attacker.name} used ${move.name} — drained ${total} stamina from the enemy team!`);
+      break;
+    }
+    case'team_regen':{
+      attackerTeam.forEach(f=>{if(!f.defeated){f.regen=move.value||20;f.regenTurns=move.regen_turns||3;}});
+      log.push(`💚 ${attacker.name} used ${move.name} — the team regenerates over time!`);
+      break;
+    }
+    case'team_haste':{
+      attackerTeam.forEach(f=>{if(!f.defeated)applyTimedAdd(f,'staminaRegen',move.value||12,move.haste_turns||3);});
+      log.push(`💨 ${attacker.name} used ${move.name} — the whole team gains bonus stamina regen!`);
+      break;
+    }
+    case'team_fortify':{
+      attackerTeam.forEach(f=>{if(!f.defeated)applyTimedMult(f,'defMult',1+(move.def_boost_pct||25)/100,move.fortify_turns||3);});
+      log.push(`🏰 ${attacker.name} used ${move.name} — the whole team's DEF is boosted!`);
+      break;
+    }
+    case'team_rally':{
+      attackerTeam.forEach(f=>{if(!f.defeated)applyTimedMult(f,'atkMult',1+(move.rage_atk_pct||20)/100,move.rage_turns||3);});
+      log.push(`📣 ${attacker.name} used ${move.name} — the whole team's ATK surges!`);
+      break;
+    }
+    case'team_cleanse':{
+      attackerTeam.forEach(f=>{
+        if(f.defeated)return;
+        f.dot=0;f.dotTurns=0;f.silenceTurns=0;f.rootTurns=0;f.disarmTurns=0;f.blindTurns=0;f.fearTurns=0;f.manaBurn=0;f.manaBurnTurns=0;
+      });
+      log.push(`🧼 ${attacker.name} used ${move.name} — the whole team is cleansed of debuffs!`);
+      break;
+    }
+    case'enemy_team_weaken':{
+      defenderTeam.forEach(f=>{if(!f.defeated)applyTimedMult(f,'atkMult',1-(move.weaken_pct||20)/100,move.weaken_turns||3);});
+      log.push(`📉 ${attacker.name} used ${move.name} — the whole enemy team is weakened!`);
+      break;
+    }
+    case'enemy_team_expose':{
+      defenderTeam.forEach(f=>{if(!f.defeated)applyTimedMult(f,'dmgTakenMult',1+(move.expose_pct||20)/100,move.expose_turns||2);});
+      log.push(`🎯 ${attacker.name} used ${move.name} — the whole enemy team is exposed!`);
+      break;
+    }
+
+    // ── NEW: Elemental / Tactical ──
+    case'weakpoint_strike':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const hasDebuff=defender.atkMult<1||defender.dmgTakenMult>1||defender.silenceTurns>0||defender.rootTurns>0||defender.blindTurns>0||(defender.dot>0);
+      let dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      if(hasDebuff){dmg=Math.round(dmg*(1+(move.bonus_pct||60)/100));log.push(`🎯 Weakpoint found — bonus damage!`);}
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      log.push(`🎯 ${attacker.name} used ${move.name}${critTag} — ${r.dealt} damage!${tmTag}`);
+      break;
+    }
+    case'detonate':{
+      const dotBurst=defender.dot>0?defender.dot*defender.dotTurns*(move.detonate_mult||2):0;
+      defender.dot=0;defender.dotTurns=0;
+      const dmg=Math.max(1,Math.round((move.value||30)+dotBurst));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      log.push(`💥 ${attacker.name} detonates ${defender.name}'s burn for ${r.dealt} damage!`);
+      break;
+    }
+    case'overload_strike':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const missingPct=1-attacker.hp/attacker.maxHp;
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult*(1+missingPct*(move.overload_bonus_pct||100)/100)));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      log.push(`⚡ ${attacker.name} used ${move.name}${critTag} — ${r.dealt} damage (fueled by ${Math.round(missingPct*100)}% missing HP)!${tmTag}`);
+      break;
+    }
+    case'riposte':{
+      attacker.riposteArmed=true;attacker.counterMult=move.counter_mult||2;
+      log.push(`⚔️ ${attacker.name} readies a Riposte — will counter the next hit taken!`);
+      break;
+    }
+    case'bleed':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const dpt=Math.max(1,Math.round(((move.value||25)+effAtk(attacker)*0.1)/3));
+      defender.dot=dpt;defender.dotTurns=move.dot_turns||3;
+      applyTimedMult(defender,'healingMult',1-(move.heal_reduction_pct||50)/100,move.dot_turns||3);
+      log.push(`🩸 ${attacker.name} used ${move.name}${critTag} — bleeding for ${dpt}/turn, healing reduced!${tmTag}`);
+      fx.push({uid:defender.uid,type:'hit',crit,amount:0});
+      break;
+    }
+    case'frostbite':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const dpt=Math.max(1,Math.round(((move.value||25)+effAtk(attacker)*0.1)/3));
+      defender.dot=dpt;defender.dotTurns=move.dot_turns||3;
+      applyTimedAdd(defender,'dodgeAdd',-(move.dodge_reduction_pct||20)/100,move.dot_turns||3);
+      log.push(`❄️ ${attacker.name} used ${move.name}${critTag} — frostbite ${dpt}/turn, dodge reduced!${tmTag}`);
+      fx.push({uid:defender.uid,type:'hit',crit,amount:0});
+      break;
+    }
+    case'shockwave':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      if(Math.random()<(move.stamina_drain_chance||0.5)){
+        const d=Math.min(defender.stamina,move.stamina_drain||20);defender.stamina-=d;
+        log.push(`⚡ ${attacker.name} used ${move.name}${critTag} — ${r.dealt} dmg + drained ${d} stamina!${tmTag}`);
+      } else log.push(`⚡ ${attacker.name} used ${move.name}${critTag} — ${r.dealt} damage!${tmTag}`);
+      break;
+    }
+    case'entangle':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      defender.rootTurns=Math.max(defender.rootTurns,move.root_turns||2);
+      log.push(`🕸️ ${attacker.name} used ${move.name}${critTag} — ${r.dealt} dmg, entangled for ${move.root_turns||2} turns!${tmTag}`);
+      break;
+    }
+    case'ambush':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      let dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      if(!attacker.actedBefore){dmg=Math.round(dmg*(1+(move.ambush_bonus_pct||80)/100));log.push(`🗡️ First-strike ambush bonus!`);}
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      log.push(`🗡️ ${attacker.name} used ${move.name}${critTag} — ${r.dealt} damage!${tmTag}`);
+      break;
+    }
+    case'true_strike':{
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      log.push(`🎯 ${attacker.name} used ${move.name}${critTag} — an unavoidable ${r.dealt} damage!${tmTag}`);
+      break;
+    }
+
+    // ── NEW: Advanced Buff ──
+    case'bloodlust':{
+      attacker.bloodlustTurns=move.bloodlust_turns||3;attacker.bloodlustPct=move.bloodlust_pct||30;
+      log.push(`🩸 ${attacker.name} enters Bloodlust — heals from damage dealt for ${attacker.bloodlustTurns} turns!`);
+      break;
+    }
+    case'vengeance':{
+      const missingPct=1-attacker.hp/attacker.maxHp;
+      applyTimedMult(attacker,'atkMult',1+missingPct*(move.vengeance_max_pct||100)/100,move.vengeance_turns||3);
+      log.push(`⚔️ ${attacker.name} channels Vengeance — ATK surges from ${Math.round(missingPct*100)}% missing HP!`);
+      break;
+    }
+    case'last_stand':{
+      if(attacker.hp/attacker.maxHp<=(move.trigger_hp_pct||30)/100){
+        applyTimedMult(attacker,'defMult',1+(move.def_boost_pct||100)/100,move.last_stand_turns||3);
+        log.push(`🛡️ ${attacker.name} makes a Last Stand — DEF massively boosted!`);
+      } else log.push(`${attacker.name} braces for a Last Stand, but isn't low enough yet.`);
+      break;
+    }
+    case'overheal':{
+      const h=move.value||60;
+      const overflow=Math.max(0,(attacker.hp+h)-attacker.maxHp);
+      attacker.hp=Math.min(attacker.maxHp,attacker.hp+h);
+      if(overflow>0){attacker.barrierHp+=overflow;log.push(`💚 ${attacker.name} overheals — ${overflow} converted into a shield!`);}
+      else log.push(`💚 ${attacker.name} heals ${h} HP!`);
+      fx.push({uid:attacker.uid,type:'heal',amount:h});
+      break;
+    }
+    case'foresight':{
+      applyTimedAdd(attacker,'dodgeAdd',1,1);
+      log.push(`👁️ ${attacker.name} sees it coming — guaranteed dodge next turn!`);
+      break;
+    }
+    case'juggernaut':{
+      attacker.juggernautStacks=(attacker.juggernautStacks||0)+1;
+      applyTimedMult(attacker,'defMult',1+(move.stack_pct||8)/100,move.juggernaut_turns||2);
+      log.push(`🗿 ${attacker.name} used ${move.name} — DEF stacking (${attacker.juggernautStacks}x)!`);
+      break;
+    }
+    case'adrenal_surge':{
+      attacker.stamina=attacker.maxStamina;
+      log.push(`💉 ${attacker.name} used ${move.name} — stamina fully refilled!`);
+      break;
+    }
+    case'unstoppable':{
+      attacker.unstoppableTurns=move.unstoppable_turns||2;
+      log.push(`🦾 ${attacker.name} becomes Unstoppable — immune to control effects for ${attacker.unstoppableTurns} turns!`);
+      break;
+    }
+    case'eclipse':{
+      applyTimedAdd(defender,'critAdd',-(move.crit_reduction_pct||15)/100,move.eclipse_turns||3);
+      applyTimedAdd(defender,'dodgeAdd',-(move.dodge_reduction_pct||15)/100,move.eclipse_turns||3);
+      log.push(`🌑 ${attacker.name} used ${move.name} — ${defender.name}'s crit & dodge reduced!`);
+      break;
+    }
+    case'static_charge':{
+      defender.fearTurns=Math.max(defender.fearTurns,move.stun_turns||2);defender.fearChance=move.stun_chance||0.4;
+      log.push(`⚡ ${attacker.name} used ${move.name} — ${defender.name} may be stunned for ${move.stun_turns||2} turns!`);
+      break;
+    }
+
+    // ── NEW: Ultimate / Special ──
+    case'ultimate_strike':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.4-effDef(defender)*0.4)*dmgMult));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      log.push(`💥 ${attacker.name} unleashes ${move.name}${critTag} — a colossal ${r.dealt} damage!${tmTag}`);
+      break;
+    }
+    case'soul_drain':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      const heal=Math.round(defender.maxHp*(move.soul_drain_pct||15)/100);
+      attacker.hp=Math.min(attacker.maxHp,attacker.hp+heal);
+      log.push(`👻 ${attacker.name} used ${move.name}${critTag} — ${r.dealt} dmg, drained ${heal} HP from their soul!${tmTag}`);
+      fx.push({uid:attacker.uid,type:'heal',amount:heal});
+      break;
+    }
+    case'berserk':{
+      applyTimedMult(attacker,'atkMult',1+(move.atk_boost_pct||50)/100,move.berserk_turns||3);
+      applyTimedMult(attacker,'defMult',1-(move.def_reduction_pct||30)/100,move.berserk_turns||3);
+      log.push(`😤 ${attacker.name} goes Berserk — huge ATK, but DEF drops!`);
+      break;
+    }
+    case'second_chance':{
+      attacker.secondChanceArmed=true;
+      log.push(`✨ ${attacker.name} primes Second Chance — won't fall to a lethal blow once!`);
+      break;
+    }
+    case'void_step':{
+      attacker.dot=0;attacker.dotTurns=0;attacker.silenceTurns=0;attacker.rootTurns=0;attacker.disarmTurns=0;attacker.blindTurns=0;attacker.fearTurns=0;
+      attacker.shielded=true;attacker.shieldPct=(move.shield_pct||50)/100;
+      log.push(`🕳️ ${attacker.name} steps through the Void — cleansed and shielded!`);
+      break;
+    }
+    case'martyrdom':{
+      const hpLoss=Math.round(attacker.hp*(move.hp_loss_pct||40)/100);
+      attacker.hp=Math.max(1,attacker.hp-hpLoss);
+      attacker.barrierHp+=Math.round(hpLoss*1.5);
+      log.push(`🕊️ ${attacker.name} sacrifices ${hpLoss} HP to raise a massive barrier!`);
+      break;
+    }
+    case'execution_protocol':{
+      const threshold=(move.execute_threshold||15)/100;let defeated=0;
+      defenderTeam.forEach(f=>{if(!f.defeated&&f.hp/f.maxHp<=threshold){f.hp=0;f.defeated=true;defeated++;log.push(`💀 ${f.name} was executed!`);}});
+      if(defeated===0)log.push(`💀 ${attacker.name} activates ${move.name} — no targets low enough yet.`);
+      else log.push(`💀 ${attacker.name}'s ${move.name} executes ${defeated} target(s)!`);
+      break;
+    }
+    case'overdrive':{
+      attacker.extraTurns=(attacker.extraTurns||0)+1;
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const dmg=Math.max(1,Math.round((move.value||60)+effAtk(attacker)*0.3-effDef(defender)*0.5));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      log.push(`⚙️ ${attacker.name} used ${move.name}${critTag} — ${r.dealt} damage, and acts again!${tmTag}`);
+      break;
+    }
+    case'corrupted_strike':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      const buff=(defender.buffTimers||[]).find(t=>t.kind==='mult'&&t.mult>1);
+      if(buff){defender[buff.field]=defender[buff.field]/buff.mult/buff.mult;log.push(`🌑 ${attacker.name} used ${move.name}${critTag} — ${r.dealt} dmg, corrupted a buff into a debuff!${tmTag}`);}
+      else log.push(`🌑 ${attacker.name} used ${move.name}${critTag} — ${r.dealt} damage!${tmTag}`);
+      break;
+    }
+    case'mirror_strike':{
+      const mimicType=defender.lastMoveType;
+      const mimicable=new Set(['attack','heavy','power','piercing','crushing','sunder','finisher']);
+      if(mimicType&&mimicable.has(mimicType)){
+        if(checkMiss(attacker,defender,log,fx,move.name))break;
+        const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult*1.2));
+        const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+        log.push(`🪞 ${attacker.name} mirrors ${defender.name}'s last move — ${r.dealt} damage!${tmTag}`);
+      } else {
+        if(checkMiss(attacker,defender,log,fx,move.name))break;
+        const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+        const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+        log.push(`🪞 ${attacker.name} used ${move.name}${critTag} — nothing to mirror, ${r.dealt} damage!${tmTag}`);
+      }
+      break;
+    }
+
+    // ── NEW: Support / Control ──
+    case'cleansing_wave':{
+      attacker.dot=0;attacker.dotTurns=0;attacker.silenceTurns=0;attacker.rootTurns=0;attacker.disarmTurns=0;attacker.blindTurns=0;attacker.fearTurns=0;
+      const h=move.value||40;attacker.hp=Math.min(attacker.maxHp,attacker.hp+h);
+      log.push(`🌊 ${attacker.name} used ${move.name} — cleansed and healed ${h} HP!`);
+      fx.push({uid:attacker.uid,type:'heal',amount:h});
+      break;
+    }
+    case'warding_totem':{
+      attacker.shielded=true;attacker.shieldPct=(move.shield_pct||50)/100;
+      applyTimedMult(attacker,'defMult',1+(move.def_boost_pct||20)/100,move.totem_turns||3);
+      log.push(`🗿 ${attacker.name} used ${move.name} — shielded and fortified!`);
+      break;
+    }
+    case'focus_fire':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      let dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      if(defender.hp/defender.maxHp<0.5){dmg=Math.round(dmg*(1+(move.bonus_pct||40)/100));log.push(`🎯 Focus Fire bonus — target below 50% HP!`);}
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      log.push(`🎯 ${attacker.name} used ${move.name}${critTag} — ${r.dealt} damage!${tmTag}`);
+      break;
+    }
+    case'opportunist':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      let dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      if(UTILITY_MOVE_TYPES.has(defender.lastMoveType)){dmg=Math.round(dmg*(1+(move.bonus_pct||70)/100));log.push(`😏 Opportunist bonus — punished a non-attack!`);}
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      log.push(`😏 ${attacker.name} used ${move.name}${critTag} — ${r.dealt} damage!${tmTag}`);
+      break;
+    }
+    case'sap_strength':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      defender.atk=Math.max(1,Math.round(defender.atk*(1-(move.atk_reduction_pct||10)/100)));
+      log.push(`🩹 ${attacker.name} used ${move.name}${critTag} — ${r.dealt} dmg, ATK permanently sapped!${tmTag}`);
+      break;
+    }
+    case'stormcall':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      const dpt=Math.max(1,Math.round((move.burn_value||15)/3));
+      defender.dot=dpt;defender.dotTurns=move.dot_turns||2;
+      log.push(`⛈️ ${attacker.name} used ${move.name}${critTag} — ${r.dealt} dmg + burning for ${dpt}/turn!${tmTag}`);
+      break;
+    }
+    case'guard_break':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const hadShield=defender.shielded||defender.barrierHp>0;
+      defender.shielded=false;defender.barrierHp=0;
+      let dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      if(hadShield){dmg=Math.round(dmg*(1+(move.break_bonus_pct||50)/100));log.push(`💢 Shield shattered — bonus damage!`);}
+      defender.hp=Math.max(0,defender.hp-dmg);
+      fx.push({uid:defender.uid,type:'hit',crit,amount:dmg});
+      if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
+      log.push(`💢 ${attacker.name} used ${move.name}${critTag} — ${dmg} damage!${tmTag}`);
+      break;
+    }
+    case'momentum_shift':{
+      const removed=(defender.buffTimers||[]).length;
+      (defender.buffTimers||[]).forEach(t=>{if(t.kind==='mult')defender[t.field]=defender[t.field]/t.mult;else defender[t.field]=(defender[t.field]||0)-t.amount;});
+      defender.buffTimers=[];
+      log.push(removed>0?`🔄 ${attacker.name} used ${move.name} — stripped ${removed} of ${defender.name}'s active buffs!`:`🔄 ${attacker.name} finds no buffs to strip.`);
+      break;
+    }
+    case'second_wind_team':{
+      let healed=0;
+      attackerTeam.forEach(f=>{if(!f.defeated&&f.hp/f.maxHp<=(move.trigger_hp_pct||30)/100){f.hp=Math.min(f.maxHp,f.hp+(move.value||50));healed++;fx.push({uid:f.uid,type:'heal',amount:move.value||50});}});
+      log.push(healed>0?`🌬️ ${attacker.name}'s ${move.name} heals ${healed} low-HP teammate(s)!`:`🌬️ ${attacker.name}'s ${move.name} finds no one low enough yet.`);
+      break;
+    }
+    case'finality':{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const turnBonus=Math.min(2,(ctx.turnCount||0)*(move.growth_pct||5)/100);
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult*(1+turnBonus)));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      log.push(`⏳ ${attacker.name} used ${move.name}${critTag} — ${r.dealt} damage (the fight has favored this blow)!${tmTag}`);
+      break;
+    }
+
+    // ── Fallback: attack/heavy/power and anything unrecognized ──
+    default:{
+      if(checkMiss(attacker,defender,log,fx,move.name))break;
+      const dmg=Math.max(1,Math.round((move.value+effAtk(attacker)*0.3-effDef(defender)*0.5)*dmgMult));
+      const r=dealDamage(attacker,defender,dmg,dmgCtx,log,fx);
+      log.push(`${MOVE_ICONS[move.type]||'⚔️'} ${attacker.name} used ${move.name}${critTag} — ${r.dealt} damage!${tmTag}`);
+    }
   }
-  if(move.type==='shield'){
-    attacker.shielded=true;attacker.shieldPct=(move.value||75)/100;
-    log.push(`🛡️ ${attacker.name} used ${move.name} — shields the next hit!`);
-    return{log,fx};
-  }
-  if(move.type==='speed'){
-    attacker.speedBuff=true;
-    log.push(`💨 ${attacker.name} used ${move.name} — dodge chance doubled next turn!`);
-    return{log,fx};
-  }
-  const dodged=Math.random()<(attacker.speedBuff?(defender.dodge*2):(defender.dodge||0.05));
-  attacker.speedBuff=false;
-  if(dodged){
-    log.push(`💨 ${defender.name} dodged ${attacker.name}'s ${move.name}!`);
-    fx.push({uid:defender.uid,type:'dodge'});
-    return{log,fx};
-  }
-  if(move.type==='dot'){
-    const dpt=Math.max(1,Math.round((((move.value||30)+(attacker.atk*0.15))/3)*tm));
-    defender.dot=dpt;defender.dotTurns=move.dot_turns||3;
-    log.push(`🔥 ${attacker.name} used ${move.name}${crit?' 💥 CRIT!':''} — ${defender.name} burns for ${dpt}/turn × ${defender.dotTurns}!${tmTag}`);
-    fx.push({uid:defender.uid,type:'hit',crit,amount:0});
-  } else if(move.type==='multi'){
-    const hits=rand(move.hits_min||2,move.hits_max||3);let tot=0;
-    for(let i=0;i<hits;i++)tot+=Math.max(1,Math.round(((move.value||30)/hits+attacker.atk*0.2-defender.def*0.3)*critMult*tm));
-    if(defender.shielded){const bl=Math.round(tot*defender.shieldPct);tot=Math.max(1,tot-bl);log.push(`🛡️ Shield absorbed ${bl} damage!`);defender.shielded=false;}
-    defender.hp=Math.max(0,defender.hp-tot);
-    log.push(`🌀 ${attacker.name} used ${move.name}${crit?' 💥 CRIT!':''} — ${hits} hits for ${tot} total!${tmTag}`);
-    fx.push({uid:defender.uid,type:'hit',crit,amount:tot});
-  } else if(move.type==='lifesteal'){
-    const dmg=Math.max(1,Math.round((move.value+attacker.atk*0.3-defender.def*0.5)*critMult*tm));
-    const stolen=Math.round(dmg*(move.steal_pct||0.5));
-    if(defender.shielded){const bl=Math.round(dmg*defender.shieldPct);defender.hp=Math.max(0,defender.hp-(dmg-bl));defender.shielded=false;}else defender.hp=Math.max(0,defender.hp-dmg);
-    attacker.hp=Math.min(attacker.maxHp,attacker.hp+stolen);
-    log.push(`🩸 ${attacker.name} used ${move.name}${crit?' 💥 CRIT!':''} — ${dmg} dmg, stole ${stolen} HP!${tmTag}`);
-    fx.push({uid:defender.uid,type:'hit',crit,amount:dmg});
-    if(stolen>0)fx.push({uid:attacker.uid,type:'heal',amount:stolen});
-  } else if(move.type==='execute'){
-    const threshold=(move.execute_threshold||20)/100;
-    const hpPct=defender.hp/defender.maxHp;
-    let dmg=Math.max(1,Math.round((move.value-defender.def*0.5)*critMult*tm));
-    if(hpPct<=threshold){dmg=defender.hp;log.push(`💀 EXECUTE! ${defender.name} is below ${move.execute_threshold||20}% HP!`);}
-    defender.hp=Math.max(0,defender.hp-dmg);
-    log.push(`💀 ${attacker.name} used ${move.name}${crit?' 💥 CRIT!':''} — ${dmg} damage!${tmTag}`);
-    fx.push({uid:defender.uid,type:'hit',crit,amount:dmg});
-  } else {
-    const dmg=Math.max(1,Math.round((move.value+attacker.atk*0.3-defender.def*0.5)*critMult*firstHitMult*tm));
-    let dealt=dmg;
-    if(defender.shielded){const bl=Math.round(dmg*defender.shieldPct);dealt=Math.max(1,dmg-bl);log.push(`🛡️ Shield absorbed ${bl} damage!`);defender.shielded=false;}
-    defender.hp=Math.max(0,defender.hp-dealt);
-    log.push(`${MOVE_ICONS[move.type]||'⚔️'} ${attacker.name} used ${move.name}${crit?' 💥 CRIT!':''} — ${dealt} damage!${tmTag}`);
-    fx.push({uid:defender.uid,type:'hit',crit,amount:dealt});
-  }
-  if(defender.hp<=0){defender.hp=0;defender.defeated=true;log.push(`💀 ${defender.name} was defeated!`);}
-  return{log,fx};
+
+  return{log,fx,extraTurn:attacker.extraTurns>0};
 }
 
 let currentSpar=null;
@@ -7323,7 +8287,7 @@ async function startSpar(uid){
     maxHp,hp:maxHp,stamina:c.stamina||50,maxStamina:c.max_stamina||100,staminaRegen:c.stamina_regen||25,
     crit:Math.min(0.95,(c.crit_chance||0.1)+skills.crit_pct/100),dodge:Math.min(0.95,(c.dodge_chance||0.05)+skills.dodge_pct/100),
     critDmgBonusPct:skills.crit_dmg_pct||0,firstHitBonusPct:skills.first_hit_pct||0,
-    image_url:c.image_url||null,shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,usedFirstHit:false};
+    image_url:c.image_url||null,shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,usedFirstHit:false,...defaultFighterStatus()};
 
   currentSpar={player,dummy:buildSparDummy(c),moves:availableMoves,log:['⚔️ The sparring match begins!'],cardUid:c.uid,ended:false};
   renderSparModal();
@@ -7360,15 +8324,7 @@ async function runSparLoop(){
   let turn='player',round=1;
   while(!s.player.defeated&&!s.dummy.defeated&&round<=30){
     await sleep(900);
-    [s.player,s.dummy].forEach(f=>{
-      if(f.dot>0&&f.dotTurns>0&&!f.defeated){
-        f.hp=Math.max(0,f.hp-f.dot);
-        s.log.push(`🔥 ${f.name} takes ${f.dot} damage-over-time (${f.dotTurns-1} turns left)`);
-        f.dotTurns--;if(f.dotTurns<=0)f.dot=0;
-        if(f.hp<=0){f.hp=0;f.defeated=true;s.log.push(`💀 ${f.name} was defeated!`);}
-      }
-    });
-    [s.player,s.dummy].forEach(f=>{if(!f.defeated)f.stamina=Math.min(f.maxStamina,(f.stamina||0)+(f.staminaRegen||20));});
+    [s.player,s.dummy].forEach(f=>tickFighterStatus(f,s.log));
     renderSparModal();
     if(s.player.defeated||s.dummy.defeated)break;
 
@@ -7491,7 +8447,7 @@ function buildBotFighter(level){
   const dodge=Math.min(0.35,0.03+level*0.005);
   const bot={uid:'bot',name:tier.name,tierColor:tier.color,emoji:tier.emoji,element:tier.element,
     atk,def,maxHp:hp,hp,crit,dodge,stamina:999,maxStamina:999,staminaRegen:999,
-    shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,image_url:null};
+    shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,image_url:null,...defaultFighterStatus()};
   bot.moves=buildBotMoveset(level,bot);
   return bot;
 }
@@ -7599,7 +8555,7 @@ async function startBotFight(level){
     maxHp,hp:maxHp,stamina:c.stamina||50,maxStamina:c.max_stamina||100,staminaRegen:c.stamina_regen||25,
     crit:Math.min(0.95,(c.crit_chance||0.1)+skills.crit_pct/100),dodge:Math.min(0.95,(c.dodge_chance||0.05)+skills.dodge_pct/100),
     critDmgBonusPct:skills.crit_dmg_pct||0,firstHitBonusPct:skills.first_hit_pct||0,
-    image_url:c.image_url||null,shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,usedFirstHit:false};
+    image_url:c.image_url||null,shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,usedFirstHit:false,...defaultFighterStatus()};
 
   const bot=buildBotFighter(level);
   currentBotFight={player,bot,playerMoves:availableMoves,botMoves:bot.moves,level,cardUid:c.uid,busy:false,
@@ -7636,15 +8592,7 @@ function shakeBotArena(){
 // the old auto-loop used — fires before every single action, whether player's or the bot's).
 function botFightPreTurnTick(){
   const s=currentBotFight;
-  [s.player,s.bot].forEach(f=>{
-    if(f.dot>0&&f.dotTurns>0&&!f.defeated){
-      f.hp=Math.max(0,f.hp-f.dot);
-      s.log.push(`🔥 ${f.name} takes ${f.dot} damage-over-time (${f.dotTurns-1} turns left)`);
-      f.dotTurns--;if(f.dotTurns<=0)f.dot=0;
-      if(f.hp<=0){f.hp=0;f.defeated=true;s.log.push(`💀 ${f.name} was defeated!`);}
-    }
-  });
-  [s.player,s.bot].forEach(f=>{if(!f.defeated)f.stamina=Math.min(f.maxStamina,(f.stamina||0)+(f.staminaRegen||20));});
+  [s.player,s.bot].forEach(f=>tickFighterStatus(f,s.log));
 }
 
 // The bot's "intelligence" scales with its level: low levels mostly pick randomly (erratic,
@@ -7652,7 +8600,12 @@ function botFightPreTurnTick(){
 // HP, heals/shields defensively, prefers lifesteal while hurt, otherwise maximizes damage).
 function pickBotMoveIntelligent(bot,moves,player,level){
   const intel=Math.min(1,level/45);
-  const affordable=moves.filter(m=>bot.stamina>=(m.stamina_cost||0));
+  const POWER_TYPES=new Set(['heavy','power','execute','overcharge','piercing','precision','finisher','crushing','sunder','ultimate_strike','meteor','execution_protocol','overdrive']);
+  const HEAVY_TYPES=new Set(['heavy','power','overclock']);
+  let affordable=moves.filter(m=>bot.stamina>=(m.stamina_cost||0));
+  if(bot.silenceTurns>0)affordable=affordable.filter(m=>!POWER_TYPES.has(m.type));
+  if(bot.disarmTurns>0)affordable=affordable.filter(m=>!HEAVY_TYPES.has(m.type));
+  if(!affordable.length)affordable=moves.filter(m=>bot.stamina>=(m.stamina_cost||0));
   if(!affordable.length)return moves.find(m=>(m.stamina_cost||0)===0)||moves[0];
 
   if(Math.random()>=intel){
@@ -7660,24 +8613,24 @@ function pickBotMoveIntelligent(bot,moves,player,level){
     return affordable[rand(0,affordable.length-1)];
   }
 
-  const execMove=affordable.find(m=>m.type==='execute');
+  const execMove=affordable.find(m=>m.type==='execute'||m.type==='execution_protocol');
   if(execMove&&player.hp/player.maxHp<=((execMove.execute_threshold||20)/100+0.05))return execMove;
 
   if(bot.hp/bot.maxHp<0.35){
-    const heal=affordable.find(m=>m.type==='heal');
+    const heal=affordable.find(m=>['heal','regenerate','second_wind','soul_drain','cleansing_wave','overheal'].includes(m.type));
     if(heal)return heal;
-    const shield=affordable.find(m=>m.type==='shield');
-    if(shield&&!bot.shielded)return shield;
+    const shield=affordable.find(m=>['shield','barrier','guard_stance','warding_totem'].includes(m.type)&&!bot.shielded);
+    if(shield)return shield;
   }
   if(bot.hp/bot.maxHp<0.6&&!bot.shielded&&Math.random()<0.5){
-    const shield=affordable.find(m=>m.type==='shield');
+    const shield=affordable.find(m=>['shield','barrier','warding_totem'].includes(m.type));
     if(shield)return shield;
   }
   if(bot.hp/bot.maxHp<0.8){
-    const lifesteal=affordable.find(m=>m.type==='lifesteal');
+    const lifesteal=affordable.find(m=>['lifesteal','soul_drain','bloodlust'].includes(m.type));
     if(lifesteal)return lifesteal;
   }
-  const damaging=affordable.filter(m=>!['heal','shield','speed','taunt','counter','curse'].includes(m.type));
+  const damaging=affordable.filter(m=>!UTILITY_MOVE_TYPES.has(m.type));
   const pool=damaging.length?damaging:affordable;
   return pool.reduce((best,m)=>((m.value||0)>(best.value||0)?m:best),pool[0]);
 }
@@ -7698,12 +8651,13 @@ async function playerUseBotMove(idx){
   await sleep(300);
 
   const isFirst=!s.player.usedFirstHit;s.player.usedFirstHit=true;
-  const{log,fx}=resolveSparHit(s.player,s.bot,move,isFirst);
+  const{log,fx,extraTurn}=resolveSparHit(s.player,s.bot,move,isFirst);
   s.log.push(...log);renderBotFightModal();applyBotFightFx(fx);
   await sleep(700);
 
   if(s.bot.defeated){s.busy=false;finishBotFight(true);return;}
   if(s.player.defeated){s.busy=false;finishBotFight(false);return;}
+  if(extraTurn){s.player.extraTurns=Math.max(0,s.player.extraTurns-1);s.busy=false;renderBotFightModal();return;}
 
   await sleep(400);
   botFightPreTurnTick();
@@ -7929,7 +8883,7 @@ function buildRaidBossFighter(def){
   const boss={uid:'raidboss',name:def.name,tierColor:def.color,emoji:def.emoji,element:def.element,
     atk:Math.round(360*def.atkMult),def:Math.round(240*def.defMult),maxHp:Math.round(6500*def.hpMult),
     crit:0.16,dodge:0.1,stamina:999,maxStamina:999,staminaRegen:999,
-    shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,image_url:null};
+    shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,image_url:null,...defaultFighterStatus()};
   boss.hp=boss.maxHp;
   boss.moves=buildBotMoveset(50,boss); // full kit — everything the ladder ever unlocks
   return boss;
@@ -8030,7 +8984,7 @@ async function startRaidFight(){
     maxHp,hp:maxHp,stamina:c.stamina||50,maxStamina:c.max_stamina||100,staminaRegen:c.stamina_regen||25,
     crit:Math.min(0.95,(c.crit_chance||0.1)+skills.crit_pct/100),dodge:Math.min(0.95,(c.dodge_chance||0.05)+skills.dodge_pct/100),
     critDmgBonusPct:skills.crit_dmg_pct||0,firstHitBonusPct:skills.first_hit_pct||0,
-    image_url:c.image_url||null,shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,usedFirstHit:false};
+    image_url:c.image_url||null,shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,usedFirstHit:false,...defaultFighterStatus()};
 
   const def=currentRaidBossDef();
   const boss=buildRaidBossFighter(def);
@@ -8065,15 +9019,7 @@ function shakeRaidArena(){
 }
 function raidFightPreTurnTick(){
   const s=currentRaidFight;
-  [s.player,s.boss].forEach(f=>{
-    if(f.dot>0&&f.dotTurns>0&&!f.defeated){
-      f.hp=Math.max(0,f.hp-f.dot);
-      s.log.push(`🔥 ${f.name} takes ${f.dot} damage-over-time (${f.dotTurns-1} turns left)`);
-      f.dotTurns--;if(f.dotTurns<=0)f.dot=0;
-      if(f.hp<=0){f.hp=0;f.defeated=true;s.log.push(`💀 ${f.name} was defeated!`);}
-    }
-  });
-  [s.player,s.boss].forEach(f=>{if(!f.defeated)f.stamina=Math.min(f.maxStamina,(f.stamina||0)+(f.staminaRegen||20));});
+  [s.player,s.boss].forEach(f=>tickFighterStatus(f,s.log));
 }
 
 async function playerUseRaidMove(idx){
@@ -8090,12 +9036,13 @@ async function playerUseRaidMove(idx){
   await sleep(300);
 
   const isFirst=!s.player.usedFirstHit;s.player.usedFirstHit=true;
-  const{log,fx}=resolveSparHit(s.player,s.boss,move,isFirst);
+  const{log,fx,extraTurn}=resolveSparHit(s.player,s.boss,move,isFirst);
   s.log.push(...log);renderRaidFightModal();applyRaidFightFx(fx);
   await sleep(700);
 
   if(s.boss.defeated){s.turns++;s.busy=false;finishRaidFight(true);return;}
   if(s.player.defeated){s.busy=false;finishRaidFight(false);return;}
+  if(extraTurn){s.player.extraTurns=Math.max(0,s.player.extraTurns-1);s.turns++;s.busy=false;renderRaidFightModal();return;}
 
   await sleep(400);
   raidFightPreTurnTick();
@@ -8412,12 +9359,12 @@ async function startDefenseFight(){
     maxHp,hp:maxHp,stamina:c.stamina||50,maxStamina:c.max_stamina||100,staminaRegen:c.stamina_regen||25,
     crit:Math.min(0.95,(c.crit_chance||0.1)+skills.crit_pct/100),dodge:Math.min(0.95,(c.dodge_chance||0.05)+skills.dodge_pct/100),
     critDmgBonusPct:skills.crit_dmg_pct||0,firstHitBonusPct:skills.first_hit_pct||0,
-    image_url:c.image_url||null,shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,usedFirstHit:false};
+    image_url:c.image_url||null,shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,usedFirstHit:false,...defaultFighterStatus()};
 
   const defFighter={uid:dc.uid,name:dc.name,class_name:dc.class_name,element:dc.element||'neutral',tierColor:'#ef4444',
     atk:dc.atk,def:dc.def,maxHp:dc.max_hp||dc.hp,hp:dc.max_hp||dc.hp,stamina:dc.stamina||50,maxStamina:dc.max_stamina||100,staminaRegen:dc.stamina_regen||25,
     crit:dc.crit_chance||0.1,dodge:dc.dodge_chance||0.05,image_url:dc.image_url||null,
-    shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false};
+    shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,...defaultFighterStatus()};
 
   currentDefenseFight={player,defender:defFighter,defenderId:attackPickerFriendId,defenderLevel:dc.level,
     playerMoves:availableMoves,defenderMoves,cardUid:c.uid,busy:false,
@@ -8451,15 +9398,7 @@ function shakeDefenseArena(){
 }
 function defenseFightPreTurnTick(){
   const s=currentDefenseFight;
-  [s.player,s.defender].forEach(f=>{
-    if(f.dot>0&&f.dotTurns>0&&!f.defeated){
-      f.hp=Math.max(0,f.hp-f.dot);
-      s.log.push(`🔥 ${f.name} takes ${f.dot} damage-over-time (${f.dotTurns-1} turns left)`);
-      f.dotTurns--;if(f.dotTurns<=0)f.dot=0;
-      if(f.hp<=0){f.hp=0;f.defeated=true;s.log.push(`💀 ${f.name} was defeated!`);}
-    }
-  });
-  [s.player,s.defender].forEach(f=>{if(!f.defeated)f.stamina=Math.min(f.maxStamina,(f.stamina||0)+(f.staminaRegen||20));});
+  [s.player,s.defender].forEach(f=>tickFighterStatus(f,s.log));
 }
 
 async function playerUseDefenseMove(idx){
@@ -8476,12 +9415,13 @@ async function playerUseDefenseMove(idx){
   await sleep(300);
 
   const isFirst=!s.player.usedFirstHit;s.player.usedFirstHit=true;
-  const{log,fx}=resolveSparHit(s.player,s.defender,move,isFirst);
+  const{log,fx,extraTurn}=resolveSparHit(s.player,s.defender,move,isFirst);
   s.log.push(...log);renderDefenseFightModal();applyDefenseFightFx(fx);
   await sleep(700);
 
   if(s.defender.defeated){s.busy=false;finishDefenseFight(true);return;}
   if(s.player.defeated){s.busy=false;finishDefenseFight(false);return;}
+  if(extraTurn){s.player.extraTurns=Math.max(0,s.player.extraTurns-1);s.busy=false;renderDefenseFightModal();return;}
 
   await sleep(400);
   defenseFightPreTurnTick();
