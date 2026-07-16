@@ -455,6 +455,7 @@ document.addEventListener("DOMContentLoaded",function(){
       <button onclick="go('skills')">🌳 Skill Tree</button>
       <button onclick="go('leaderboard')">🏆 Leaderboard</button>
       <button onclick="go('news')">📰 News</button>
+      <button onclick="go('changelog')">📜 Changelog</button>
       <button onclick="go('events')">🎉 Events</button>
       <button onclick="go('feedback')">💬 Feedback</button>
       <button onclick="go('players')">👥 Players</button>
@@ -523,6 +524,8 @@ document.addEventListener("DOMContentLoaded",function(){
 
   <!-- NEWS -->
   <div id="screen-news" class="screen"><div id="news-content"></div></div>
+  <!-- CHANGELOG -->
+  <div id="screen-changelog" class="screen"><div id="changelog-content"></div></div>
   <div id="screen-events" class="screen"><div id="events-content"></div></div>
   <div id="screen-feedback" class="screen"><div id="feedback-content"></div></div>
 
@@ -923,6 +926,34 @@ const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 let sb;
 try{sb=supabase.createClient(SB_URL,SB_KEY);}catch(e){console.error('Supabase init failed:',e);}
 
+// ── CHANGELOG ────────────────────────────────────────────────────────────
+// Shown to players on the Changelog tab. IMPORTANT MAINTENANCE NOTE: whenever a new feature,
+// balance change, or notable fix is added to this file in a future session, add a new entry
+// to the TOP of this array (most recent first) — {date:'YYYY-MM-DD', title, changes:[...]}.
+// Keep each change line short, player-facing, and free of internal implementation details.
+const CHANGELOG=[
+  {date:'2026-07-14',title:'Move Ability Overhaul',changes:[
+    '117 move types are now fully functional in every battle mode — including 50 that were previously just names with no real effect, plus 50 brand new abilities',
+    'New Team abilities: Team Heal, Team Shield, Team Stamina Drain, Team Rally, and more — usable in 3v3/5v5 battles',
+    'Elemental type-effectiveness (fire, water, ice, lightning, earth, dark, light, wind, void) now shows up as visible badges and works correctly in every battle mode, not just regular PvP',
+    'Taunt, Curse, and Counter now actually do something in battle instead of just logging a message'
+  ]},
+  {date:'2026-07-14',title:'Raid Boss & Defense Team',changes:[
+    'New weekly Raid Boss — one shared boss for everyone, resets every 7 days, with a leaderboard for fastest clears and most damage dealt',
+    'New Defense Team — set a card to guard your account; friends can attack it anytime, even while you\'re offline, and both sides earn rewards',
+    'Bot Battle tiers now have lore blurbs and assigned elements'
+  ]},
+  {date:'2026-07-14',title:'Bot Battles',changes:[
+    'New 50-level Bot Battle ladder — climb from Level 1 to Level 50 against increasingly tough AI opponents',
+    'Bot Battles are now fully interactive — pick your own moves each turn instead of auto-battling',
+    'Bot AI intelligence scales with level — low levels play erratically, high levels play near-optimally'
+  ]},
+  {date:'2026-07-14',title:'Sparring, Notifications & Balance',changes:[
+    'New Sparring system — fight a training dummy for instant XP as an alternative to idle training',
+    'Notification badges added across every tab — see at a glance when training/income is ready, skill points are unspent, and more',
+    'Card leveling is now rarity-aware — higher-rarity cards pay proportionally more XP per level instead of scaling for free'
+  ]}
+];
 const RARITIES=['Common','Uncommon','Rare','Epic','Legendary','Mythic','Ancient','Celestial'];
 const RARITY_COLORS=['#9ca3af','#34d399','#60a5fa','#a78bfa','#f59e0b','#ec4899','#f97316','#c7d2fe'];
 const COMBINE_COSTS=[50,100,200,400,800,1500,3000,6000];
@@ -2086,6 +2117,7 @@ async function globalNotificationCheck(silent){
   await checkPacksBadge();
   await checkNewsBadge();
   await checkFeedbackBadge();
+  checkChangelogBadge();
 }
 
 // Income cards sitting ready to collect right now.
@@ -2318,7 +2350,7 @@ function go(name){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
   const mc=document.querySelector('.main-content');if(mc)mc.scrollTop=0;
-  const names=['mycards','allcards','packs','wheel','items','battle','trade','training','botbattle','raidboss','defense','quests','skills','leaderboard','news','events','feedback','players','profile','admin'];
+  const names=['mycards','allcards','packs','wheel','items','battle','trade','training','botbattle','raidboss','defense','quests','skills','leaderboard','news','changelog','events','feedback','players','profile','admin'];
   document.querySelectorAll('.main-sidebar button').forEach((b,i)=>b.classList.toggle('active',names[i]===name));
   if(name==='mycards')renderMyCards();
   if(name==='allcards')renderAllCards();
@@ -2335,6 +2367,7 @@ function go(name){
   if(name==='skills')renderSkillTree();
   if(name==='leaderboard')renderLB();
   if(name==='news')renderNews();
+  if(name==='changelog')renderChangelog();
   if(name==='events')renderEvents();
   if(name==='feedback')renderFeedbackTab();
   if(name==='players')renderPlayers();
@@ -6199,6 +6232,37 @@ async function toggleNewsReaction(newsId,reactionId){
   }
   renderNews();
 }
+
+function renderChangelog(){
+  markTabSeen('changelog').then(()=>setNavBadge('changelog','changelog-nav-badge',0));
+  const el=document.getElementById('changelog-content');
+  if(!el)return;
+  el.innerHTML='<h3 style="margin-bottom:0.5rem;">📜 Changelog</h3>'+
+    '<p style="font-size:13px;color:var(--text3);margin-bottom:1rem;">Everything new, in order — most recent first.</p>'+
+    CHANGELOG.map((entry,i)=>{
+      const dateLabel=new Date(entry.date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      return `<div class="box" style="margin-bottom:12px;${i===0?'border-color:var(--accent);':''}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+          <h4 style="margin:0;">${i===0?'🆕 ':''}${entry.title}</h4>
+          <span style="font-size:11px;color:var(--text4);">${dateLabel}</span>
+        </div>
+        <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;">
+          ${entry.changes.map(c=>`<li style="font-size:13px;color:var(--text2);line-height:1.5;">${c}</li>`).join('')}
+        </ul>
+      </div>`;
+    }).join('');
+}
+
+// New changelog entries since the player's last visit — same shared tab_last_seen pattern
+// as allcards/packs/news.
+function checkChangelogBadge(){
+  const seen=currentUser.tab_last_seen||{};
+  if(!seen.changelog){setNavBadge('changelog','changelog-nav-badge',0);return;}
+  const seenDate=new Date(seen.changelog);
+  const unseen=CHANGELOG.filter(entry=>new Date(entry.date+'T00:00:00')>seenDate).length;
+  setNavBadge('changelog','changelog-nav-badge',unseen);
+}
+
 
 async function postNews(){
   const title=document.getElementById('news-title').value.trim();
