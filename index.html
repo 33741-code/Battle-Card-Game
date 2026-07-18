@@ -421,10 +421,11 @@ document.addEventListener("DOMContentLoaded",function(){
       <h2 style="font-size:18px;">⚔️ Untitled Card Game</h2>
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
         <span class="level-badge" id="level-badge" onclick="openLevelModal()" style="cursor:pointer;" title="Click to see milestones">Lv 1</span>
+        <span class="level-badge" id="streak-badge" onclick="openStreakModal()" style="cursor:pointer;background:#3a1f0d;border-color:#f97316;color:#fdba74;display:none;" title="Click to see streak rewards">🔥 Day 1</span>
         <span class="money-badge" id="money-badge">💰 $0</span>
         <p id="admin-label" style="font-size:12px;color:var(--text3);margin:0;"></p>
         <div id="daily-reward-btn-wrap" style="display:none;">
-          <button class="btn btn-green btn-sm" onclick="forceDailyLogin()">🎁 Daily</button>
+          <button class="btn btn-green btn-sm" onclick="forceDailyLogin()">🎁 Claim Streak</button>
         </div>
         <button class="theme-btn" id="theme-btn" onclick="toggleTheme()">🌙</button>
         <span style="font-size:13px;color:var(--text3);" id="user-label"></span>
@@ -2061,24 +2062,53 @@ async function endTutorial(){
   }
 }
 
+// ── DAILY LOGIN STREAK ───────────────────────────────────────────────────
+// 7-day reward cycle that repeats indefinitely — day 7 gives a bonus skill point on top of
+// money/XP. Streak resets to day 1 if a calendar day is skipped (checked against last_login).
+const STREAK_REWARDS=[
+  {day:1,money:40,xp:30},
+  {day:2,money:60,xp:40},
+  {day:3,money:90,xp:55},
+  {day:4,money:130,xp:70},
+  {day:5,money:180,xp:90},
+  {day:6,money:240,xp:115},
+  {day:7,money:400,xp:200,bonusSkillPoint:1}
+];
+function streakDayFor(streakCount){return((Math.max(1,streakCount)-1)%7)+1;}
+function streakRewardFor(streakCount,level,skills){
+  const entry=STREAK_REWARDS[streakDayFor(streakCount)-1];
+  const pctMult=1+((skills&&skills.daily_reward_pct)||0)/100;
+  const money=Math.round((entry.money+level*4)*pctMult);
+  const xp=Math.round((entry.xp+level*2)*pctMult);
+  return{...entry,money,xp};
+}
+
 async function handleDailyLogin(){
   const today=new Date().toISOString().slice(0,10);
   // Re-fetch from DB to get the real last_login value
-  const{data:fresh}=await sb.from('users').select('last_login,money,player_xp,level,unlocked_skills').eq('id',currentUser.id).single();
+  const{data:fresh}=await sb.from('users').select('last_login,money,player_xp,level,unlocked_skills,login_streak,longest_login_streak,bonus_skill_points').eq('id',currentUser.id).single();
   if(fresh)currentUser={...currentUser,...fresh};
   const lastLogin=currentUser.last_login?String(currentUser.last_login).slice(0,10):'';
   if(lastLogin===today)return;
+
+  const yesterday=new Date(Date.now()-86400000).toISOString().slice(0,10);
+  const newStreak=lastLogin===yesterday?(currentUser.login_streak||0)+1:1;
+  const longestStreak=Math.max(newStreak,currentUser.longest_login_streak||0);
+
   const skills=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
-  const reward=Math.round((40+(8*(currentUser.level||1)))*(1+skills.daily_reward_pct/100));
-  const pxp=50;
   const oldLevel=currentUser.level||1;
+  const rewardEntry=streakRewardFor(newStreak,oldLevel,skills);
   let{money,player_xp,level}={money:currentUser.money||0,player_xp:currentUser.player_xp||0,level:currentUser.level||1};
-  money+=reward;player_xp+=pxp;
+  money+=rewardEntry.money;player_xp+=rewardEntry.xp;
   while(player_xp>=xpForPlayer(level)){player_xp-=xpForPlayer(level);level++;}
-  await sb.from('users').update({money,player_xp,level,last_login:today}).eq('id',currentUser.id);
-  currentUser={...currentUser,money,player_xp,level,last_login:today};
+  const bonus_skill_points=(currentUser.bonus_skill_points||0)+(rewardEntry.bonusSkillPoint||0);
+
+  await sb.from('users').update({money,player_xp,level,last_login:today,login_streak:newStreak,longest_login_streak:longestStreak,bonus_skill_points}).eq('id',currentUser.id);
+  currentUser={...currentUser,money,player_xp,level,last_login:today,login_streak:newStreak,longest_login_streak:longestStreak,bonus_skill_points};
   const leveledUp=level>oldLevel;
-  showXpGain(`Daily Login Reward`,reward,pxp,leveledUp?level:null);
+  const streakDay=streakDayFor(newStreak);
+  const label=`🔥 Day ${streakDay} Login Streak${rewardEntry.bonusSkillPoint?' — Bonus Skill Point!':''}`;
+  showXpGain(label,rewardEntry.money,rewardEntry.xp,leveledUp?level:null);
   await checkMilestones(oldLevel,level);
   await updateQuestProgress('login_streak',1);
   await updateQuestProgress('level',level);
@@ -2324,6 +2354,11 @@ function updateHUD(){
   const pct=Math.min(100,Math.round(((currentUser.player_xp||0)/needed)*100));
   document.getElementById('player-xp-fill').style.width=pct+'%';
   document.getElementById('player-xp-text').textContent=`Player XP: ${currentUser.player_xp||0} / ${needed} — click level badge to see milestones & quests`;
+  const streakBadge=document.getElementById('streak-badge');
+  if(streakBadge&&(currentUser.login_streak||0)>0){
+    streakBadge.style.display='inline-block';
+    streakBadge.textContent=`🔥 Day ${streakDayFor(currentUser.login_streak)}`;
+  }
 }
 
 function logout(){
@@ -7138,6 +7173,53 @@ async function refreshQuestPanel(){
 }
 
 // ── LEVEL MODAL ───────────────────────────────────────
+function openStreakModal(){
+  const old=document.getElementById('streak-modal');if(old)old.remove();
+  const div=document.createElement('div');
+  div.id='streak-modal';
+  div.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;display:flex;align-items:center;justify-content:center;';
+  const streak=currentUser.login_streak||0;
+  const longest=currentUser.longest_login_streak||streak;
+  const currentDay=streakDayFor(Math.max(streak,1));
+  const today=new Date().toISOString().slice(0,10);
+  const lastLogin=currentUser.last_login?String(currentUser.last_login).slice(0,10):'';
+  const claimedToday=lastLogin===today;
+  const skills=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
+  const level=currentUser.level||1;
+
+  div.innerHTML=`
+    <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:1.5rem;width:640px;max-width:95vw;max-height:88vh;overflow-y:auto;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+        <div>
+          <div style="font-size:22px;font-weight:800;">🔥 Login Streak</div>
+          <div style="font-size:13px;color:var(--text3);margin-top:3px;">${streak>0?`${streak} day${streak===1?'':'s'} in a row · Longest: ${longest}`:'Log in today to start a streak!'}</div>
+        </div>
+        <button class="btn btn-sm" onclick="document.getElementById('streak-modal').remove()">✕ Close</button>
+      </div>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:14px;">Log in every day to climb the 7-day reward cycle. Miss a day and it resets to Day 1 — but the cycle repeats forever, so there's always a Day 7 bonus coming.</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;">
+        ${STREAK_REWARDS.map(entry=>{
+          const isToday=streak>0&&entry.day===currentDay&&!claimedToday;
+          const isClaimedToday=streak>0&&entry.day===currentDay&&claimedToday;
+          const isPast=streak>0&&entry.day<currentDay&&!claimedToday;
+          const preview=streakRewardFor(entry.day,level,skills);
+          const borderColor=isToday?'#f97316':isClaimedToday?'#22c55e':entry.day===7?'#facc15':'var(--border)';
+          return `<div style="background:var(--bg3);border:2px solid ${borderColor};border-radius:10px;padding:10px 6px;text-align:center;${isToday?'box-shadow:0 0 10px #f9731655;':''}">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:4px;">DAY ${entry.day}</div>
+            <div style="font-size:18px;">${entry.day===7?'🎉':'📅'}</div>
+            <div style="font-size:12px;font-weight:700;color:#fbbf24;margin-top:4px;">$${preview.money}</div>
+            <div style="font-size:11px;color:var(--text3);">${preview.xp} XP</div>
+            ${entry.bonusSkillPoint?'<div style="font-size:10px;color:#a78bfa;margin-top:2px;">+1 Skill Pt</div>':''}
+            ${isClaimedToday?'<div style="font-size:10px;color:#22c55e;margin-top:4px;">✅ Claimed</div>':isToday?'<div style="font-size:10px;color:#f97316;margin-top:4px;">👉 Today</div>':isPast?'<div style="font-size:10px;color:var(--text4);margin-top:4px;">Done</div>':''}
+          </div>`;
+        }).join('')}
+      </div>
+      ${!claimedToday?`<button class="btn btn-green" style="width:100%;margin-top:16px;" onclick="document.getElementById('streak-modal').remove();forceDailyLogin();">🎁 Claim Today's Reward</button>`:`<div style="text-align:center;font-size:12px;color:var(--text3);margin-top:16px;">Come back tomorrow to keep the streak going!</div>`}
+    </div>`;
+  document.body.appendChild(div);
+  div.addEventListener('click',function(e){if(e.target===this)this.remove();});
+}
+
 async function openLevelModal(){
   const old=document.getElementById('level-modal');if(old)old.remove();
   const div=document.createElement('div');
