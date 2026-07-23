@@ -1237,6 +1237,24 @@ const EVENT_REWARD_TYPES=[
 
 // ── SPIN WHEEL ──────────────────────────────────────────────────────────
 // ── SPIN WHEEL ──────────────────────────────────────────────────────────
+// The daily free spin resets at 10:00 AM local time (player's device clock), not at
+// midnight. "Today" for spin purposes only rolls over once the clock passes 10:00 AM —
+// before that, it's still counted as the previous day's spin window.
+const WHEEL_RESET_HOUR=10;
+function currentWheelDayKey(){
+  const now=new Date();
+  const boundary=new Date(now.getFullYear(),now.getMonth(),now.getDate(),WHEEL_RESET_HOUR,0,0,0);
+  const effective=now<boundary?new Date(now.getTime()-86400000):now;
+  return effective.getFullYear()+'-'+String(effective.getMonth()+1).padStart(2,'0')+'-'+String(effective.getDate()).padStart(2,'0');
+}
+// Milliseconds until the next 10:00 AM reset, for the countdown shown on the wheel tab.
+function msUntilNextWheelReset(){
+  const now=new Date();
+  let boundary=new Date(now.getFullYear(),now.getMonth(),now.getDate(),WHEEL_RESET_HOUR,0,0,0);
+  if(now>=boundary)boundary=new Date(boundary.getTime()+86400000);
+  return boundary.getTime()-now.getTime();
+}
+
 const WHEEL_TIERS=[
   {id:0,name:'Normal Wheel',icon:'🎡',color:'#9ca3af',levelReq:1},
   {id:1,name:'Rare Wheel',icon:'🎰',color:'#60a5fa',levelReq:15},
@@ -2233,8 +2251,8 @@ async function markFeedbackSeen(ids){
 }
 
 function checkDailySpinAvailable(){
-  const today=new Date().toISOString().slice(0,10);
-  const lastDailySpin=currentUser.last_daily_spin?String(currentUser.last_daily_spin).slice(0,10):'';
+  const today=currentWheelDayKey();
+  const lastDailySpin=currentUser.last_daily_spin||'';
   setNavBadge('wheel','wheel-nav-badge',lastDailySpin!==today?1:0);
 }
 
@@ -3121,8 +3139,8 @@ async function renderWheelTab(){
   if(!el)return;
   const lvl=currentUser.level||1;
   const dailyTier=dailyWheelTierForLevel(lvl);
-  const today=new Date().toISOString().slice(0,10);
-  const lastDailySpin=currentUser.last_daily_spin?String(currentUser.last_daily_spin).slice(0,10):'';
+  const today=currentWheelDayKey();
+  const lastDailySpin=currentUser.last_daily_spin||'';
   const dailyAvailable=lastDailySpin!==today;
   const tickets=currentUser.spin_tickets||{normal:0,rare:0,legendary:0};
   const ticketKey=['normal','rare','legendary'][_wheelTab];
@@ -3138,7 +3156,7 @@ async function renderWheelTab(){
       <div style="font-size:16px;font-weight:700;margin-bottom:8px;">${WHEEL_TIERS[dailyTier].icon} ${WHEEL_TIERS[dailyTier].name}</div>
       <div id="daily-spin-action">${dailyAvailable?
         `<button class="btn btn-primary" onclick="spinWheel(${dailyTier},'daily')">Spin Now — Free!</button>`:
-        `<div style="font-size:13px;color:var(--text3);">✅ Already claimed today — come back tomorrow!</div>`}</div>
+        `<div style="font-size:13px;color:var(--text3);">✅ Already claimed today — resets in ${formatCountdown(msUntilNextWheelReset())} (10:00 AM)</div>`}</div>
     </div>
 
     <div class="tab-row" id="wheel-tabs" style="margin-bottom:1rem;">
@@ -3321,10 +3339,10 @@ function wheelSlotHTML(prize,tier){
 
 async function spinWheel(tier,source){
   if(_wheelSpinning)return;
-  const today=new Date().toISOString().slice(0,10);
+  const today=currentWheelDayKey();
 
   if(source==='daily'){
-    const lastDailySpin=currentUser.last_daily_spin?String(currentUser.last_daily_spin).slice(0,10):'';
+    const lastDailySpin=currentUser.last_daily_spin||'';
     if(lastDailySpin===today){showToast('Already claimed your daily spin!');return;}
   } else if(source==='ticket'){
     const ticketKey=['normal','rare','legendary'][tier];
