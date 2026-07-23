@@ -449,7 +449,7 @@ document.addEventListener("DOMContentLoaded",function(){
       <button onclick="go('battle')">⚔️ Battle</button>
       <button onclick="go('trade')">🤝 Trade</button>
       <button onclick="go('training')">🏋️ Training</button>
-      <button onclick="go('botbattle')">🤖 Bot Battles</button>
+      <button disabled style="opacity:0.4;cursor:not-allowed;" title="Bot Battles is temporarily disabled">🤖 Bot Battles</button>
       <button onclick="go('raidboss')">👹 Raid Boss</button>
       <button onclick="go('defense')">🛡️ Defense</button>
       <button onclick="go('quests')">📋 Quests</button>
@@ -2413,7 +2413,10 @@ function go(name){
   if(name==='battle')renderBattleLobby();
   if(name==='trade')renderTrade();
   if(name==='training')renderTraining();
-  if(name==='botbattle')renderBotBattle();
+  if(name==='botbattle'){
+    const el=document.getElementById('botbattle-content');
+    if(el)el.innerHTML='<div class="empty">🤖 Bot Battles is temporarily disabled.</div>';
+  }
   if(name==='raidboss')renderRaidBoss();
   if(name==='defense')renderDefenseTab();
   if(name==='quests')renderQuestsTab();
