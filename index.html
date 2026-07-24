@@ -323,6 +323,21 @@ body.light .ability-btn{color:#1a1a1a;}
 
 .bc-hp-fill,.bc-st-fill{transition:width 0.5s cubic-bezier(.4,0,.2,1);}
 
+/* ── WAVES (zombie survival mode) ────────────────────────────────────── */
+.zombie-slide-in{animation:zombieSlideIn 0.45s cubic-bezier(.2,.8,.3,1);}
+@keyframes zombieSlideIn{0%{transform:translateY(-30px) scale(0.85);opacity:0;}100%{transform:translateY(0) scale(1);opacity:1;}}
+.zombie-slide-out{animation:zombieSlideOut 0.35s ease forwards;}
+@keyframes zombieSlideOut{0%{transform:scale(1);opacity:1;}100%{transform:scale(0.7);opacity:0;}}
+.wave-banner{text-align:center;font-size:26px;font-weight:900;letter-spacing:0.04em;padding:10px;border-radius:var(--radius-lg);background:linear-gradient(135deg,#0d1f0a,#1a2e0d);border:2px solid #4ade80;color:#86efac;text-shadow:0 0 12px rgba(74,222,128,0.5);animation:waveBannerPulse 1.6s ease-in-out infinite;}
+@keyframes waveBannerPulse{0%,100%{box-shadow:0 0 10px rgba(74,222,128,0.25);}50%{box-shadow:0 0 22px rgba(74,222,128,0.55);}}
+.wave-banner.miniboss-banner{background:linear-gradient(135deg,#2a0a0a,#3a0f0f);border-color:#facc15;color:#fde68a;text-shadow:0 0 14px rgba(250,204,21,0.6);}
+@keyframes minibossBannerPulse{0%,100%{box-shadow:0 0 14px rgba(250,204,21,0.3);}50%{box-shadow:0 0 28px rgba(250,204,21,0.65);}}
+.wave-banner.miniboss-banner{animation:minibossBannerPulse 1.2s ease-in-out infinite;}
+.miniboss-ribbon{position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:#facc15;color:#1c1917;font-size:9px;font-weight:800;padding:2px 8px;border-radius:6px;white-space:nowrap;z-index:6;box-shadow:0 2px 6px rgba(0,0,0,0.4);}
+.battle-card.zombie-targetable{cursor:pointer;box-shadow:0 0 14px rgba(220,38,38,0.55);}
+.battle-card.zombie-targetable:hover{transform:translateY(-3px);}
+.wave-run-over-badge{display:inline-block;font-size:13px;font-weight:700;padding:4px 12px;border-radius:8px;}
+
 @keyframes resultPop{0%{opacity:0;transform:scale(0.3) rotate(-15deg);}60%{opacity:1;transform:scale(1.15) rotate(5deg);}100%{opacity:1;transform:scale(1) rotate(0deg);}}
 
 /* ── BATTLE OPENING SCREEN ── */
@@ -449,7 +464,7 @@ document.addEventListener("DOMContentLoaded",function(){
       <button onclick="go('battle')">⚔️ Battle</button>
       <button onclick="go('trade')">🤝 Trade</button>
       <button onclick="go('training')">🏋️ Training</button>
-      <button disabled style="opacity:0.4;cursor:not-allowed;" title="Bot Battles is temporarily disabled">🤖 Bot Battles</button>
+      <button onclick="go('waves')">🧟 Waves</button>
       <button onclick="go('raidboss')">👹 Raid Boss</button>
       <button onclick="go('defense')">🛡️ Defense</button>
       <button onclick="go('quests')">📋 Quests</button>
@@ -514,7 +529,7 @@ document.addEventListener("DOMContentLoaded",function(){
   <!-- TRAINING -->
   <div id="screen-training" class="screen"><div id="training-content"></div></div>
   <!-- BOT BATTLES -->
-  <div id="screen-botbattle" class="screen"><div id="botbattle-content"></div></div>
+  <div id="screen-waves" class="screen"><div id="waves-content"></div></div>
   <!-- RAID BOSS -->
   <div id="screen-raidboss" class="screen"><div id="raidboss-content"></div></div>
   <!-- DEFENSE TEAM -->
@@ -2403,7 +2418,7 @@ function go(name){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
   const mc=document.querySelector('.main-content');if(mc)mc.scrollTop=0;
-  const names=['mycards','allcards','packs','wheel','items','battle','trade','training','botbattle','raidboss','defense','quests','skills','leaderboard','news','changelog','events','feedback','players','profile','admin'];
+  const names=['mycards','allcards','packs','wheel','items','battle','trade','training','waves','raidboss','defense','quests','skills','leaderboard','news','changelog','events','feedback','players','profile','admin'];
   document.querySelectorAll('.main-sidebar button').forEach((b,i)=>b.classList.toggle('active',names[i]===name));
   if(name==='mycards')renderMyCards();
   if(name==='allcards')renderAllCards();
@@ -2413,10 +2428,7 @@ function go(name){
   if(name==='battle')renderBattleLobby();
   if(name==='trade')renderTrade();
   if(name==='training')renderTraining();
-  if(name==='botbattle'){
-    const el=document.getElementById('botbattle-content');
-    if(el)el.innerHTML='<div class="empty">🤖 Bot Battles is temporarily disabled.</div>';
-  }
+  if(name==='waves')renderWaves();
   if(name==='raidboss')renderRaidBoss();
   if(name==='defense')renderDefenseTab();
   if(name==='quests')renderQuestsTab();
@@ -8586,311 +8598,6 @@ function closeSparModal(){
   renderTraining();
 }
 
-// ── BOT BATTLES (PvE ladder, Level 1 → 50) ──────────────────────────────
-// Bot tiers give the ladder some visual/flavor progression as levels climb.
-const BOT_TIERS=[
-  {max:5,name:'Recruit Bot',emoji:'🤖',color:'#94a3b8',element:'neutral',lore:'Fresh off the assembly line — all bark, mostly random swings.'},
-  {max:10,name:'Combat Drone',emoji:'🛰️',color:'#60a5fa',element:'wind',lore:'Fast and twitchy, but still learning which button does what.'},
-  {max:15,name:'Sentry Unit',emoji:'🗼',color:'#38bdf8',element:'earth',lore:'Built to hold ground. Starts actually thinking before it swings.'},
-  {max:20,name:'War Machine',emoji:'⚙️',color:'#f59e0b',element:'fire',lore:'Serious hardware. Rapid Fire adds up fast if you let it stack.'},
-  {max:25,name:'Siege Bot',emoji:'💣',color:'#fb923c',element:'water',lore:'Drains what it hits and just keeps coming.'},
-  {max:30,name:'Cyber Knight',emoji:'🛡️',color:'#a78bfa',element:'light',lore:"Knows when to guard now — don't expect many openings."},
-  {max:35,name:'Phantom Unit',emoji:'👻',color:'#c084fc',element:'dark',lore:'Termination protocols online — get it low and it goes for the kill.'},
-  {max:40,name:'Titan Core',emoji:'🏛️',color:'#f43f5e',element:'ice',lore:'Barrage rewrites what "multi-hit" means. Bring HP.'},
-  {max:45,name:'Nemesis Prime',emoji:'💀',color:'#dc2626',element:'void',lore:'Near-perfect decision making. Every opening it gives you is a trap.'},
-  {max:50,name:'Omega Unit',emoji:'⚡',color:'#facc15',element:'lightning',lore:"The ladder's final word. Optimal, relentless, and hits like a truck."}
-];
-function botTierFor(level){return BOT_TIERS.find(t=>level<=t.max)||BOT_TIERS[BOT_TIERS.length-1];}
-
-// Stat curve — convex growth so early levels are a gentle ramp and the back half of the
-// ladder (35-50) gets genuinely tough. Tune this if it plays too easy/hard.
-function buildBotFighter(level){
-  const tier=botTierFor(level);
-  const growth=Math.pow(level,1.35);
-  const hp=Math.round(70+growth*15);
-  const atk=Math.round(12+growth*2.8);
-  const def=Math.round(7+growth*1.9);
-  const crit=Math.min(0.4,0.04+level*0.006);
-  const dodge=Math.min(0.35,0.03+level*0.005);
-  const bot={uid:'bot',name:tier.name,tierColor:tier.color,emoji:tier.emoji,element:tier.element,
-    atk,def,maxHp:hp,hp,crit,dodge,stamina:999,maxStamina:999,staminaRegen:999,
-    shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,image_url:null,...defaultFighterStatus()};
-  bot.moves=buildBotMoveset(level,bot);
-  return bot;
-}
-// Bots unlock more move variety as the ladder climbs — always has a basic Strike, then
-// gains heavy hits, shields, multi-hit, lifesteal, heals, and execute at higher tiers.
-function buildBotMoveset(level,bot){
-  const moves=[{name:'Strike',type:'attack',value:Math.round(bot.atk*0.9),stamina_cost:0}];
-  if(level>=6)moves.push({name:'Heavy Slam',type:'heavy',value:Math.round(bot.atk*1.3),stamina_cost:0});
-  if(level>=11)moves.push({name:'Guard Plating',type:'shield',value:60,stamina_cost:0});
-  if(level>=16)moves.push({name:'Rapid Fire',type:'multi',value:Math.round(bot.atk*1.2),hits_min:2,hits_max:3,stamina_cost:0});
-  if(level>=21)moves.push({name:'Overload Drain',type:'lifesteal',value:Math.round(bot.atk*1.1),steal_pct:0.4,stamina_cost:0});
-  if(level>=26)moves.push({name:'Repair Protocol',type:'heal',value:Math.round(bot.maxHp*0.18),stamina_cost:0});
-  if(level>=31)moves.push({name:'Termination Beam',type:'execute',execute_threshold:20,value:Math.round(bot.atk*1.1),stamina_cost:0});
-  if(level>=36)moves.push({name:'Barrage',type:'multi',value:Math.round(bot.atk*1.4),hits_min:3,hits_max:5,stamina_cost:0});
-  if(level>=41)moves.push({name:'Overdrive Slam',type:'heavy',value:Math.round(bot.atk*1.6),stamina_cost:0});
-  if(level>=46)moves.push({name:'Annihilate',type:'execute',execute_threshold:30,value:Math.round(bot.atk*1.5),stamina_cost:0});
-  return moves;
-}
-function botRewardMoney(level){return Math.round(60+level*40);}
-function botRewardXp(level){return Math.round(70+level*32);}
-
-let currentBotFight=null;
-let botFightSelectedCardUid=null;
-
-async function renderBotBattle(){
-  const el=document.getElementById('botbattle-content');
-  el.innerHTML='<div class="empty">Loading...</div>';
-  const{data:fresh,error}=await sb.from('users').select('bot_level').eq('id',currentUser.id).single();
-  if(error){
-    console.error('renderBotBattle: failed to load bot_level —',error.message);
-    el.innerHTML=`<div class="box" style="border-color:#dc2626;">
-      <h4 style="color:#dc2626;margin-bottom:6px;">⚠️ Couldn't load your Bot Battle progress</h4>
-      <p style="font-size:13px;color:var(--text3);">${error.message.includes('column')?"Your database is missing the <code>bot_level</code> column. Run this once in the Supabase SQL editor:<br><code>ALTER TABLE users ADD COLUMN IF NOT EXISTS bot_level INT DEFAULT 1;</code>":error.message}</p>
-    </div>`;
-    return;
-  }
-  const botLevel=(fresh&&fresh.bot_level)||1;
-  currentUser.bot_level=botLevel;
-  botFightSelectedCardUid=null;
-
-  const levels=Array.from({length:50},(_,i)=>i+1);
-  el.innerHTML=`
-    <h3 style="margin-bottom:0.5rem;">🤖 Bot Battles</h3>
-    <p style="font-size:13px;color:var(--text3);margin-bottom:1rem;">Climb the ladder from Level 1 to Level 50. Win the level at the front of the ladder to advance — cleared levels can be replayed anytime for a smaller reward.</p>
-    <div class="box">
-      <h4 style="margin-bottom:8px;">Progress: Level ${botLevel} / 50${botLevel>=50?' — MAX!':''}</h4>
-      <div class="hp-bar-wrap" style="height:8px;margin-bottom:12px;"><div class="hp-bar" style="height:8px;width:${Math.round((Math.min(botLevel,50)-1)/49*100)}%;background:var(--accent);"></div></div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;">
-        ${levels.map(l=>{
-          const cleared=l<botLevel;
-          const current=l===botLevel;
-          const locked=l>botLevel;
-          const tier=botTierFor(l);
-          return `<button class="btn btn-sm" style="width:42px;padding:6px 2px;font-size:11px;${current?`border-color:${tier.color};box-shadow:0 0 8px ${tier.color}55;font-weight:800;`:''}${locked?'opacity:0.35;cursor:not-allowed;':''}${cleared?`background:${tier.color}22;border-color:${tier.color}55;`:''}" ${locked?'disabled':`onclick="openBotLevelPicker(${l})"`} title="${tier.name} — Lv ${l}">${cleared?'✅':current?tier.emoji:'🔒'}<br>${l}</button>`;
-        }).join('')}
-      </div>
-    </div>
-    <div id="bot-level-picker"></div>
-  `;
-}
-
-async function openBotLevelPicker(level){
-  const box=document.getElementById('bot-level-picker');
-  if(!box)return;
-  box.innerHTML='<div class="empty">Loading fighters...</div>';
-  const{data:cards}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
-  const now=Date.now();
-  const usable=(cards||[]).filter(c=>(!c.training_until||now>=new Date(c.training_until).getTime())&&(c.unlocked_moves||[]).length>0);
-  if(!usable.length){box.innerHTML='<div class="empty">No available fighters — cards may be training, or have no moves unlocked yet!</div>';return;}
-  const tier=botTierFor(level);
-  const isFrontier=level===currentUser.bot_level;
-  const rewardMoney=Math.round(botRewardMoney(level)*(isFrontier?1:0.4));
-  const rewardXp=Math.round(botRewardXp(level)*(isFrontier?1:0.4));
-  box.innerHTML=`<div class="box" style="border-color:${tier.color};margin-top:12px;">
-    <h4 style="margin-bottom:4px;">${tier.emoji} ${tier.name} — Level ${level} ${elementBadge(tier.element)}</h4>
-    <p style="font-size:12px;color:var(--text2);font-style:italic;margin-bottom:6px;">"${tier.lore}"</p>
-    <p style="font-size:12px;color:var(--text3);margin-bottom:10px;">${isFrontier?'Win to advance to the next level!':'Already cleared — replay for a reduced reward.'} Reward on win: ~$${rewardMoney} + ${rewardXp} XP.</p>
-    <div class="card-grid" style="grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-bottom:10px;">
-      ${usable.map(c=>`<div class="card-tile${botFightSelectedCardUid===c.uid?' ctx-selected':''}" style="padding:8px;" onclick="botFightSelectedCardUid='${c.uid}';openBotLevelPicker(${level});">
-        ${c.image_url?`<img src="${c.image_url}" style="width:100%;height:56px;object-fit:contain;">`:`<div style="font-size:26px;text-align:center;">${classEmoji(c.class_name)}</div>`}
-        <div style="font-size:11px;font-weight:600;text-align:center;margin-top:4px;">${c.name}</div>
-        <div style="font-size:10px;color:var(--text3);text-align:center;">Lv${c.level} ${RARITIES[c.rarity]}</div>
-      </div>`).join('')}
-    </div>
-    <button class="btn btn-primary" style="width:100%;" ${botFightSelectedCardUid?'':'disabled'} onclick="startBotFight(${level})">⚔️ Fight</button>
-  </div>`;
-}
-
-async function startBotFight(level){
-  if(!botFightSelectedCardUid)return;
-  const{data:c}=await sb.from('player_cards').select('*').eq('uid',botFightSelectedCardUid).single();
-  if(!c){showToast('Card not found');return;}
-  if(!(c.unlocked_moves||[]).length){showToast('This card has no usable moves yet!');return;}
-  let moves=[];
-  if(c.pool_card_id){
-    const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',c.pool_card_id).single();
-    moves=(pc&&pc.moves)||[];
-  }
-  const availableMoves=moves.filter(m=>(c.unlocked_moves||[]).includes(m.name));
-  if(!availableMoves.length){showToast('This card has no usable moves yet!');return;}
-
-  const skills=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
-  const maxHp=Math.round((c.max_hp||c.hp)*(1+skills.hp_pct/100));
-  const player={uid:c.uid,name:c.name,class_name:c.class_name,element:c.element||'neutral',atk:Math.round(c.atk*(1+skills.atk_pct/100)),def:Math.round(c.def*(1+skills.def_pct/100)),
-    maxHp,hp:maxHp,stamina:c.stamina||50,maxStamina:c.max_stamina||100,staminaRegen:c.stamina_regen||25,
-    crit:Math.min(0.95,(c.crit_chance||0.1)+skills.crit_pct/100),dodge:Math.min(0.95,(c.dodge_chance||0.05)+skills.dodge_pct/100),
-    critDmgBonusPct:skills.crit_dmg_pct||0,firstHitBonusPct:skills.first_hit_pct||0,
-    image_url:c.image_url||null,shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,usedFirstHit:false,...defaultFighterStatus()};
-
-  const bot=buildBotFighter(level);
-  currentBotFight={player,bot,playerMoves:availableMoves,botMoves:bot.moves,level,cardUid:c.uid,busy:false,
-    log:[`⚔️ ${player.name} steps up to face the ${bot.name} (Lv ${level})!`],ended:false};
-  renderBotFightModal();
-}
-
-function applyBotFightFx(fxList){
-  let anyCrit=false,anyBig=false;
-  fxList.forEach(fx=>{
-    if(fx.type==='dodge'){flashCardFx(fx.uid,'fx-dodge',450);showTextPopup(fx.uid,'MISS!','miss-popup');}
-    else if(fx.type==='hit'){
-      if(fx.amount>0)showDmgPopup(fx.uid,fx.amount,false);
-      flashCardFx(fx.uid,fx.crit?'fx-crit':'fx-hit',fx.crit?500:350);
-      if(fx.crit){showTextPopup(fx.uid,'CRIT!','crit-popup');anyCrit=true;}
-      const f=[currentBotFight.player,currentBotFight.bot].find(x=>x.uid===fx.uid);
-      if(f&&fx.amount>=f.maxHp*0.25)anyBig=true;
-    } else if(fx.type==='heal'){
-      if(fx.amount>0)showDmgPopup(fx.uid,fx.amount,true);
-      flashCardFx(fx.uid,'fx-heal',600);
-    }
-  });
-  if(anyCrit){screenFlash();shakeBotArena();}
-  else if(anyBig)shakeBotArena();
-}
-function shakeBotArena(){
-  const el=document.getElementById('botfight-arena');
-  if(!el)return;
-  el.classList.remove('screen-shake');void el.offsetWidth;el.classList.add('screen-shake');
-  setTimeout(()=>el.classList.remove('screen-shake'),320);
-}
-
-// Applies the shared start-of-turn dot tick + stamina regen to both fighters (same cadence
-// the old auto-loop used — fires before every single action, whether player's or the bot's).
-function botFightPreTurnTick(){
-  const s=currentBotFight;
-  [s.player,s.bot].forEach(f=>tickFighterStatus(f,s.log));
-}
-
-// The bot's "intelligence" scales with its level: low levels mostly pick randomly (erratic,
-// wastes heals, ignores lethal openings), high levels play near-optimally (executes at low
-// HP, heals/shields defensively, prefers lifesteal while hurt, otherwise maximizes damage).
-function pickBotMoveIntelligent(bot,moves,player,level){
-  const intel=Math.min(1,level/45);
-  const POWER_TYPES=new Set(['heavy','power','execute','overcharge','piercing','precision','finisher','crushing','sunder','ultimate_strike','meteor','execution_protocol','overdrive']);
-  const HEAVY_TYPES=new Set(['heavy','power','overclock']);
-  let affordable=moves.filter(m=>bot.stamina>=(m.stamina_cost||0));
-  if(bot.silenceTurns>0)affordable=affordable.filter(m=>!POWER_TYPES.has(m.type));
-  if(bot.disarmTurns>0)affordable=affordable.filter(m=>!HEAVY_TYPES.has(m.type));
-  if(!affordable.length)affordable=moves.filter(m=>bot.stamina>=(m.stamina_cost||0));
-  if(!affordable.length)return moves.find(m=>(m.stamina_cost||0)===0)||moves[0];
-
-  if(Math.random()>=intel){
-    // Naive roll — just grabs something usable, no real strategy.
-    return affordable[rand(0,affordable.length-1)];
-  }
-
-  const execMove=affordable.find(m=>m.type==='execute'||m.type==='execution_protocol');
-  if(execMove&&player.hp/player.maxHp<=((execMove.execute_threshold||20)/100+0.05))return execMove;
-
-  if(bot.hp/bot.maxHp<0.35){
-    const heal=affordable.find(m=>['heal','regenerate','second_wind','soul_drain','cleansing_wave','overheal'].includes(m.type));
-    if(heal)return heal;
-    const shield=affordable.find(m=>['shield','barrier','guard_stance','warding_totem'].includes(m.type)&&!bot.shielded);
-    if(shield)return shield;
-  }
-  if(bot.hp/bot.maxHp<0.6&&!bot.shielded&&Math.random()<0.5){
-    const shield=affordable.find(m=>['shield','barrier','warding_totem'].includes(m.type));
-    if(shield)return shield;
-  }
-  if(bot.hp/bot.maxHp<0.8){
-    const lifesteal=affordable.find(m=>['lifesteal','soul_drain','bloodlust'].includes(m.type));
-    if(lifesteal)return lifesteal;
-  }
-  const damaging=affordable.filter(m=>!UTILITY_MOVE_TYPES.has(m.type));
-  const pool=damaging.length?damaging:affordable;
-  return pool.reduce((best,m)=>((m.value||0)>(best.value||0)?m:best),pool[0]);
-}
-
-// Runs one full round: the player's chosen move, then (if the bot survives) the bot's
-// intelligence-scaled response. Move buttons are disabled via s.busy while this plays out.
-async function playerUseBotMove(idx){
-  const s=currentBotFight;
-  if(!s||s.ended||s.busy||s.player.defeated||s.bot.defeated)return;
-  const move=s.playerMoves[idx];
-  if(!move)return;
-  if(s.player.stamina<(move.stamina_cost||0)){showToast('Not enough stamina!');return;}
-
-  s.busy=true;
-  botFightPreTurnTick();
-  renderBotFightModal();
-  if(s.player.defeated||s.bot.defeated){await sleep(500);s.busy=false;finishBotFight(!s.player.defeated);return;}
-  await sleep(300);
-
-  const isFirst=!s.player.usedFirstHit;s.player.usedFirstHit=true;
-  const{log,fx,extraTurn}=resolveSparHit(s.player,s.bot,move,isFirst);
-  s.log.push(...log);renderBotFightModal();applyBotFightFx(fx);
-  await sleep(700);
-
-  if(s.bot.defeated){s.busy=false;finishBotFight(true);return;}
-  if(s.player.defeated){s.busy=false;finishBotFight(false);return;}
-  if(extraTurn){s.player.extraTurns=Math.max(0,s.player.extraTurns-1);s.busy=false;renderBotFightModal();return;}
-
-  await sleep(400);
-  botFightPreTurnTick();
-  renderBotFightModal();
-  if(s.player.defeated||s.bot.defeated){await sleep(500);s.busy=false;finishBotFight(!s.player.defeated);return;}
-  await sleep(300);
-
-  const botMove=pickBotMoveIntelligent(s.bot,s.botMoves,s.player,s.level);
-  const{log:blog,fx:bfx}=resolveSparHit(s.bot,s.player,botMove,false);
-  s.log.push(...blog);renderBotFightModal();applyBotFightFx(bfx);
-  await sleep(700);
-
-  s.busy=false;
-  if(s.bot.defeated){finishBotFight(true);return;}
-  if(s.player.defeated){finishBotFight(false);return;}
-  renderBotFightModal();
-}
-
-async function finishBotFight(win){
-  const s=currentBotFight;
-  const{data:c}=await sb.from('player_cards').select('*').eq('uid',s.cardUid).single();
-  if(!c){closeBotFightModal();return;}
-  const isFrontier=s.level===currentUser.bot_level;
-  let leveledUpAccount=false,moneyReward=0,xpReward=0;
-  if(win){
-    const mult=isFrontier?1:0.4;
-    moneyReward=Math.round(botRewardMoney(s.level)*mult);
-    xpReward=Math.round(botRewardXp(s.level)*mult);
-    const newMoney=(currentUser.money||0)+moneyReward;
-    const{error:moneyErr}=await sb.from('users').update({money:newMoney}).eq('id',currentUser.id);
-    if(moneyErr)console.error('finishBotFight: money update failed —',moneyErr.message);
-    else{currentUser.money=newMoney;updateHUD();}
-
-    if(isFrontier&&s.level<50){
-      const newBotLevel=s.level+1;
-      const{error:lvlErr}=await sb.from('users').update({bot_level:newBotLevel}).eq('id',currentUser.id);
-      if(lvlErr){
-        console.error('finishBotFight: bot_level update failed —',lvlErr.message);
-        showToast(lvlErr.message.includes('column')?"Can't save ladder progress — missing bot_level column (see Bot Battles tab for the fix).":'Error saving level progress: '+lvlErr.message);
-      } else {
-        currentUser.bot_level=newBotLevel;leveledUpAccount=true;
-      }
-    }
-
-    const skills=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
-    const bonusXp=Math.round(xpReward*(1+skills.training_xp_pct/100));
-    let xp=(c.xp||0)+bonusXp,level=c.level,atk=c.atk,def=c.def,max_hp=c.max_hp||c.hp;
-    let unlocked_moves=[...(c.unlocked_moves||[])];
-    while(xp>=xpForCard(level,c.rarity)){
-      xp-=xpForCard(level,c.rarity);level++;
-      atk=Math.round(atk*RARITY_STAT_MULT[c.rarity]);
-      def=Math.round(def*RARITY_STAT_MULT[c.rarity]);
-      max_hp=Math.round(max_hp*(1+(RARITY_STAT_MULT[c.rarity]-1)*0.7));
-      if(c.pool_card_id){
-        const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',c.pool_card_id).single();
-        if(pc&&pc.moves)pc.moves.forEach(m=>{if(m.unlock_level===level&&!unlocked_moves.includes(m.name))unlocked_moves.push(m.name);});
-      }
-    }
-    await sb.from('player_cards').update({xp,level,atk,def,max_hp,unlocked_moves}).eq('uid',s.cardUid);
-    s.resultLevel=level;s.resultLeveledUp=level>c.level;s.resultMoney=moneyReward;s.resultXp=bonusXp;
-  }
-  s.resultWin=win;s.resultAccountLevelUp=leveledUpAccount;s.ended=true;
-  showToast(win?(leveledUpAccount?`Victory! Advanced to Level ${s.level+1}!`:`Victory! +$${moneyReward}, +${xpReward} XP`):'Defeated — no rewards this time.');
-  renderBotFightModal();
-}
-
 // Opponent-style card (top row) — mirrors buildOppCard() in the real battle screen:
 // HP bar + ATK/DEF only, no move list, no stamina.
 function buildBotOppCardHTML(bot,badgeLabel){
@@ -8940,40 +8647,629 @@ function buildBotMyCardHTML(player,moves){
   </div>`;
 }
 
-function renderBotFightModal(){
-  const el=document.getElementById('botbattle-content');
-  const s=currentBotFight;
-  if(!el||!s)return;
+
+// ── WAVES (zombie horde survival mode) ──────────────────────────────────
+// Endless wave-based PvE: bring a 5-card team, fight an ever-scaling zombie horde that
+// refills its visible slots as zombies die, and see how far you get before your whole
+// team is wiped. No "you win" screen — the run only ends on a full team wipe (or retreat).
+
+// Each zombie type reuses the shared move-resolution engine (resolveSparHit) — moves(z)
+// builds real move objects scaled off the zombie's own computed atk/maxHp.
+const ZOMBIE_TYPES=[
+  {id:'shambler',name:'Shambler',emoji:'🧟',color:'#9ca3af',minWave:1,hpMult:1,atkMult:1,defMult:1,critMult:1,dodgeMult:1,
+    lore:'Slow, dumb, and everywhere. The backbone of every horde.',
+    moves:z=>[{name:'Bite',type:'attack',value:Math.round(z.atk*0.95),stamina_cost:0}]},
+  {id:'sprinter',name:'Sprinter',emoji:'🏃',color:'#84cc16',minWave:2,hpMult:0.75,atkMult:0.9,defMult:0.7,critMult:1,dodgeMult:2.2,
+    lore:'Whatever made it stop rotting first also made it fast.',
+    moves:z=>[{name:'Lunge',type:'attack',value:Math.round(z.atk*0.85),stamina_cost:0},{name:'Frenzied Dash',type:'adrenaline',stamina_cost:0}]},
+  {id:'flamethrower',name:'Flamethrower Zombie',emoji:'🔥',color:'#f97316',minWave:3,hpMult:0.9,atkMult:0.8,defMult:0.8,critMult:1,dodgeMult:1,
+    lore:'Somehow still holding the tank. Somehow still working.',
+    moves:z=>[{name:'Flame Jet',type:'dot',value:Math.round(z.atk*1.1),dot_turns:4,stamina_cost:0}]},
+  {id:'poison_spitter',name:'Poison Spitter',emoji:'🤢',color:'#65a30d',minWave:3,hpMult:0.9,atkMult:0.8,defMult:0.8,critMult:1,dodgeMult:1,
+    lore:'Its bite was never the dangerous part.',
+    moves:z=>[{name:'Toxic Spit',type:'bleed',value:Math.round(z.atk*1.0),dot_turns:4,heal_reduction_pct:50,stamina_cost:0}]},
+  {id:'juggernaut',name:'Juggernaut',emoji:'💪',color:'#92400e',minWave:4,hpMult:1.8,atkMult:0.9,defMult:1.7,critMult:1,dodgeMult:0.5,
+    lore:'Bullets stopped being a solution to this one a while ago.',
+    moves:z=>[{name:'Slam',type:'heavy',value:Math.round(z.atk*1.3),stamina_cost:0},{name:'Thick Hide',type:'fortify',def_boost_pct:35,fortify_turns:3,stamina_cost:0}]},
+  {id:'frost',name:'Frost Zombie',emoji:'🥶',color:'#38bdf8',minWave:5,hpMult:0.95,atkMult:0.85,defMult:0.9,critMult:1,dodgeMult:1,
+    lore:'Froze mid-scream somewhere, then decided to keep going.',
+    moves:z=>[{name:'Frost Touch',type:'frostbite',value:Math.round(z.atk*0.9),dot_turns:3,dodge_reduction_pct:25,stamina_cost:0}]},
+  {id:'bloater',name:'Bloater',emoji:'🫃',color:'#4ade80',minWave:5,hpMult:1.1,atkMult:0.7,defMult:0.8,critMult:1,dodgeMult:0.8,
+    lore:'Do not let this one get close. Seriously.',explodesOnDeath:true,explodeDamagePct:16,
+    moves:z=>[{name:'Lumbering Grab',type:'attack',value:Math.round(z.atk*0.8),stamina_cost:0}]},
+  {id:'armored',name:'Armored Zombie',emoji:'🛡️',color:'#cbd5e1',minWave:6,hpMult:1.3,atkMult:0.8,defMult:1.9,critMult:1,dodgeMult:0.6,
+    lore:'Whatever it used to guard, it\'s still guarding.',
+    moves:z=>[{name:'Iron Plating',type:'shield',value:60,stamina_cost:0},{name:'Bash',type:'attack',value:Math.round(z.atk*0.9),stamina_cost:0}]},
+  {id:'sniper',name:'Sniper Zombie',emoji:'🎯',color:'#dc2626',minWave:6,hpMult:0.8,atkMult:1.3,defMult:0.7,critMult:2.5,dodgeMult:1,
+    lore:'Muscle memory is a hell of a thing to keep after death.',
+    moves:z=>[{name:'Deadeye Shot',type:'precision',value:Math.round(z.atk*1.15),stamina_cost:0}]},
+  {id:'giant',name:'Giant Zombie',emoji:'🦣',color:'#78716c',minWave:7,hpMult:2.2,atkMult:1.1,defMult:1.3,critMult:0.5,dodgeMult:0.3,
+    lore:'It was already this big before it turned. That\'s the scary part.',
+    moves:z=>[{name:'Crushing Fist',type:'heavy',value:Math.round(z.atk*1.4),stamina_cost:0}]},
+  {id:'regenerator',name:'Regenerator',emoji:'🩹',color:'#22c55e',minWave:7,hpMult:1.4,atkMult:0.75,defMult:1.0,critMult:1,dodgeMult:0.8,
+    lore:'The wounds keep closing. That should not be possible.',
+    moves:z=>[{name:'Rotting Regrowth',type:'regenerate',value:Math.round(z.hp*0.08),regen_turns:3,stamina_cost:0},{name:'Claw',type:'attack',value:Math.round(z.atk*0.85),stamina_cost:0}]},
+  {id:'screamer',name:'Screamer',emoji:'📢',color:'#e5e7eb',minWave:8,hpMult:0.85,atkMult:0.7,defMult:0.8,critMult:1,dodgeMult:1.2,
+    lore:'The sound is worse than the bite. Much worse.',
+    moves:z=>[{name:'Piercing Shriek',type:'fear',fear_turns:2,fear_chance:0.35,stamina_cost:0},{name:'Claw',type:'attack',value:Math.round(z.atk*0.7),stamina_cost:0}]},
+  {id:'swarm',name:'Swarm Zombie',emoji:'🐛',color:'#ef4444',minWave:8,hpMult:0.7,atkMult:0.9,defMult:0.6,critMult:1,dodgeMult:1.3,
+    lore:'Not one zombie. A hundred small problems wearing one shape.',
+    moves:z=>[{name:'Swarm Bites',type:'multi',value:Math.round(z.atk*1.1),hits_min:3,hits_max:5,stamina_cost:0}]},
+  {id:'toxic_cloud',name:'Toxic Cloud Zombie',emoji:'☁️',color:'#a3e635',minWave:9,hpMult:1.0,atkMult:0.7,defMult:0.9,critMult:1,dodgeMult:1,
+    lore:'It doesn\'t need to touch your whole team. It just needs to breathe near them.',
+    moves:z=>[{name:'Miasma Burst',type:'team_stamina_drain',value:20,stamina_cost:0},{name:'Claw',type:'attack',value:Math.round(z.atk*0.8),stamina_cost:0}]},
+  {id:'corrosive',name:'Corrosive Zombie',emoji:'🧪',color:'#bef264',minWave:9,hpMult:1.0,atkMult:0.85,defMult:0.9,critMult:1,dodgeMult:1,
+    lore:'Whatever it\'s leaking is eating through more than skin.',
+    moves:z=>[{name:'Acid Touch',type:'sap_strength',value:Math.round(z.atk*0.9),atk_reduction_pct:8,stamina_cost:0}]},
+  {id:'stalker',name:'Stalker',emoji:'🥷',color:'#581c87',minWave:10,hpMult:0.85,atkMult:1.15,defMult:0.75,critMult:1.3,dodgeMult:1.6,
+    lore:'It waits. It has nothing but time.',
+    moves:z=>[{name:'Ambush Lunge',type:'ambush',value:Math.round(z.atk*1.05),ambush_bonus_pct:70,stamina_cost:0}]},
+  {id:'necrotic',name:'Necrotic Zombie',emoji:'☠️',color:'#6b21a8',minWave:11,hpMult:1.0,atkMult:0.8,defMult:0.95,critMult:1,dodgeMult:1,
+    lore:'Being near it makes your own cards feel weaker. That\'s not your imagination.',
+    moves:z=>[{name:'Withering Curse',type:'weaken',weaken_pct:25,weaken_turns:3,stamina_cost:0},{name:'Claw',type:'attack',value:Math.round(z.atk*0.8),stamina_cost:0}]},
+  {id:'banshee',name:'Banshee',emoji:'👻',color:'#bae6fd',minWave:11,hpMult:0.8,atkMult:0.7,defMult:0.8,critMult:1,dodgeMult:1.1,
+    lore:'The wail isn\'t sound. It\'s a command your cards can\'t ignore.',
+    moves:z=>[{name:'Silencing Wail',type:'silence',silence_turns:2,stamina_cost:0},{name:'Claw',type:'attack',value:Math.round(z.atk*0.75),stamina_cost:0}]},
+  {id:'berserker',name:'Berserker Zombie',emoji:'😡',color:'#b91c1c',minWave:12,hpMult:1.1,atkMult:1.2,defMult:0.7,critMult:1,dodgeMult:0.9,
+    lore:'Every hit it takes just makes it angrier.',
+    moves:z=>[{name:'Bloodrage',type:'berserk',atk_boost_pct:55,def_reduction_pct:30,berserk_turns:4,stamina_cost:0},{name:'Savage Bite',type:'attack',value:Math.round(z.atk*1.1),stamina_cost:0}]},
+  {id:'plague_bearer',name:'Plague Bearer',emoji:'🪰',color:'#166534',minWave:13,hpMult:1.05,atkMult:0.85,defMult:0.95,critMult:1,dodgeMult:1,
+    lore:'It doesn\'t carry one plague. It carries all of them, at once.',
+    moves:z=>[{name:'Plague Touch',type:'dot',value:Math.round(z.atk*0.8),dot_turns:3,stamina_cost:0},{name:'Virulent Amplification',type:'amplify',amplify_dot_mult:2.2,amplify_turns:3,stamina_cost:0}]}
+];
+
+// Mini-bosses appear on every 5th wave (5,10,15,20,25...), cycling through this list forever
+// with a "(Round N)" suffix once the cycle repeats. Always appended as the LAST zombie in
+// that wave's queue — the wave's regular horde is cleared first, then the boss is the finale.
+const ZOMBIE_BOSSES=[
+  {id:'patient_zero',name:'Patient Zero',emoji:'🧟‍♂️',color:'#facc15',isBoss:true,hpMult:5,atkMult:1.4,defMult:1.3,critMult:1,dodgeMult:0.8,
+    lore:'The first one. Still the meanest.',
+    moves:z=>[{name:'Ravenous Bite',type:'heavy',value:Math.round(z.atk*1.3),stamina_cost:0},{name:'Infectious Bite',type:'bleed',value:Math.round(z.atk*0.9),dot_turns:4,heal_reduction_pct:50,stamina_cost:0},{name:'Feral Frenzy',type:'berserk',atk_boost_pct:40,def_reduction_pct:20,berserk_turns:3,stamina_cost:0}]},
+  {id:'the_butcher',name:'The Butcher',emoji:'🪓',color:'#7f1d1d',isBoss:true,hpMult:6,atkMult:1.6,defMult:1.6,critMult:1,dodgeMult:0.5,
+    lore:'It never dropped the cleaver. Not once, not ever.',
+    moves:z=>[{name:'Cleaver Slam',type:'crushing',value:Math.round(z.atk*1.3),def_reduction_pct:12,stamina_cost:0},{name:'Meat Hook',type:'execute',execute_threshold:25,value:Math.round(z.atk*1.1),stamina_cost:0},{name:'Brace',type:'fortify',def_boost_pct:30,fortify_turns:3,stamina_cost:0}]},
+  {id:'mother_of_swarms',name:'Mother of Swarms',emoji:'🕷️',color:'#7e22ce',isBoss:true,hpMult:5.5,atkMult:1.3,defMult:1.2,critMult:1,dodgeMult:1,
+    lore:'It doesn\'t attack alone. It never has.',
+    moves:z=>[{name:'Spawn Call',type:'multi',value:Math.round(z.atk*1.2),hits_min:3,hits_max:5,stamina_cost:0},{name:'Toxic Birth',type:'bleed',value:Math.round(z.atk*0.85),dot_turns:4,heal_reduction_pct:40,stamina_cost:0},{name:'Piercing Shriek',type:'fear',fear_turns:2,fear_chance:0.3,stamina_cost:0}]},
+  {id:'the_colossus',name:'The Colossus',emoji:'🗿',color:'#57534e',isBoss:true,hpMult:8,atkMult:1.5,defMult:1.8,critMult:0.5,dodgeMult:0.3,
+    lore:'It stopped being one zombie a long time ago. Now it\'s just a wall that hits back.',
+    moves:z=>[{name:'Ground Pound',type:'heavy',value:Math.round(z.atk*1.4),stamina_cost:0},{name:'Earthshaking Roar',type:'enemy_team_weaken',weaken_pct:20,weaken_turns:3,stamina_cost:0},{name:'Fortify Hide',type:'fortify',def_boost_pct:35,fortify_turns:3,stamina_cost:0}]},
+  {id:'the_reaper',name:'The Reaper',emoji:'💀',color:'#111827',isBoss:true,hpMult:6.5,atkMult:1.8,defMult:1.4,critMult:1.2,dodgeMult:0.7,
+    lore:'It doesn\'t chase. It doesn\'t need to. It just waits for you to slip.',
+    moves:z=>[{name:'Death\'s Touch',type:'execute',execute_threshold:20,value:Math.round(z.atk*1.2),stamina_cost:0},{name:'Harvest',type:'soul_drain',value:Math.round(z.atk*1.0),soul_drain_pct:15,stamina_cost:0},{name:'Dread Aura',type:'fear',fear_turns:2,fear_chance:0.3,stamina_cost:0}]}
+];
+
+// How many zombie slots are visible on screen at once — grows with wave number, capped at
+// 5 to visually mirror the player's own 5-card team.
+function waveVisibleSlots(waveNum){
+  if(waveNum<=2)return 1;
+  if(waveNum<=5)return 2;
+  if(waveNum<=9)return 3;
+  if(waveNum<=14)return 4;
+  return 5;
+}
+// Total zombies queued for the wave (visible slots + a growing backlog that refills them
+// as they die), capped so waves don't balloon into an unreasonable slog late-game.
+function waveTotalZombies(waveNum){
+  return Math.min(12,waveVisibleSlots(waveNum)+Math.floor(waveNum/3));
+}
+function isMinibossWave(waveNum){return waveNum%5===0;}
+function minibossForWave(waveNum){
+  const idx=Math.floor(waveNum/5)-1;
+  const template=ZOMBIE_BOSSES[idx%ZOMBIE_BOSSES.length];
+  const cycle=Math.floor(idx/ZOMBIE_BOSSES.length);
+  return cycle>0?{...template,name:`${template.name} (Round ${cycle+1})`}:template;
+}
+
+// Semi-exponential per-zombie base stat curve — deliberately steeper than the old Bot
+// Battle ladder (exponent 1.45 vs 1.35) since here the player brings a full 5-card team's
+// worth of firepower/healing against it, not just one card. Tune these constants after
+// playtesting against your actual roster strength — they can't be perfectly pre-balanced
+// against an arbitrary card collection.
+function waveZombieBaseStats(waveNum){
+  const growth=Math.pow(waveNum,1.45);
+  return{
+    hp:Math.round(90+growth*22),
+    atk:Math.round(14+growth*3.6),
+    def:Math.round(8+growth*2.4),
+    crit:Math.min(0.35,0.05+waveNum*0.007),
+    dodge:Math.min(0.30,0.03+waveNum*0.005)
+  };
+}
+function buildZombie(type,waveNum,slotIdx){
+  const base=waveZombieBaseStats(waveNum);
+  const hp=Math.max(1,Math.round(base.hp*(type.hpMult||1)));
+  const atk=Math.max(1,Math.round(base.atk*(type.atkMult||1)));
+  const def=Math.max(0,Math.round(base.def*(type.defMult||1)));
+  const crit=Math.min(0.6,base.crit*(type.critMult||1));
+  const dodge=Math.min(0.5,base.dodge*(type.dodgeMult||1));
+  const z={
+    uid:'z_'+waveNum+'_'+slotIdx+'_'+Math.random().toString(36).slice(2,8),
+    name:type.name,emoji:type.emoji,typeColor:type.color,typeId:type.id,isBoss:!!type.isBoss,
+    explodesOnDeath:!!type.explodesOnDeath,explodeDamagePct:type.explodeDamagePct||0,
+    atk,def,maxHp:hp,hp,crit,dodge,stamina:999,maxStamina:999,staminaRegen:999,
+    shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,image_url:null,
+    ...defaultFighterStatus()
+  };
+  z.moves=type.moves(z);
+  return z;
+}
+// Builds a fresh wave's zombie queue: visible[] is what's on screen right now, backlog[]
+// refills it as zombies die. Mini-boss (if this is a milestone wave) is appended last.
+function generateWaveQueue(waveNum){
+  const slots=waveVisibleSlots(waveNum);
+  const totalCount=waveTotalZombies(waveNum);
+  const eligible=ZOMBIE_TYPES.filter(t=>waveNum>=t.minWave);
+  const pool=[];
+  for(let i=0;i<totalCount;i++){
+    const type=eligible[rand(0,eligible.length-1)];
+    pool.push(buildZombie(type,waveNum,i));
+  }
+  if(isMinibossWave(waveNum))pool.push(buildZombie(minibossForWave(waveNum),waveNum,totalCount));
+  return{visible:pool.slice(0,slots),backlog:pool.slice(slots)};
+}
+
+// AI target selection for a zombie's turn — low waves attack randomly, high waves focus
+// the lowest-HP% living card (same intelligence philosophy as the old Bot Battle ladder).
+function pickZombieTarget(zombie,playerTeam,waveNum){
+  const alive=playerTeam.filter(f=>!f.defeated);
+  if(!alive.length)return null;
+  const intel=Math.min(1,waveNum/20);
+  if(Math.random()<intel)return alive.reduce((worst,f)=>((f.hp/f.maxHp)<(worst.hp/worst.maxHp)?f:worst),alive[0]);
+  return alive[rand(0,alive.length-1)];
+}
+
+// Move types that never need the player to click a specific zombie — either they act on
+// the player's own team/self (buffs), or they auto-hit every visible zombie (AOE/team-wide).
+const WAVE_NO_TARGET_TYPES=new Set(['heal','shield','speed','fortify','regenerate','cleanse','absorb','guard_stance','second_wind','iron_skin','rebound',
+  'rage','focus','haste','empower','blessing','adrenaline','overclock','battle_trance','guardian_aura',
+  'clone','time_skip','sacrifice','gamble','phase','void_step','martyrdom','second_chance','unstoppable',
+  'rewind','berserk','juggernaut','vengeance','last_stand','overheal','foresight','bloodlust','adrenal_surge','warding_totem','cleansing_wave',
+  'team_heal','team_shield','team_regen','team_haste','team_fortify','team_rally','team_cleanse','second_wind_team',
+  'aoe','scatter','chain','team_stamina_drain','enemy_team_weaken','enemy_team_expose','execution_protocol']);
+function waveMoveNeedsTarget(moveType){return!WAVE_NO_TARGET_TYPES.has(moveType);}
+
+function calcCardPower(c){return(c.level||1)*40+(c.atk||0)+(c.def||0)+Math.round((c.max_hp||c.hp||0)/4);}
+function waveKillReward(waveNum){return{money:Math.round(4+waveNum*1.3),xp:Math.round(3+waveNum*1.1)};}
+function waveClearBonus(waveNum,isBoss){
+  const base={money:Math.round(18+waveNum*4),xp:Math.round(14+waveNum*3.2)};
+  return isBoss?{money:base.money*4,xp:base.xp*4,bonusSkillPoint:1}:base;
+}
+function waveRunEndBonus(newBest,prevBest,level){
+  const improvement=Math.max(0,newBest-prevBest);
+  if(improvement<=0)return{money:0,xp:0};
+  return{money:Math.round(improvement*70+level*2),xp:Math.round(improvement*45+level)};
+}
+
+let currentWaveRun=null;
+let waveSelectedCardUids=[];
+
+async function renderWaves(){
+  const el=document.getElementById('waves-content');
+  if(!el)return;
+  if(currentWaveRun){renderWaveScreen();return;}
+
+  el.innerHTML='<div class="empty">Loading...</div>';
+  const{data:cards,error:cardsErr}=await sb.from('player_cards').select('*').eq('owner',currentUser.id).eq('is_income_card',false);
+  if(cardsErr){el.innerHTML=`<div class="box" style="border-color:#dc2626;"><h4 style="color:#dc2626;">⚠️ Couldn't load your cards</h4><p style="font-size:13px;color:var(--text3);">${cardsErr.message}</p></div>`;return;}
+  const now=Date.now();
+  const usable=(cards||[]).filter(c=>(!c.training_until||now>=new Date(c.training_until).getTime())&&(c.unlocked_moves||[]).length>0)
+    .sort((a,b)=>calcCardPower(b)-calcCardPower(a));
+
+  const{data:myScore,error:scoreErr}=await sb.from('wave_scores').select('*').eq('user_id',currentUser.id).maybeSingle();
+  if(scoreErr&&!scoreErr.message.includes('No rows')){
+    el.innerHTML=`<div class="box" style="border-color:#dc2626;"><h4 style="color:#dc2626;">⚠️ Couldn't load Waves progress</h4><p style="font-size:13px;color:var(--text3);">${scoreErr.message.includes('relation')||scoreErr.message.includes('table')?"Your database is missing the <code>wave_scores</code> table. Ask Claude for the setup SQL if you haven't run it yet.":scoreErr.message}</p></div>`;
+    return;
+  }
+  const bestWave=(myScore&&myScore.best_wave)||0;
+  const{data:board}=await sb.from('wave_scores').select('user_id,best_wave,zombies_killed').order('best_wave',{ascending:false}).limit(15);
+
+  el.innerHTML=`
+    <h3 style="margin-bottom:0.5rem;">🧟 Waves</h3>
+    <p style="font-size:13px;color:var(--text3);margin-bottom:1rem;">Bring your best 5 cards and hold the line against an endless zombie horde. Waves scale forever — the run only ends when your whole team is wiped. Your best wave: <strong>${bestWave||'—'}</strong>.</p>
+    <div class="box">
+      <h4 style="margin-bottom:8px;">⚔️ Choose Your 5-Card Team <span style="font-size:12px;color:var(--text3);font-weight:400;">(sorted strongest → weakest)</span></h4>
+      <div id="wave-team-picker"></div>
+    </div>
+    <div class="box">
+      <h4 style="margin-bottom:8px;">🏆 Furthest Waves Reached</h4>
+      ${board&&board.length?board.map((r,i)=>`<div class="row-item">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-weight:700;width:24px;">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)}</span>
+          <span style="font-weight:600;">${r.user_id}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text2);font-weight:700;">Wave ${r.best_wave}${r.zombies_killed?` · ${r.zombies_killed} kills`:''}</div>
+      </div>`).join(''):'<div class="empty">No runs yet — be the first to hold the line!</div>'}
+    </div>
+  `;
+  waveSelectedCardUids=[];
+  renderWaveTeamPicker(usable);
+}
+
+function renderWaveTeamPicker(usable){
+  const box=document.getElementById('wave-team-picker');
+  if(!box)return;
+  if(!usable.length){box.innerHTML='<div class="empty">No available fighters — cards may be training, or have no moves unlocked yet!</div>';return;}
+  box.innerHTML=`<div class="card-grid" style="grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-bottom:10px;">
+      ${usable.map(c=>`<div class="card-tile${waveSelectedCardUids.includes(c.uid)?' ctx-selected':''}" style="padding:8px;" onclick="toggleWaveCard('${c.uid}')">
+        ${c.image_url?`<img src="${c.image_url}" style="width:100%;height:56px;object-fit:contain;">`:`<div style="font-size:26px;text-align:center;">${classEmoji(c.class_name)}</div>`}
+        <div style="font-size:11px;font-weight:600;text-align:center;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${c.name}</div>
+        <div style="font-size:10px;color:var(--text3);text-align:center;">Lv${c.level} ${RARITIES[c.rarity]}</div>
+        <div style="font-size:9px;color:var(--text4);text-align:center;">⚡ Power ${calcCardPower(c)}</div>
+      </div>`).join('')}
+    </div>
+    <button class="btn btn-primary" style="width:100%;" ${waveSelectedCardUids.length===5?'':'disabled'} onclick="startWaveRun()">🧟 Start Run (${waveSelectedCardUids.length}/5)</button>`;
+  window._waveUsableCards=usable;
+}
+function toggleWaveCard(uid){
+  if(waveSelectedCardUids.includes(uid))waveSelectedCardUids=waveSelectedCardUids.filter(u=>u!==uid);
+  else{if(waveSelectedCardUids.length>=5){showToast('Max 5 cards for your team');return;}waveSelectedCardUids.push(uid);}
+  renderWaveTeamPicker(window._waveUsableCards||[]);
+}
+
+async function startWaveRun(){
+  if(waveSelectedCardUids.length!==5)return;
+  const{data:cards}=await sb.from('player_cards').select('*').in('uid',waveSelectedCardUids);
+  if(!cards||cards.length!==5){showToast('Could not load your team');return;}
+  const poolIds=[...new Set(cards.map(c=>c.pool_card_id).filter(Boolean))];
+  const poolMoves={};
+  if(poolIds.length){const{data:pcs}=await sb.from('pool_cards').select('id,moves').in('id',poolIds);(pcs||[]).forEach(pc=>{poolMoves[pc.id]=pc.moves||[];});}
+
+  const skills=aggregateSkillBonuses(currentUser.unlocked_skills||[]);
+  const team=cards.map(c=>{
+    const maxHp=Math.round((c.max_hp||c.hp)*(1+skills.hp_pct/100));
+    return{uid:c.uid,name:c.name,class_name:c.class_name,element:c.element||'neutral',rarity:c.rarity,pool_card_id:c.pool_card_id||null,
+      atk:Math.round(c.atk*(1+skills.atk_pct/100)),def:Math.round(c.def*(1+skills.def_pct/100)),
+      maxHp,hp:maxHp,stamina:c.stamina||50,maxStamina:Math.round((c.max_stamina||100)*(1+skills.max_stamina_pct/100)),
+      staminaRegen:Math.round((c.stamina_regen||25)*(1+skills.stamina_regen_pct/100)),
+      crit:Math.min(0.95,(c.crit_chance||0.1)+skills.crit_pct/100),dodge:Math.min(0.95,(c.dodge_chance||0.05)+skills.dodge_pct/100),
+      critDmgBonusPct:skills.crit_dmg_pct||0,firstHitBonusPct:skills.first_hit_pct||0,turnRegenPct:skills.turn_regen_pct||0,
+      staminaCostReductionPct:skills.stamina_cost_reduction_pct||0,
+      unlockedMoves:c.unlocked_moves||[],image_url:c.image_url||null,
+      shielded:false,shieldPct:0,dot:0,dotTurns:0,speedBuff:false,defeated:false,usedFirstHit:false,
+      ...defaultFighterStatus()};
+  });
+
+  const cardProgress={};
+  cards.forEach(c=>{cardProgress[c.uid]={uid:c.uid,rarity:c.rarity,pool_card_id:c.pool_card_id,xp:c.xp||0,level:c.level,atk:c.atk,def:c.def,max_hp:c.max_hp||c.hp,unlocked_moves:[...(c.unlocked_moves||[])]};});
+
+  const wave1=generateWaveQueue(1);
+  currentWaveRun={team,poolMoves,cardProgress,waveNum:1,visible:wave1.visible,backlog:wave1.backlog,
+    log:['🧟 The horde approaches. Wave 1 begins!'],busy:false,ended:false,
+    selectedActorUid:null,pendingTargetMode:false,pendingMoveIdx:null,
+    totalKills:0,pendingMoney:0,pendingXp:0,justEnteredUids:wave1.visible.map(z=>z.uid)};
+  renderWaveScreen();
+}
+
+// Applies XP (and money handled separately) to one team card's in-memory progress ledger,
+// leveling it up and unlocking new moves exactly like every other reward path in the game.
+async function applyWaveCardXp(prog,xpAmount){
+  prog.xp+=xpAmount;
+  while(prog.xp>=xpForCard(prog.level,prog.rarity)){
+    prog.xp-=xpForCard(prog.level,prog.rarity);prog.level++;
+    prog.atk=Math.round(prog.atk*RARITY_STAT_MULT[prog.rarity]);
+    prog.def=Math.round(prog.def*RARITY_STAT_MULT[prog.rarity]);
+    prog.max_hp=Math.round(prog.max_hp*(1+(RARITY_STAT_MULT[prog.rarity]-1)*0.7));
+    if(prog.pool_card_id){
+      const{data:pc}=await sb.from('pool_cards').select('moves').eq('id',prog.pool_card_id).single();
+      if(pc&&pc.moves)pc.moves.forEach(m=>{if(m.unlock_level===prog.level&&!prog.unlocked_moves.includes(m.name))prog.unlocked_moves.push(m.name);});
+    }
+  }
+}
+// Commits accumulated money/XP to the database — called at each wave clear and again at
+// run end, rather than on every single kill, to keep write frequency reasonable.
+async function flushWaveRewards(){
+  const run=currentWaveRun;
+  if(!run||(run.pendingMoney<=0&&run.pendingXp<=0))return;
+  if(run.pendingMoney>0){
+    const newMoney=(currentUser.money||0)+run.pendingMoney;
+    const{error}=await sb.from('users').update({money:newMoney}).eq('id',currentUser.id);
+    if(!error){currentUser.money=newMoney;updateHUD();}
+  }
+  if(run.pendingXp>0){
+    const perCard=Math.round(run.pendingXp/run.team.length);
+    for(const t of run.team){await applyWaveCardXp(run.cardProgress[t.uid],perCard);}
+    for(const uid in run.cardProgress){
+      const p=run.cardProgress[uid];
+      await sb.from('player_cards').update({xp:p.xp,level:p.level,atk:p.atk,def:p.def,max_hp:p.max_hp,unlocked_moves:p.unlocked_moves}).eq('uid',uid);
+    }
+  }
+  run.pendingMoney=0;run.pendingXp=0;
+}
+
+function applyWaveFx(fxList,visibleZombies,teamArr){
+  let anyCrit=false,anyBig=false;
+  fxList.forEach(fx=>{
+    if(fx.type==='dodge'){flashCardFx(fx.uid,'fx-dodge',450);showTextPopup(fx.uid,'MISS!','miss-popup');}
+    else if(fx.type==='hit'){
+      if(fx.amount>0)showDmgPopup(fx.uid,fx.amount,false);
+      flashCardFx(fx.uid,fx.crit?'fx-crit':'fx-hit',fx.crit?500:350);
+      if(fx.crit){showTextPopup(fx.uid,'CRIT!','crit-popup');anyCrit=true;}
+      const f=[...visibleZombies,...teamArr].find(x=>x.uid===fx.uid);
+      if(f&&fx.amount>=f.maxHp*0.2)anyBig=true;
+    } else if(fx.type==='heal'){
+      if(fx.amount>0)showDmgPopup(fx.uid,fx.amount,true);
+      flashCardFx(fx.uid,'fx-heal',600);
+    }
+  });
+  if(anyCrit){screenFlash();shakeWaveArena();}
+  else if(anyBig)shakeWaveArena();
+}
+function shakeWaveArena(){
+  const el=document.getElementById('wave-arena');
+  if(!el)return;
+  el.classList.remove('screen-shake');void el.offsetWidth;el.classList.add('screen-shake');
+  setTimeout(()=>el.classList.remove('screen-shake'),320);
+}
+
+function selectWaveActor(uid){
+  const run=currentWaveRun;
+  if(!run||run.busy||run.ended)return;
+  const f=run.team.find(t=>t.uid===uid);
+  if(!f||f.defeated)return;
+  run.selectedActorUid=uid;run.pendingTargetMode=false;run.pendingMoveIdx=null;
+  renderWaveScreen();
+}
+function cancelWaveActor(){
+  const run=currentWaveRun;if(!run)return;
+  run.selectedActorUid=null;run.pendingTargetMode=false;run.pendingMoveIdx=null;
+  renderWaveScreen();
+}
+function cancelWaveTarget(){
+  const run=currentWaveRun;if(!run)return;
+  run.pendingTargetMode=false;run.pendingMoveIdx=null;
+  renderWaveScreen();
+}
+
+async function pickWaveMove(idx){
+  const run=currentWaveRun;
+  if(!run||run.busy||run.ended||!run.selectedActorUid)return;
+  const actor=run.team.find(t=>t.uid===run.selectedActorUid);
+  if(!actor)return;
+  const moves=getMoves(actor,{poolMoves:run.poolMoves});
+  const move=moves[idx];
+  if(!move)return;
+  if(actor.stamina<(move.stamina_cost||0)){showToast('Not enough stamina!');return;}
+  if(waveMoveNeedsTarget(move.type)&&run.visible.filter(z=>!z.defeated).length>1){
+    run.pendingMoveIdx=idx;run.pendingTargetMode=true;renderWaveScreen();return;
+  }
+  const target=run.visible.find(z=>!z.defeated)||run.visible[0];
+  await resolveWavePlayerMove(move,target);
+}
+async function pickWaveZombieTarget(zombieUid){
+  const run=currentWaveRun;
+  if(!run||!run.pendingTargetMode||run.pendingMoveIdx==null)return;
+  const actor=run.team.find(t=>t.uid===run.selectedActorUid);
+  const moves=getMoves(actor,{poolMoves:run.poolMoves});
+  const move=moves[run.pendingMoveIdx];
+  const target=run.visible.find(z=>z.uid===zombieUid);
+  if(!actor||!move||!target||target.defeated)return;
+  run.pendingTargetMode=false;run.pendingMoveIdx=null;
+  await resolveWavePlayerMove(move,target);
+}
+
+async function resolveWavePlayerMove(move,target){
+  const run=currentWaveRun;
+  const actor=run.team.find(t=>t.uid===run.selectedActorUid);
+  if(!actor)return;
+  run.busy=true;run.selectedActorUid=null;
+  const liveZombies=()=>run.visible.filter(z=>!z.defeated);
+
+  [...run.team,...run.visible].forEach(f=>tickFighterStatus(f,run.log));
+  renderWaveScreen();
+  await sleep(300);
+
+  const isFirst=!actor.usedFirstHit;actor.usedFirstHit=true;
+  const wasAlive=new Set(liveZombies().map(z=>z.uid));
+  const{log,fx}=resolveSparHit(actor,target,move,isFirst,{attackerTeam:run.team,defenderTeam:run.visible});
+  run.log.push(...log);renderWaveScreen();applyWaveFx(fx,run.visible,run.team);
+  await sleep(650);
+
+  // Handle any zombies defeated by that action (kill rewards + Bloater explosions)
+  const newlyDefeated=run.visible.filter(z=>z.defeated&&wasAlive.has(z.uid));
+  for(const z of newlyDefeated){
+    const reward=waveKillReward(run.waveNum);
+    run.pendingMoney+=reward.money;run.pendingXp+=reward.xp;run.totalKills++;
+    if(z.explodesOnDeath){
+      const dmg=Math.max(1,Math.round(z.maxHp*(z.explodeDamagePct/100)));
+      run.log.push(`💥 ${z.name} explodes as it falls!`);
+      run.team.forEach(f=>{
+        if(!f.defeated){
+          const r=dealDamage(null,f,dmg,{defenderTeam:run.team},run.log,fx);
+          showDmgPopup(f.uid,r.dealt,false);flashCardFx(f.uid,'fx-hit',350);
+        }
+      });
+      renderWaveScreen();await sleep(400);
+    }
+  }
+  run.visible=run.visible.filter(z=>!z.defeated);
+  const justEntered=[];
+  while(run.visible.length<waveVisibleSlots(run.waveNum)&&run.backlog.length>0){
+    const next=run.backlog.shift();run.visible.push(next);justEntered.push(next.uid);
+  }
+  run.justEnteredUids=justEntered;
+
+  if(run.visible.length===0){
+    const clearedWave=run.waveNum;const wasBoss=isMinibossWave(clearedWave);
+    const bonus=waveClearBonus(clearedWave,wasBoss);
+    run.pendingMoney+=bonus.money;run.pendingXp+=bonus.xp;
+    if(bonus.bonusSkillPoint){
+      const newBonusPts=(currentUser.bonus_skill_points||0)+bonus.bonusSkillPoint;
+      await sb.from('users').update({bonus_skill_points:newBonusPts}).eq('id',currentUser.id);
+      currentUser.bonus_skill_points=newBonusPts;
+    }
+    run.log.push(wasBoss?`👑 Wave ${clearedWave} boss defeated! +$${bonus.money}, +${bonus.xp} XP${bonus.bonusSkillPoint?', +1 Skill Point':''}`:`✅ Wave ${clearedWave} cleared! +$${bonus.money}, +${bonus.xp} XP`);
+    await flushWaveRewards();
+    run.waveNum++;
+    const nextWave=generateWaveQueue(run.waveNum);
+    run.visible=nextWave.visible;run.backlog=nextWave.backlog;run.justEnteredUids=nextWave.visible.map(z=>z.uid);
+    run.log.push(`🧟 Wave ${run.waveNum} begins!`);
+  }
+  renderWaveScreen();
+  await sleep(400);
+
+  await runWaveZombiePhase();
+}
+
+async function runWaveZombiePhase(){
+  const run=currentWaveRun;
+  const actors=run.visible.filter(z=>!z.defeated);
+  for(const zombie of actors){
+    if(zombie.defeated)continue;
+    if(run.team.every(f=>f.defeated))break;
+    [...run.team,...run.visible].forEach(f=>tickFighterStatus(f,run.log));
+    renderWaveScreen();await sleep(300);
+    if(run.team.every(f=>f.defeated))break;
+
+    const referenceTarget=run.team.filter(f=>!f.defeated).reduce((w,f)=>((f.hp/f.maxHp)<(w.hp/w.maxHp)?f:w),run.team.find(f=>!f.defeated));
+    const move=pickBotMoveIntelligent(zombie,zombie.moves,referenceTarget,run.waveNum);
+    const target=pickZombieTarget(zombie,run.team,run.waveNum);
+    if(!target)break;
+    const{log,fx}=resolveSparHit(zombie,target,move,false,{attackerTeam:run.visible,defenderTeam:run.team});
+    run.log.push(...log);renderWaveScreen();applyWaveFx(fx,run.visible,run.team);
+    await sleep(650);
+  }
+
+  if(run.team.every(f=>f.defeated)){await endWaveRun();return;}
+  run.busy=false;
+  renderWaveScreen();
+}
+
+async function endWaveRun(){
+  const run=currentWaveRun;
+  await flushWaveRewards();
+  const{data:prev}=await sb.from('wave_scores').select('*').eq('user_id',currentUser.id).maybeSingle();
+  const prevBest=(prev&&prev.best_wave)||0;
+  const level=currentUser.level||1;
+  const bonus=waveRunEndBonus(run.waveNum,prevBest,level);
+  let isNewBest=false;
+  if(run.waveNum>prevBest){
+    isNewBest=true;
+    if(bonus.money>0){
+      const newMoney=(currentUser.money||0)+bonus.money;
+      const{error}=await sb.from('users').update({money:newMoney}).eq('id',currentUser.id);
+      if(!error){currentUser.money=newMoney;updateHUD();}
+    }
+    const totalKillsAllTime=((prev&&prev.zombies_killed)||0)+run.totalKills;
+    await sb.from('wave_scores').upsert({user_id:currentUser.id,best_wave:run.waveNum,zombies_killed:totalKillsAllTime,updated_at:new Date().toISOString()},{onConflict:'user_id'});
+  } else if(prev){
+    await sb.from('wave_scores').update({zombies_killed:(prev.zombies_killed||0)+run.totalKills}).eq('user_id',currentUser.id);
+  } else {
+    await sb.from('wave_scores').upsert({user_id:currentUser.id,best_wave:run.waveNum,zombies_killed:run.totalKills,updated_at:new Date().toISOString()},{onConflict:'user_id'});
+  }
+  run.ended=true;run.resultIsNewBest=isNewBest;run.resultBonus=bonus;
+  showToast(isNewBest?`Run over — new best: Wave ${run.waveNum}!`:`Run over at Wave ${run.waveNum}.`);
+  renderWaveScreen();
+}
+
+function retreatWaveRun(){
+  const run=currentWaveRun;
+  if(!run||run.busy||run.ended)return;
+  endWaveRun();
+}
+function closeWaveRun(){
+  currentWaveRun=null;
+  renderWaves();
+}
+
+function buildWaveZombieCardHTML(z,targetable,justEntered){
+  const hpPct=Math.max(0,Math.round((z.hp/z.maxHp)*100));
+  const hpColor=hpPct>50?'#22c55e':hpPct>25?'#f59e0b':'#ef4444';
+  let cls='battle-card';
+  if(justEntered)cls+=' zombie-slide-in';
+  if(z.defeated)cls+=' defeated-card';
+  else if(targetable)cls+=' zombie-targetable';
+  if(z.dot>0&&!z.defeated)cls+=' dot-card';
+  if(z.shielded&&!z.defeated)cls+=' shielded-card';
+  return `<div class="${cls}" id="fc-${z.uid}" style="border-color:${z.typeColor};${z.isBoss?'width:190px;box-shadow:0 0 16px '+z.typeColor+'77;':''}" ${targetable&&!z.defeated?`onclick="pickWaveZombieTarget('${z.uid}')"`:''}>
+    ${z.isBoss?'<div class="miniboss-ribbon">MINIBOSS</div>':''}
+    ${z.shielded&&!z.defeated?'<div class="shield-badge">🛡️</div>':''}
+    <div class="battle-card-img-ph" style="font-size:${z.isBoss?46:34}px;">${z.emoji}</div>
+    <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${z.name}</div>
+    <span class="cat-badge" style="background:${z.typeColor}22;color:${z.typeColor};">${z.isBoss?'Miniboss':'Zombie'}</span>
+    <div style="font-size:10px;color:var(--text3);">⚔️${z.atk} 🛡️${z.def}</div>
+    <div class="bc-bar-wrap"><div class="bc-hp-fill" style="width:${hpPct}%;background:${hpColor};"></div></div>
+    <div style="font-size:10px;color:var(--text2);">❤️ ${z.hp}/${z.maxHp}${z.dot>0?' 🔥'+z.dotTurns+'t':''}</div>
+    ${z.defeated?'<div style="font-size:11px;color:#ef4444;text-align:center;margin-top:2px;">💀 Defeated</div>':''}
+  </div>`;
+}
+function buildWaveMyCardHTML(f,run){
+  const hpPct=Math.max(0,Math.round((f.hp/f.maxHp)*100));
+  const hpColor=hpPct>50?'#22c55e':hpPct>25?'#f59e0b':'#ef4444';
+  const stPct=Math.max(0,Math.round((f.stamina/f.maxStamina)*100));
+  const col=classColor(f.class_name);
+  const moves=getMoves(f,{poolMoves:run.poolMoves});
+  const isSelected=f.uid===run.selectedActorUid;
+  const isSelectable=!f.defeated&&!run.busy&&!run.ended&&!run.pendingTargetMode&&!run.selectedActorUid;
+  let cls='battle-card';
+  if(f.defeated)cls+=' defeated-card';
+  else if(isSelected)cls+=' selected-attacker';
+  else if(isSelectable)cls+=' selectable-fighter';
+  if(f.dot>0&&!f.defeated)cls+=' dot-card';
+  if(f.shielded&&!f.defeated)cls+=' shielded-card';
+  return `<div class="${cls}" id="fc-${f.uid}" ${isSelectable?`onclick="selectWaveActor('${f.uid}')"`:''}>
+    ${f.shielded&&!f.defeated?'<div class="shield-badge">🛡️</div>':''}
+    ${isSelected?`<div style="position:absolute;top:4px;right:4px;background:#4f8ef7;color:#fff;font-size:9px;padding:1px 6px;border-radius:4px;font-weight:700;z-index:2;">USING</div>`:''}
+    ${f.image_url?`<img class="battle-card-img" src="${f.image_url}">`:`<div class="battle-card-img-ph">${classEmoji(f.class_name)}</div>`}
+    <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.name}</div>
+    <span class="cat-badge" style="background:${col.bg};color:${col.fg};font-size:9px;">${f.class_name}</span>
+    <div style="font-size:10px;color:var(--text3);">⚔️${f.atk} 🛡️${f.def}${f.shielded?' 🛡️shielded':''}</div>
+    <div class="bc-bar-wrap"><div class="bc-hp-fill" style="width:${hpPct}%;background:${hpColor};"></div></div>
+    <div style="font-size:10px;color:var(--text2);">❤️ ${f.hp}/${f.maxHp}${f.dot>0?' 🔥'+f.dotTurns+'t':''}</div>
+    <div class="bc-bar-wrap"><div class="bc-st-fill" style="width:${stPct}%;"></div></div>
+    <div style="font-size:10px;color:var(--text3);">⚡ ${f.stamina}/${f.maxStamina}</div>
+    ${moves.map(m=>{
+      const ok=f.stamina>=(m.stamina_cost||0);
+      return `<div class="bc-move-row" style="color:${ok?'var(--text2)':'var(--text4)'};">${MOVE_ICONS[m.type]||'⚔️'} ${m.name}<span>⚡${m.stamina_cost||0}</span></div>`;
+    }).join('')}
+    ${f.defeated?'<div style="font-size:11px;color:#ef4444;text-align:center;margin-top:2px;">💀 Defeated</div>':''}
+  </div>`;
+}
+
+function renderWaveScreen(){
+  const el=document.getElementById('waves-content');
+  const run=currentWaveRun;
+  if(!el||!run)return;
+
+  const liveZombies=run.visible.filter(z=>!z.defeated);
+  const boss=isMinibossWave(run.waveNum);
 
   let actionHTML='';
-  if(s.ended){
+  if(run.ended){
     actionHTML=`<div class="action-panel">
-      <div class="phase-label">🏁 Battle Over</div>
+      <div class="phase-label">💀 Run Over</div>
       <div style="text-align:center;padding:6px 0;">
-        <div style="font-size:15px;font-weight:700;color:${s.resultWin?'#22c55e':'#ef4444'};">${s.resultWin?'🏆 Victory!':'💀 Defeat'}</div>
-        <div style="font-size:13px;color:var(--text2);margin-top:4px;">${s.resultWin?`+$${s.resultMoney} · +${s.resultXp} XP${s.resultLeveledUp?' · Card leveled up to Lv'+s.resultLevel+'!':''}${s.resultAccountLevelUp?' · Advanced to Level '+(s.level+1)+'!':''}`:'No rewards this time — try a stronger card!'}</div>
+        <div style="font-size:17px;font-weight:800;color:${run.resultIsNewBest?'#facc15':'#ef4444'};">${run.resultIsNewBest?`🏆 New Best — Wave ${run.waveNum}!`:`Fell at Wave ${run.waveNum}`}</div>
+        <div style="font-size:13px;color:var(--text2);margin-top:4px;">${run.totalKills} zombies killed this run${run.resultIsNewBest&&run.resultBonus.money>0?` · +$${run.resultBonus.money} · +${run.resultBonus.xp} XP (personal best bonus)`:''}</div>
       </div>
-      <button class="btn btn-primary" onclick="closeBotFightModal()">Continue</button>
+      <button class="btn btn-primary" onclick="closeWaveRun()">Continue</button>
     </div>`;
-  } else if(s.busy){
-    actionHTML=`<div class="action-panel" style="text-align:center;">
-      <div style="font-size:13px;color:var(--text3);">⏳ Resolving turn...</div>
-    </div>`;
-  } else {
-    const typeColor={attack:'#3b82f6',heavy:'#ef4444',heal:'#22c55e',shield:'#f59e0b',dot:'#f97316',multi:'#8b5cf6',power:'#ec4899',combo:'#06b6d4',speed:'#84cc16',aoe:'#dc2626',lifesteal:'#e11d48',stamina_steal:'#7c3aed',taunt:'#92400e',curse:'#6b21a8',counter:'#065f46',execute:'#1c1917',scatter:'#0369a1'};
-    const stPct=Math.max(0,Math.round((s.player.stamina/s.player.maxStamina)*100));
+  } else if(run.busy){
+    actionHTML=`<div class="action-panel" style="text-align:center;"><div style="font-size:13px;color:var(--text3);">⏳ The horde is attacking...</div></div>`;
+  } else if(run.pendingTargetMode){
     actionHTML=`<div class="action-panel">
-      <div class="phase-label">🃏 ${s.player.name} — choose an ability</div>
+      <div class="phase-label">🎯 Select a target</div>
+      <p style="font-size:13px;color:var(--text3);margin:0 0 8px;">Tap a zombie above to attack it.</p>
+      <button class="btn btn-sm" style="align-self:flex-start;" onclick="cancelWaveTarget()">← Cancel</button>
+    </div>`;
+  } else if(run.selectedActorUid){
+    const actor=run.team.find(t=>t.uid===run.selectedActorUid);
+    const moves=getMoves(actor,{poolMoves:run.poolMoves});
+    const typeColor={attack:'#3b82f6',heavy:'#ef4444',heal:'#22c55e',shield:'#f59e0b',dot:'#f97316',multi:'#8b5cf6',power:'#ec4899',combo:'#06b6d4',speed:'#84cc16',aoe:'#dc2626',lifesteal:'#e11d48'};
+    const stPct=Math.max(0,Math.round((actor.stamina/actor.maxStamina)*100));
+    actionHTML=`<div class="action-panel">
+      <div class="phase-label">🃏 ${actor.name} — choose an ability</div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
         <span style="font-size:12px;color:var(--text3);white-space:nowrap;">⚡ Stamina</span>
         <div class="bc-bar-wrap" style="flex:1;"><div class="bc-st-fill" style="width:${stPct}%;"></div></div>
-        <span style="font-size:12px;font-weight:700;color:var(--text2);white-space:nowrap;">${s.player.stamina}/${s.player.maxStamina}</span>
+        <span style="font-size:12px;font-weight:700;color:var(--text2);white-space:nowrap;">${actor.stamina}/${actor.maxStamina}</span>
       </div>
-      ${s.playerMoves.length?s.playerMoves.map((m,idx)=>{
-        const ok=s.player.stamina>=(m.stamina_cost||0);
+      <button class="btn btn-sm" style="align-self:flex-start;margin-bottom:4px;" onclick="cancelWaveActor()">← Back</button>
+      ${moves.length?moves.map((m,idx)=>{
+        const ok=actor.stamina>=(m.stamina_cost||0);
         const tc=typeColor[m.type]||'#6b7280';
-        const dmgLabel=m.type==='heal'?`+${m.value}HP`:m.type==='shield'?`${m.value}% block`:m.type==='speed'?'Dodge×2':m.type==='dot'?`${Math.round(m.value/3)}/t×${m.dot_turns||3}`:m.type==='multi'?`${m.value}×${m.hits_min||2}-${m.hits_max||4}`:m.value?`${m.value}dmg`:'';
-        return `<button class="ability-btn${!ok?' no-stamina':''}" ${!ok?'disabled':''} onclick="playerUseBotMove(${idx})" style="border-left:3px solid ${tc};">
+        const dmgLabel=m.type==='heal'?`+${m.value}HP`:m.type==='shield'?`${m.value}% block`:m.value?`${m.value}dmg`:'';
+        return `<button class="ability-btn${!ok?' no-stamina':''}" ${!ok?'disabled':''} onclick="pickWaveMove(${idx})" style="border-left:3px solid ${tc};">
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <span>${MOVE_ICONS[m.type]||'⚔️'} <strong>${m.name}</strong> <span style="font-size:11px;color:${tc};">${MOVE_LABELS[m.type]||m.type}</span></span>
             <span style="font-size:12px;color:var(--text3);">⚡${m.stamina_cost||0} · ${dmgLabel}</span>
@@ -8981,46 +9277,39 @@ function renderBotFightModal(){
         </button>`;
       }).join(''):`<p style="font-size:13px;color:var(--text3);margin:0;">No moves available.</p>`}
     </div>`;
+  } else {
+    actionHTML=`<div class="action-panel" style="text-align:center;">
+      <div style="font-size:13px;color:var(--text3);margin-bottom:8px;">Select one of your cards below to act.</div>
+      <button class="btn btn-sm" style="color:#f87171;" onclick="retreatWaveRun()">🏳️ Retreat (bank your progress)</button>
+    </div>`;
   }
 
-  const logHTML=[...s.log].reverse().slice(0,20).map(l=>{
+  const logHTML=[...run.log].reverse().slice(0,20).map(l=>{
     let cls='log-entry';
-    if(l.includes('CRIT')||l.includes('EXECUTE'))cls+=' crit';
-    else if(l.includes('damage')||l.includes('defeated')||l.includes('dmg'))cls+=' dmg';
-    else if(l.includes('restored')||l.includes('HP!'))cls+=' heal-log';
+    if(l.includes('CRIT')||l.includes('EXECUTE')||l.includes('boss defeated'))cls+=' crit';
+    else if(l.includes('damage')||l.includes('defeated')||l.includes('explodes'))cls+=' dmg';
+    else if(l.includes('restored')||l.includes('HP!')||l.includes('cleared'))cls+=' heal-log';
     return `<div class="${cls}">${l}</div>`;
   }).join('');
 
-  const turnMsg=s.ended?'🏁 Battle Over':s.busy?'⏳ Resolving turn...':'⚡ Your Turn — Choose a move';
-
   el.innerHTML=`
-    <div class="battle-arena-wrap" id="botfight-arena">
-      <div class="turn-bar ${(!s.ended&&!s.busy)?'turn-yours':'turn-opp'}">${turnMsg}</div>
-
+    <div class="battle-arena-wrap" id="wave-arena">
+      <div class="wave-banner${boss?' miniboss-banner':''}">${boss?`👑 WAVE ${run.waveNum} — MINIBOSS`:`🧟 WAVE ${run.waveNum}`}</div>
       <div>
-        <div style="font-size:11px;font-weight:700;color:#fca5a5;margin-bottom:6px;padding:3px 8px;background:#2d0a0a;border-radius:6px;display:inline-block;">🔴 ${s.bot.name} (Lv ${s.level})</div>
-        <div class="battle-field-opp">${buildBotOppCardHTML(s.bot,`Lv ${s.level} Bot`)}</div>
+        <div style="font-size:11px;font-weight:700;color:#fca5a5;margin-bottom:6px;padding:3px 8px;background:#2d0a0a;border-radius:6px;display:inline-block;">🧟 The Horde (${liveZombies.length} visible${run.backlog.length?' · '+run.backlog.length+' more incoming':''})</div>
+        <div class="battle-field-opp">${run.visible.map(z=>buildWaveZombieCardHTML(z,run.pendingTargetMode,(run.justEnteredUids||[]).includes(z.uid))).join('')}</div>
       </div>
-
-      <div class="battle-log-box">${logHTML||'<div class="log-entry">Battle started!</div>'}</div>
-
+      <div class="battle-log-box">${logHTML||'<div class="log-entry">The horde approaches...</div>'}</div>
       ${actionHTML}
-
       <div>
-        <div style="font-size:11px;font-weight:700;color:#93c5fd;margin-bottom:6px;padding:3px 8px;background:#0c2340;border-radius:6px;display:inline-block;">🟢 ${s.player.name} (You)</div>
-        <div class="battle-field-mine">${buildBotMyCardHTML(s.player,s.playerMoves)}</div>
+        <div style="font-size:11px;font-weight:700;color:#93c5fd;margin-bottom:6px;padding:3px 8px;background:#0c2340;border-radius:6px;display:inline-block;">🟢 Your Team</div>
+        <div class="battle-field-mine">${run.team.map(f=>buildWaveMyCardHTML(f,run)).join('')}</div>
       </div>
-
-      <button class="btn btn-sm" style="color:var(--text3);align-self:flex-start;margin-top:4px;" onclick="closeBotFightModal()">← Leave Battle</button>
     </div>`;
+  run.justEnteredUids=[];
 }
 
-function closeBotFightModal(){
-  currentBotFight=null;
-  renderBotBattle();
-}
 
-// ── RAID BOSS (weekly, shared, leaderboard-ranked) ──────────────────────
 // A fresh boss every 7 days — same boss, same stats, for every player that week, so
 // "who did best" is a fair comparison. Rotation is deterministic (epoch-week based),
 // no server cron needed.
